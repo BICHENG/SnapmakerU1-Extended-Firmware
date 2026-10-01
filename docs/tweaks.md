@@ -99,14 +99,28 @@ is short, so a slightly slower dock approach is expected, not a regression.
 - Start with `Balanced` and a small test print, and watch the first tool changes
 - Disable if you see dock alignment problems or layer shifts
 
-**Note:** This tweak cannot be combined with
-[TMC Reduced Current](#tmc-reduced-current) — running the X/Y motors at 1.0A with
-these raised speed limits is untested. Firmware Config refuses that combination
-and tells you which tweak to disable first. [TMC AutoTune](#tmc-autotune) can be
-used alongside Max Speed; the two no longer change any setting in common.
+**Note:** This tweak can be combined with
+[TMC Reduced Current](#tmc-reduced-current). The combination runs X/Y motors at
+1.0A with raised speed limits, so monitor for skipped steps, layer shifts, and
+motor temperature during the first prints. [TMC AutoTune](#tmc-autotune) can
+also be used alongside Max Speed; the two do not change any setting in common.
 
 **Configuration:**
 This feature can **only** be configured via Firmware Configuration web interface. Manual configuration is not supported.
+
+## Fan Curves
+
+Selects nonlinear fan curves for the power fan and all four nozzle fans.
+
+**Options:**
+
+- `Quiet` - no nozzle fan below 50°C, then ramps from actual nozzle temperature; the cavity guard starts at 55°C and is limited to 60%.
+- `Balanced` - no nozzle fan below 60°C, then ramps earlier than Quiet; the cavity guard starts at 55°C and is limited to 60%.
+- `Stock` - removes the override and restores the curves from the base printer configuration.
+
+The custom curves ignore nozzle target temperature. A nozzle target of 250°C therefore does not immediately select the 250°C fan speed; the measured nozzle temperature must reach that threshold. This prevents all four nozzle fans from starting loudly during preheating.
+
+The setting is available under **Settings → Tweaks → Fan Curves**. Applying an option writes one file to `/oem/printer_data/config/extended/klipper/20_fan_curves.cfg` and restarts Klipper.
 
 ## Object Processing for Adaptive Mesh
 

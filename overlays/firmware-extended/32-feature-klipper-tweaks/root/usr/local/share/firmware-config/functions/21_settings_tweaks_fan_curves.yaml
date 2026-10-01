@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-PackageHomePage: https://github.com/paxx12-snapmaker-u1/SnapmakerU1-Extended-Firmware
+# SPDX-FileCopyrightText: Copyright (c) 2026 @paxx12
+
+settings:
+  tweaks:
+    items:
+      fan_curves:
+        label: Fan Curves
+        description: Select quieter nonlinear cooling curves for the power and nozzle fans. Curves use actual nozzle temperature and keep the cavity over-temperature guard.
+        help_url: http://snapmakeru1-extended-firmware.pages.dev/tweaks#fan-curves
+        get_cmd:
+          - bash
+          - -c
+          - |
+            CFG=/oem/printer_data/config/extended/klipper/20_fan_curves.cfg
+            if grep -q '^# fan-curves: quiet$' "$CFG" 2>/dev/null; then
+              echo "quiet"
+            elif grep -q '^# fan-curves: balanced$' "$CFG" 2>/dev/null; then
+              echo "balanced"
+            else
+              echo "stock"
+            fi
+        options:
+          quiet:
+            label: Quiet
+            confirm: |-
+              Apply the Quiet fan curves?
+              Fans stay off below 50°C and ramp nonlinearly from the actual nozzle temperature. The cavity guard is raised to 55°C and limited to 60%.
+            cmd:
+              - bash
+              - -xc
+              - |
+                mkdir -p /oem/printer_data/config/extended/klipper &&
+                cp -v /usr/local/share/firmware-config/tweaks/klipper/fan_curves_quiet.cfg /oem/printer_data/config/extended/klipper/20_fan_curves.cfg &&
+                echo "Quiet fan curves enabled. Restarting Klipper..." &&
+                /etc/init.d/S60klipper restart
+          balanced:
+            label: Balanced
+            confirm: |-
+              Apply the Balanced fan curves?
+              Fans stay off below 60°C and ramp earlier than Quiet. The cavity guard is raised to 55°C and limited to 60%.
+            cmd:
+              - bash
+              - -xc
+              - |
+                mkdir -p /oem/printer_data/config/extended/klipper &&
+                cp -v /usr/local/share/firmware-config/tweaks/klipper/fan_curves_balanced.cfg /oem/printer_data/config/extended/klipper/20_fan_curves.cfg &&
+                echo "Balanced fan curves enabled. Restarting Klipper..." &&
+                /etc/init.d/S60klipper restart
+          stock:
+            label: Stock
+            confirm: Restore the original Snapmaker fan curves?
+            cmd:
+              - bash
+              - -xc
+              - |
+                rm -vf /oem/printer_data/config/extended/klipper/20_fan_curves.cfg &&
+                echo "Stock fan curves restored. Restarting Klipper..." &&
+                /etc/init.d/S60klipper restart
+        default: stock
