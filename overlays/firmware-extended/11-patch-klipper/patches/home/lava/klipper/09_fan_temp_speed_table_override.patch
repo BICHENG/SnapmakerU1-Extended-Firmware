@@ -1,0 +1,11 @@
+--- a/klippy/extras/heater_fan.py
++++ b/klippy/extras/heater_fan.py
+@@ -26,8 +26,6 @@
+         self.fan_timer = None
+         # Stepped fan table
+         self.stepped_temp_table = config.getlists('stepped_temp_table', None, seps=(',', '\n'), count=2, parser=float)
+-        if self.stepped_temp_table is not None and self.temp_speed_table is not None:
+-            raise config.error("Cannot use both 'stepped_temp_table' and 'temp_speed_table' at the same time")
+         if self.stepped_temp_table is not None:
+             for j in range(1, len(self.stepped_temp_table)):
+                 current_temp = self.stepped_temp_table[j][0]

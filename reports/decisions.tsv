@@ -1,0 +1,6 @@
+ts	phase	decision	why	evidence	result
+2026-10-01T18:50:00+08:00	frame	kept the existing poc/fan-curves-imu-20261001 branch and working changes	avoid destroying prior implementation and preserve a direct rollback to 695dcab	PLAN.md, git status	open
+2026-10-01T18:50:00+08:00	frame	will not mutate the printer before baseline backup	firmware flashing is a one-way operational action even with A/B recovery	 docs/epics/EPIC-A-foundation.md	planned
+2026-10-01T19:40:00+08:00	runtime	mapped standby fan commands from printer source instead of guessing P ids	M106 without P controls main fan; P2 controls cavity_fan; P3 is purifier-gated	/home/lava/klipper/klippy/extras/fan.py, purifier.py, reports/imu/20261002-004313/standby-fan-entry-test.jsonl	verified
+2026-10-01T19:55:00+08:00	overlay	added Klipper patch so temp_speed_table can override the stock stepped table	original parser rejected the merged section before callback selection	09_fan_temp_speed_table_override.patch, patch --dry-run	verified
+2026-10-01T20:20:00+08:00	runtime	kept Quiet as the first active curve and tested one nozzle at 75C	current nozzle fan reached 0.10 while power fan and other nozzle fans stayed 0	quiet-curve-thermal-test.jsonl, Moonraker status	verified
