@@ -8,12 +8,12 @@
 
 - A 基础现场：已完成。工作区、分支、pax `develop` 基线、打印机地址、SSH、Tailscale 状态和多份保护性备份已建立。
 - B overlay：已完成。Fan Curves、Max Speed/TMC Reduced Current 共存、Klipper table 兼容补丁已经进入分支。
-- C 构建：上一版已完成。fork Actions run `37039986048` 从提交 `00dcebe` 构建完整 `U1_extended__upgrade.bin`，大小 `252582656`，SHA256 `CD8056BB617D706C7B63F335ACBBD22112D47AD7138F21D024DB1D64CECF1AE7`；本次电源风扇低速预转改动等待新的 Actions 产物。
+- C 构建：已完成。fork Actions run `37044194647` 从提交 `922aed2` 构建完整 `U1_extended__upgrade.bin`，大小 `252582656`，SHA256 `8C62B5371CF0AF0E7B94177A592F308A978B94BA801A783C5AEE348EA84AEC74`；产物清单在 `reports/build/actions-37044194647-manifest.txt`。
 - D 备份：已完成。最终刷机前备份位于 `reports/baseline/20261002-224938-final-pre-upgrade/`，包含配置、Tailscale 状态、运行状态和校验值；已保存 pax `2.0.0` 完整回滚固件。
 - E 升级：已完成。完整 UPFILE 经 Firmware Config `/api/upgrade/upload` 上传，root 升级服务写入并校验 `uboot_b`、`boot_b`、`system_b`，页面返回 `SUCCESS: Completed successfully`。
 - F 运行验证：进行中。Klipper、Moonraker、Firmware Config、Tailscale、Quiet、Balanced、Stock、Max Speed 与 Reduced Current 共存、主风扇和腔体风扇 IMU 档位已验证；新电源风扇 70°C 曲线和典型打印窗口仍需在新固件上验证。
 - G 报告：进行中。正在把升级时间线、恢复状态、IMU 原始数据、局限和剩余验证整理到工程报告与决策记录。
-- 最新构建门：待通过。上一版 run `37039986048` 已成功生成完整 UPFILE；本次加入 `target_temp_threshold` / `target_temp_speed` 后，必须以新提交对应的 Actions UPFILE 为准，随后再执行刷机前备份、Firmware Config 上传和现场验证。
+- 最新构建门：已通过。Actions run `37044194647` 对提交 `922aed2` 成功生成并发布完整 UPFILE；下一步重新做刷机前备份，再走 Firmware Config 上传和现场验证。
 
 当前已经跑通的升级入口是：**推送最新分支 → Actions 成功 → 校验完整 UPFILE → 刷机前备份 → Firmware Config 页面上传完整 `U1_extended__upgrade.bin` → 健康检查 → IMU/功能矩阵 → 报告。** 后续升级复用这条路径。
 
