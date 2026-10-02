@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-PackageHomePage: https://github.com/paxx12-snapmaker-u1/SnapmakerU1-Extended-Firmware
+# SPDX-FileCopyrightText: Copyright (c) 2026 @paxx12, @ni4223
+
+# tier: balanced
+# Max Speed (Balanced) - Raised XY Motion and Faster Tool Changes
+# Origin: https://github.com/JNP-1/Snapmaker-U1-Config, reduced here. The
+# conservative tier; tool change values sit at roughly half the point where tool
+# confirmation retries were observed.
+#
+# WARNING: Only enable on a calibrated printer. Dock positions and belt tension
+# must be correct and tool changes already reliable on the stock configuration.
+# Raised acceleration can cause ringing if input shaper is not calibrated.
+# Running above the rated limits also accelerates wear on the printer.
+#
+# Docs: http://snapmakeru1-extended-firmware.pages.dev/tweaks#max-speed
+
+[printer]
+max_velocity: 600  # stock: 500
+max_accel: 22000  # stock: 20000
+
+# Faster tool changes for all four toolheads
+
+[extruder]
+fast_move_speed: 550  # stock: 400
+slow_move_speed: 40  # stock: 60, lower on purpose
+grab_speed: 30  # stock: 10
+switch_accel: 12000  # stock: 5000
+
+[extruder1]
+fast_move_speed: 550  # stock: 400
+slow_move_speed: 40  # stock: 60, lower on purpose
+grab_speed: 30  # stock: 10
+switch_accel: 12000  # stock: 5000
+
+[extruder2]
+fast_move_speed: 550  # stock: 400
+slow_move_speed: 40  # stock: 60, lower on purpose
+grab_speed: 30  # stock: 10
+switch_accel: 12000  # stock: 5000
+
+[extruder3]
+fast_move_speed: 550  # stock: 400
+slow_move_speed: 40  # stock: 60, lower on purpose
+grab_speed: 30  # stock: 10
+switch_accel: 12000  # stock: 5000
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-PackageHomePage: https://github.com/paxx12-snapmaker-u1/SnapmakerU1-Extended-Firmware
+# SPDX-FileCopyrightText: Copyright (c) 2026 @paxx12
+
+# TMC Reduced Current Configuration
+# This configuration reduces the stepper motor run current for lower heat generation
+# and quieter operation.
+#
+# WARNING: Reduced current may cause skipped steps under heavy load or fast movements.
+# Monitor print quality and increase current if you experience layer shifts or other
+# motion issues.
+
+[tmc2240 stepper_x]
+run_current: 1.0  # reduced from default 1.2
+
+[tmc2240 stepper_y]
+run_current: 1.0  # reduced from default 1.2
+c88fde2b9bd93e0f0c54184ed194e588ec330670832ef8321823d7c9c197e1e2  /home/lava/printer_data/tailscale/tailscaled.state
+storagemedia=emmc androidboot.storagemedia=emmc androidboot.mode=normal  androidboot.verifiedbootstate=orange android_slotsufix=_a vertype=rel earlycon=uart8250,mmio32 ro rootwait delayacct rootfstype=squashfs androidboot.fwver=ddr-v1.07-6e9ae14bbb,bl31-v1.21,bl32-v1.07,uboot-3ed3e17641-09/14/2026 root=PARTUUID=45010000-0000-497e-8000-1fcb00002e87

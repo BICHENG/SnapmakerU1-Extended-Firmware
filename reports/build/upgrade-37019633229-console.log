@@ -1,0 +1,147 @@
+Warning: Permanently added '100.70.57.39' (ED25519) to the list of known hosts.
+[2026-10-02 15:03:39] [UPG] upgrade_soc: Current slot is A, upgrade B and reboot to active.
+LOG_INFO: *** update_engine: V1.0.1-g<unknown> ***.
+LOG_INFO: *** will upgrade firmware from normal system ***
+LOG_INFO: main-285: is ota update
+LOG_INFO: Current Mode is 'A' system.
+LOG_INFO: start RK_ota_url url [/home/lava/update-37019633229.img] save path [/home/lava/update-37019633229.img].
+LOG_INFO: save image to /home/lava/update-37019633229.img.
+LOG_INFO: url = /home/lava/update-37019633229.img.
+LOG_INFO: [MiscUpdate:90] save path: /home/lava/update-37019633229.img
+LOG_INFO: In A system, now upgrade B system.
+LOG_INFO: [RK_ota_set_partition:106] num [16]
+LOG_INFO: need update parameter.
+LOG_INFO: need update uboot_b.
+LOG_INFO: Current device is not MTD
+LOG_INFO: need update boot_b.
+LOG_INFO: Current device is not MTD
+LOG_INFO: need update system_b.
+LOG_INFO: Current device is not MTD
+LOG_INFO: start RK_ota_start.
+LOG_INFO: rk m_status = 1.
+LOG_INFO: where the file is local.
+LOG_INFO: [RK_ota_set_partition:106] num [16]
+LOG_DEBUG: uiTag = 57464b52.
+LOG_DEBUG: usSize = 66.
+LOG_DEBUG: dwVersion = 1000000.
+LOG_DEBUG: btMajor = 1, btMinor = 0, usSmall = 00.
+LOG_DEBUG: dwBootOffset = 66.
+LOG_DEBUG: dwBootSize = 729c0.
+LOG_DEBUG: dwFWOffset = 72a26.
+LOG_DEBUG: dwFWSize = f058004.
+LOG_DEBUG: tag = 1178684242
+LOG_DEBUG: size = 252018688
+LOG_DEBUG: machine_model =  RK3562
+LOG_DEBUG: manufacturer =  RK3562
+LOG_DEBUG: version = 16777216
+LOG_DEBUG: item = 12.
+LOG_INFO: ================================================
+LOG_DEBUG: name = package-file
+LOG_DEBUG: file = package-file
+LOG_DEBUG: offset = 471590
+LOG_DEBUG: flash_offset = -1
+LOG_DEBUG: usespace = 1
+LOG_DEBUG: size = 251
+LOG_INFO: ================================================
+LOG_DEBUG: name = parameter
+LOG_DEBUG: file = parameter.txt
+LOG_DEBUG: offset = 473638
+LOG_DEBUG: flash_offset = 0
+LOG_DEBUG: usespace = 1
+LOG_DEBUG: size = 541
+LOG_INFO: ================================================
+LOG_DEBUG: name = bootloader
+LOG_DEBUG: file = MiniLoaderAll.bin
+LOG_DEBUG: offset = 102
+LOG_DEBUG: flash_offset = -1
+LOG_DEBUG: usespace = 230
+LOG_DEBUG: size = 469440
+LOG_INFO: ================================================
+LOG_DEBUG: name = uboot_a
+LOG_DEBUG: file = uboot.img
+LOG_DEBUG: offset = 946726
+LOG_DEBUG: flash_offset = 16384
+LOG_DEBUG: usespace = 2048
+LOG_DEBUG: size = 4194304
+LOG_INFO: ================================================
+LOG_DEBUG: name = uboot_b
+LOG_DEBUG: file = uboot.img
+LOG_DEBUG: offset = 946726
+LOG_DEBUG: flash_offset = 24576
+LOG_DEBUG: usespace = 2048
+LOG_DEBUG: size = 4194304
+LOG_INFO: ================================================
+LOG_DEBUG: name = misc
+LOG_DEBUG: file = misc.img
+LOG_DEBUG: offset = 5141030
+LOG_DEBUG: flash_offset = 32768
+LOG_DEBUG: usespace = 24
+LOG_DEBUG: size = 49152
+LOG_INFO: ================================================
+LOG_DEBUG: name = boot_a
+LOG_DEBUG: file = boot.img
+LOG_DEBUG: offset = 5190182
+LOG_DEBUG: flash_offset = 40960
+LOG_DEBUG: usespace = 8527
+LOG_DEBUG: size = 17462784
+LOG_INFO: ================================================
+LOG_DEBUG: name = boot_b
+LOG_DEBUG: file = boot.img
+LOG_DEBUG: offset = 5190182
+LOG_DEBUG: flash_offset = 106496
+LOG_DEBUG: usespace = 8527
+LOG_DEBUG: size = 17462784
+LOG_INFO: ================================================
+LOG_DEBUG: name = system_a
+LOG_DEBUG: file = rootfs.img
+LOG_DEBUG: offset = 22653478
+LOG_DEBUG: flash_offset = 172032
+LOG_DEBUG: usespace = 104032
+LOG_DEBUG: size = 213057536
+LOG_INFO: ================================================
+LOG_DEBUG: name = system_b
+LOG_DEBUG: file = rootfs.img
+LOG_DEBUG: offset = 22653478
+LOG_DEBUG: flash_offset = 786432
+LOG_DEBUG: usespace = 104032
+LOG_DEBUG: size = 213057536
+LOG_INFO: ================================================
+LOG_DEBUG: name = oem
+LOG_DEBUG: file = oem.img
+LOG_DEBUG: offset = 235711014
+LOG_DEBUG: flash_offset = 1400832
+LOG_DEBUG: usespace = 4096
+LOG_DEBUG: size = 8388608
+LOG_INFO: ================================================
+LOG_DEBUG: name = userdata
+LOG_DEBUG: file = userdata.img
+LOG_DEBUG: offset = 244099622
+LOG_DEBUG: flash_offset = 3497984
+LOG_DEBUG: usespace = 4096
+LOG_DEBUG: size = 8388608
+LOG_INFO: new md5:6cc311807f2a05f4cc92d27eb64b1d4f
+LOG_INFO: MD5Check is ok of /home/lava/update-37019633229.img
+LOG_INFO: analyticImage ok.
+LOG_INFO: found rkimage_hdr.item[1].name = parameter.
+LOG_INFO: found rkimage_hdr.item[4].name = uboot_b.
+LOG_INFO: found rkimage_hdr.item[7].name = boot_b.
+LOG_INFO: found rkimage_hdr.item[9].name = system_b.
+LOG_INFO: Current device is not MTD
+LOG_INFO: now write parameter to /dev/block/by-name/gpt.
+LOG_INFO: ingore misc.
+LOG_INFO: now write uboot_b to /dev/block/by-name/uboot_b.
+LOG_INFO: update_cmd.flash_offset = 0.
+LOG_INFO: flash_normal:200 start.
+LOG_INFO: Current device is not MTD
+LOG_INFO: flash_normal:222, diff check for uboot_b
+LOG_WARN: Not a diff image, ret = 80
+LOG_INFO: block_write src /home/lava/update-37019633229.img dest /dev/block/by-name/uboot_b.
+LOG_ERROR: Can't open /dev/block/by-name/uboot_b
+LOG_ERROR: update /dev/block/by-name/uboot_b error.
+LOG_INFO: rk m_status = 2.
+[2026-10-02 15:03:42] [UPG] additional_operations_before_active: Additional operations before activating the soc firmware.
+rm: cannot remove '/oem/.printer_data': Permission denied
+[2026-10-02 15:03:42] [UPG] upgrade_soc: upgrade soc finish, prepare to reboot.
+reboot: Operation not permitted
+[2026-10-02 15:04:03] [UPG] upgrade_soc: reboot failed ? reset force.
+/home/lava/bin/systemUpgrade.sh: line 657: /proc/sysrq-trigger: Permission denied

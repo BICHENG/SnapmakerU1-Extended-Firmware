@@ -1,0 +1,91 @@
+make -C tools/rk2918_tools
+make[1]: Entering directory '/mnt/c/Users/Administrator/Desktop/00.POC/00.Snapmaker-Firmware/tools/rk2918_tools'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/mnt/c/Users/Administrator/Desktop/00.POC/00.Snapmaker-Firmware/tools/rk2918_tools'
+make -C tools/upfile
+make[1]: Entering directory '/mnt/c/Users/Administrator/Desktop/00.POC/00.Snapmaker-Firmware/tools/upfile'
+make[1]: 'upfile' is up to date.
+make[1]: Leaving directory '/mnt/c/Users/Administrator/Desktop/00.POC/00.Snapmaker-Firmware/tools/upfile'
+make -C tools/resource_tool
+make[1]: Entering directory '/mnt/c/Users/Administrator/Desktop/00.POC/00.Snapmaker-Firmware/tools/resource_tool'
+make[1]: 'resource_tool' is up to date.
+make[1]: Leaving directory '/mnt/c/Users/Administrator/Desktop/00.POC/00.Snapmaker-Firmware/tools/resource_tool'
+./scripts/create_firmware.sh firmware/U1_2.0.0.205_20260914173503_upgrade.bin tmp/firmware firmware/firmware_extended.bin overlays/common/01-store-version/ overlays/common/02-enable-ssh/ overlays/common/03-disable-wlan-power-save/ overlays/common/04-nginx-fluidd.d/ overlays/common/05-persist-dhcp/ overlays/common/06-restore-eth0-mac/ overlays/firmware-extended/01-system-utils/ overlays/firmware-extended/02-firmware-config/ overlays/firmware-extended/03-extended-runtime/ overlays/firmware-extended/10-patch-kernel-modules/ overlays/firmware-extended/11-patch-klipper/ overlays/firmware-extended/12-patch-moonraker/ overlays/firmware-extended/13-patch-rfid/ overlays/firmware-extended/30-feature-ssh/ overlays/firmware-extended/31-feature-afc-lite/ overlays/firmware-extended/32-feature-klipper-tweaks/ overlays/firmware-extended/33-feature-timelapse-stub/ overlays/firmware-extended/34-feature-faulty-toolhead/ overlays/firmware-extended/35-feature-klipper-hooks/ overlays/firmware-extended/36-feature-print-preferences/ overlays/firmware-extended/37-feature-chamber-heater/ overlays/firmware-extended/38-feature-spoollink/ overlays/firmware-extended/40-feature-upgrade-firmware/ overlays/firmware-extended/41-feature-generic-purifier/ overlays/firmware-extended/41-feature-toolhead-mcu-simulator/ overlays/firmware-extended/60-app-camera/ overlays/firmware-extended/61-app-remote-screen/ overlays/firmware-extended/62-app-fluidd/ overlays/firmware-extended/63-app-mainsail/ overlays/firmware-extended/64-app-openrfid/ overlays/firmware-extended/65-app-cloud/ overlays/firmware-extended/66-app-vpn/ overlays/firmware-extended/67-app-monitoring/ overlays/firmware-extended/68-app-filament-ui/ overlays/firmware-extended/69-app-helixscreen/ 
+>> Unpacking firmware...
+>> Extracting input firmware /mnt/c/Users/Administrator/Desktop/00.POC/00.Snapmaker-Firmware/firmware/U1_2.0.0.205_20260914173503_upgrade.bin...
+UPFILE Header:
+  Magic:	0x4b4d4e53
+  Magic Ver:	0x0002
+  Version:	               2.0.0.205
+  Build Date:	20260914173503
+  Checksum:	0x06f4
+  Files:	4
+Extracted UPFILE_VERSION (9 bytes)
+Extracted UPFILE_BUILD_DATE (14 bytes)
+File Entry 0:
+  Type:		0
+  Offset:	0x00000000000000c0
+  Size:		216572490
+  Checksum:	0x0a72
+  MD5:		a139887ceb430beee8349db04a4d8f3e
+Extracted update.img (216572490 bytes)
+File Entry 1:
+  Type:		1
+  Offset:	0x000000000ce8a30a
+  Size:		47800
+  Checksum:	0x0d3f
+  MD5:		95a8849d95f1eff22f5ffd9f61a76dc7
+Extracted at32f403a.bin (47800 bytes)
+File Entry 2:
+  Type:		2
+  Offset:	0x000000000ce95dc2
+  Size:		46372
+  Checksum:	0x0ac3
+  MD5:		a77c8a08bf776734f751ec0f9244e253
+Extracted at32f415.bin (46372 bytes)
+File Entry 3:
+  Type:		3
+  Offset:	0x000000000cea12e6
+  Size:		26
+  Checksum:	0x09ca
+  MD5:		a1a266748349988906e11d2d9aca2bf5
+Extracted MCU_DESC (26 bytes)
+>> Unpacking update.img...
+rom version: 1.0.0
+build time: 2026-09-14 17:35:48
+chip: 33353632
+checking md5sum....OK
+>> Unpacking rk-rom.img to rk-unpacked/...
+Check file...OK
+------- UNPACK -------
+Unpacking: name=package-file filename=package-file	nand_addr=4294967295/0	pos=2048/251/1
+Unpacking: name=parameter filename=parameter.txt	nand_addr=0/16384	pos=4096/541/1
+Unpacking: name=bootloader filename=MiniLoaderAll.bin	nand_addr=4294967295/0	pos=6144/469440/230
+Unpacking: name=uboot_a filename=uboot.img	nand_addr=16384/8192	pos=477184/4194304/2048
+Unpacking: name=uboot_b filename=uboot.img	nand_addr=24576/8192	pos=477184/4194304/2048
+Unpacking: name=misc filename=misc.img	nand_addr=32768/8192	pos=4671488/49152/24
+Unpacking: name=boot_a filename=boot.img	nand_addr=40960/65536	pos=4720640/17463808/8528
+Unpacking: name=boot_b filename=boot.img	nand_addr=106496/65536	pos=4720640/17463808/8528
+Unpacking: name=system_a filename=rootfs.img	nand_addr=172032/614400	pos=22185984/177139712/86494
+Unpacking: name=system_b filename=rootfs.img	nand_addr=786432/614400	pos=22185984/177139712/86494
+Unpacking: name=oem filename=oem.img	nand_addr=1400832/2097152	pos=199325696/8388608/4096
+Unpacking: name=userdata filename=userdata.img	nand_addr=3497984/4294967295	pos=207714304/8388608/4096
+UnPack OK!
+>> Done. Unpacked files are in /mnt/c/Users/Administrator/Desktop/00.POC/00.Snapmaker-Firmware/tmp/firmware/
+>> Extracting squashfs from rootfs.img...
+Parallel unsquashfs: Using 22 processors
+9940 inodes (13237 blocks) to write
+
+[|                                                           ]   148/23177   0%[/                                                           ]   332/23177   1%[=-                                                          ]   499/23177   2%[==|                                                         ]   943/23177   4%[===-                                                        ]  1518/23177   6%[=====\                                                      ]  1983/23177   8%[=====|                                                      ]  2335/23177  10%[======/                                                     ]  2569/23177  11%[=======-                                                    ]  2795/23177  12%[=======\                                                    ]  3070/23177  13%[========|                                                   ]  3329/23177  14%[=========/                                                  ]  3706/23177  15%[==========-                                                 ]  4091/23177  17%[===========\                                                ]  4382/23177  18%[===========|                                                ]  4677/23177  20%[============/                                               ]  4991/23177  21%[=============-                                              ]  5254/23177  22%[==============\                                             ]  5586/23177  24%[===============|                                            ]  6108/23177  26%[================/                                           ]  6535/23177  28%[=================-                                          ]  7022/23177  30%[==================\                                         ]  7388/23177  31%[===================|                                        ]  7732/23177  33%[====================/                                       ]  8139/23177  35%[=====================-                                      ]  8505/23177  36%[======================\                                     ]  8729/23177  37%[======================|                                     ]  8978/23177  38%[=======================/                                    ]  9227/23177  39%[========================-                                   ]  9528/23177  41%[=========================\                                  ]  9830/23177  42%[=========================|                                  ] 10116/23177  43%[==========================/                                 ] 10398/23177  44%[===========================-                                ] 10662/23177  46%[===========================\                                ] 10900/23177  47%[============================|                               ] 11193/23177  48%[=============================/                              ] 11422/23177  49%[==============================\                             ] 11819/23177  50%[==============================|                             ] 12048/23177  51%[===============================/                            ] 12241/23177  52%[===============================-                            ] 12422/23177  53%[================================\                           ] 12733/23177  54%[=================================|                          ] 13002/23177  56%[=================================/                          ] 13271/23177  57%[==================================-                         ] 13496/23177  58%[===================================\                        ] 13761/23177  59%[===================================|                        ] 14036/23177  60%[====================================/                       ] 14271/23177  61%[====================================-                       ] 14488/23177  62%[=====================================\                      ] 14704/23177  63%[======================================|                     ] 14928/23177  64%[======================================/                     ] 15155/23177  65%[=======================================-                    ] 15409/23177  66%[=======================================\                    ] 15697/23177  67%[========================================|                   ] 15955/23177  68%[=========================================/                  ] 16219/23177  69%[=========================================-                  ] 16441/23177  70%[==========================================\                 ] 16719/23177  72%[===========================================|                ] 16996/23177  73%[===========================================/                ] 17220/23177  74%[============================================-               ] 17460/23177  75%[=============================================\              ] 17682/23177  76%[=============================================|              ] 17943/23177  77%[==============================================/             ] 18184/23177  78%[==============================================-             ] 18357/23177  79%[===============================================\            ] 18628/23177  80%[================================================|           ] 18906/23177  81%[================================================/           ] 19161/23177  82%[=================================================-          ] 19498/23177  84%[==================================================\         ] 19772/23177  85%[===================================================|        ] 20046/23177  86%[===================================================/        ] 20214/23177  87%[===================================================\        ] 20410/23177  88%[====================================================-       ] 20736/23177  89%[=====================================================|      ] 20959/23177  90%[=====================================================-      ] 21204/23177  91%[======================================================\     ] 21471/23177  92%[=======================================================|    ] 21655/23177  93%[=======================================================/    ] 21804/23177  94%[========================================================\   ] 22053/23177  95%[========================================================/   ] 22322/23177  96%[=========================================================\  ] 22572/23177  97%[==========================================================/ ] 22832/23177  98%[==========================================================- ] 22974/23177  99%[===========================================================\] 23177/23177 100%
+
+created 8120 files
+created 775 directories
+created 1327 symlinks
+created 0 devices
+created 0 fifos
+created 0 sockets
+created 493 hardlinks
+>> Verifying ownership preservation...
+Error: /mnt/c/Users/Administrator/Desktop/00.POC/00.Snapmaker-Firmware/tmp/firmware/rootfs/home/lava/bin/hwver.sh should be 1000:1000, got 0:0
+This system does not properly preserve file ownership in squashfs operations.
+make: *** [Makefile:38: firmware/firmware_extended.bin] Error 1

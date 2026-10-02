@@ -1,0 +1,738 @@
+make -C tools/rk2918_tools
+make[1]: Entering directory '/home/administrator/00.Snapmaker-Firmware-build/tools/rk2918_tools'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-build/tools/rk2918_tools'
+make -C tools/upfile
+make[1]: Entering directory '/home/administrator/00.Snapmaker-Firmware-build/tools/upfile'
+make[1]: 'upfile' is up to date.
+make[1]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-build/tools/upfile'
+make -C tools/resource_tool
+make[1]: Entering directory '/home/administrator/00.Snapmaker-Firmware-build/tools/resource_tool'
+make[1]: 'resource_tool' is up to date.
+make[1]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-build/tools/resource_tool'
+./scripts/create_firmware.sh firmware/U1_2.0.0.205_20260914173503_upgrade.bin tmp/firmware firmware/firmware.bin overlays/common/01-store-version/ overlays/common/02-enable-ssh/ overlays/common/03-disable-wlan-power-save/ overlays/common/04-nginx-fluidd.d/ overlays/common/05-persist-dhcp/ overlays/common/06-restore-eth0-mac/ overlays/firmware-extended/01-system-utils/ overlays/firmware-extended/02-firmware-config/ overlays/firmware-extended/03-extended-runtime/ overlays/firmware-extended/10-patch-kernel-modules/ overlays/firmware-extended/11-patch-klipper/ overlays/firmware-extended/12-patch-moonraker/ overlays/firmware-extended/13-patch-rfid/ overlays/firmware-extended/30-feature-ssh/ overlays/firmware-extended/31-feature-afc-lite/ overlays/firmware-extended/32-feature-klipper-tweaks/ overlays/firmware-extended/33-feature-timelapse-stub/ overlays/firmware-extended/34-feature-faulty-toolhead/ overlays/firmware-extended/35-feature-klipper-hooks/ overlays/firmware-extended/36-feature-print-preferences/ overlays/firmware-extended/38-feature-spoollink/ overlays/firmware-extended/41-feature-generic-purifier/ overlays/firmware-extended/66-app-vpn/ 
+>> Unpacking firmware...
+>> Extracting input firmware /home/administrator/00.Snapmaker-Firmware-build/firmware/U1_2.0.0.205_20260914173503_upgrade.bin...
+UPFILE Header:
+  Magic:	0x4b4d4e53
+  Magic Ver:	0x0002
+  Version:	               2.0.0.205
+  Build Date:	20260914173503
+  Checksum:	0x06f4
+  Files:	4
+Extracted UPFILE_VERSION (9 bytes)
+Extracted UPFILE_BUILD_DATE (14 bytes)
+File Entry 0:
+  Type:		0
+  Offset:	0x00000000000000c0
+  Size:		216572490
+  Checksum:	0x0a72
+  MD5:		a139887ceb430beee8349db04a4d8f3e
+Extracted update.img (216572490 bytes)
+File Entry 1:
+  Type:		1
+  Offset:	0x000000000ce8a30a
+  Size:		47800
+  Checksum:	0x0d3f
+  MD5:		95a8849d95f1eff22f5ffd9f61a76dc7
+Extracted at32f403a.bin (47800 bytes)
+File Entry 2:
+  Type:		2
+  Offset:	0x000000000ce95dc2
+  Size:		46372
+  Checksum:	0x0ac3
+  MD5:		a77c8a08bf776734f751ec0f9244e253
+Extracted at32f415.bin (46372 bytes)
+File Entry 3:
+  Type:		3
+  Offset:	0x000000000cea12e6
+  Size:		26
+  Checksum:	0x09ca
+  MD5:		a1a266748349988906e11d2d9aca2bf5
+Extracted MCU_DESC (26 bytes)
+>> Unpacking update.img...
+rom version: 1.0.0
+build time: 2026-09-14 17:35:48
+chip: 33353632
+checking md5sum....OK
+>> Unpacking rk-rom.img to rk-unpacked/...
+Check file...OK
+------- UNPACK -------
+Unpacking: name=package-file filename=package-file	nand_addr=4294967295/0	pos=2048/251/1
+Unpacking: name=parameter filename=parameter.txt	nand_addr=0/16384	pos=4096/541/1
+Unpacking: name=bootloader filename=MiniLoaderAll.bin	nand_addr=4294967295/0	pos=6144/469440/230
+Unpacking: name=uboot_a filename=uboot.img	nand_addr=16384/8192	pos=477184/4194304/2048
+Unpacking: name=uboot_b filename=uboot.img	nand_addr=24576/8192	pos=477184/4194304/2048
+Unpacking: name=misc filename=misc.img	nand_addr=32768/8192	pos=4671488/49152/24
+Unpacking: name=boot_a filename=boot.img	nand_addr=40960/65536	pos=4720640/17463808/8528
+Unpacking: name=boot_b filename=boot.img	nand_addr=106496/65536	pos=4720640/17463808/8528
+Unpacking: name=system_a filename=rootfs.img	nand_addr=172032/614400	pos=22185984/177139712/86494
+Unpacking: name=system_b filename=rootfs.img	nand_addr=786432/614400	pos=22185984/177139712/86494
+Unpacking: name=oem filename=oem.img	nand_addr=1400832/2097152	pos=199325696/8388608/4096
+Unpacking: name=userdata filename=userdata.img	nand_addr=3497984/4294967295	pos=207714304/8388608/4096
+UnPack OK!
+>> Done. Unpacked files are in /home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/
+>> Extracting squashfs from rootfs.img...
+Parallel unsquashfs: Using 22 processors
+9940 inodes (13237 blocks) to write
+
+[===========================================|                ] 17267/23177  74%[===========================================================/] 23177/23177 100%
+
+created 8120 files
+created 775 directories
+created 1327 symlinks
+created 0 devices
+created 0 fifos
+created 0 sockets
+created 493 hardlinks
+>> Verifying ownership preservation...
+   Ownership check passed
+>> Restoring chroot cache...
+>> Applying overlay overlays/common/01-store-version/...
+[+] Running script: 01_store_version.sh
+[+] Running script: 02_update_boot_logo.sh
+>> Unpacking boot.img to /home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked
+=== Extracting FIT image: /home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rk-unpacked/boot.img ===
+FIT description: U-Boot FIT source file for arm
+Created:         Mon Sep 14 17:01:22 2026
+ Image 0 (fdt)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Flat Device Tree
+  Compression:  uncompressed
+  Data Size:    144056 Bytes = 140.68 KiB = 0.14 MiB
+  Architecture: AArch64
+  Load Address: 0xffffff00
+  Hash algo:    sha256
+  Hash value:   53e2ac3e200fd94e0be052b479d5568fb3d32d5d508ff4a136f3e607e7aad411
+ Image 1 (kernel)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Kernel Image
+  Compression:  lz4 compressed
+  Data Size:    16247250 Bytes = 15866.46 KiB = 15.49 MiB
+  Architecture: AArch64
+  OS:           Linux
+  Load Address: 0xffffff01
+  Entry Point:  0xffffff01
+  Hash algo:    sha256
+  Hash value:   fe0c723f7e145f9ea5af4e6548106fceed4ac71c0e6d8b2d113458ad8e4d4472
+ Image 2 (resource)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Multi-File Image
+  Compression:  uncompressed
+  Data Size:    1069056 Bytes = 1044.00 KiB = 1.02 MiB
+  Hash algo:    sha256
+  Hash value:   61dd19adc7de4941bf2d6397833c80d6bbd0c5f913fc6896d7058fe9323bb4e1
+ Default Configuration: 'conf'
+ Configuration 0 (conf)
+  Description:  unavailable
+  Kernel:       kernel
+  FDT:          fdt
+  Sign algo:    sha256,rsa2048:dev
+  Sign padding: pss
+  Sign value:   unavailable
+  Timestamp:    unavailable
+
+Validating FIT structure...
+  [✓] Image 0: fdt
+  [✓] Image 1: kernel
+  [✓] Image 2: resource
+
+Extracting components...
+Extracted:
+ Image 0 (fdt)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Flat Device Tree
+  Compression:  uncompressed
+  Data Size:    144056 Bytes = 140.68 KiB = 0.14 MiB
+  Architecture: AArch64
+  Load Address: 0xffffff00
+  Hash algo:    sha256
+  Hash value:   53e2ac3e200fd94e0be052b479d5568fb3d32d5d508ff4a136f3e607e7aad411
+  [✓] FDT extracted to /home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/fdt.dtb
+Extracted:
+ Image 1 (kernel)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Kernel Image
+  Compression:  lz4 compressed
+  Data Size:    16247250 Bytes = 15866.46 KiB = 15.49 MiB
+  Architecture: AArch64
+  OS:           Linux
+  Load Address: 0xffffff01
+  Entry Point:  0xffffff01
+  Hash algo:    sha256
+  Hash value:   fe0c723f7e145f9ea5af4e6548106fceed4ac71c0e6d8b2d113458ad8e4d4472
+  [✓] Kernel extracted to /home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/kernel.img
+Extracted:
+ Image 2 (resource)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Multi-File Image
+  Compression:  uncompressed
+  Data Size:    1069056 Bytes = 1044.00 KiB = 1.02 MiB
+  Hash algo:    sha256
+  Hash value:   61dd19adc7de4941bf2d6397833c80d6bbd0c5f913fc6896d7058fe9323bb4e1
+  [✓] Resource extracted to /home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resource.img
+
+Creating its file for repacking...
+  [✓] ITS file created at /home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/boot.its
+
+Extraction complete!
+/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resources /home/administrator/00.Snapmaker-Firmware-build
+Dump header:
+partition version:0.0
+header size:1
+index tbl:
+	offset:1	entry size:1	entry num:3
+Dump Index table:
+entry(0):
+	path:rk-kernel.dtb
+	offset:4	size:144056
+entry(1):
+	path:logo.bmp
+	offset:286	size:460938
+entry(2):
+	path:logo_kernel.bmp
+	offset:1187	size:460938
+Unack /home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resource.img to out successed!
+/home/administrator/00.Snapmaker-Firmware-build
+Resource extraction complete!
+>> Replacing logo.bmp in boot image
+ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers
+  built with gcc 13 (Ubuntu 13.2.0-23ubuntu3)
+  configuration: --prefix=/usr --extra-version=3ubuntu5 --toolchain=hardened --libdir=/usr/lib/x86_64-linux-gnu --incdir=/usr/include/x86_64-linux-gnu --arch=amd64 --enable-gpl --disable-stripping --disable-omx --enable-gnutls --enable-libaom --enable-libass --enable-libbs2b --enable-libcaca --enable-libcdio --enable-libcodec2 --enable-libdav1d --enable-libflite --enable-libfontconfig --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgme --enable-libgsm --enable-libharfbuzz --enable-libmp3lame --enable-libmysofa --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-librubberband --enable-libshine --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libtheora --enable-libtwolame --enable-libvidstab --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libx265 --enable-libxml2 --enable-libxvid --enable-libzimg --enable-openal --enable-opencl --enable-opengl --disable-sndio --enable-libvpl --disable-libmfx --enable-libdc1394 --enable-libdrm --enable-libiec61883 --enable-chromaprint --enable-frei0r --enable-ladspa --enable-libbluray --enable-libjack --enable-libpulse --enable-librabbitmq --enable-librist --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libx264 --enable-libzmq --enable-libzvbi --enable-lv2 --enable-sdl2 --enable-libplacebo --enable-librav1e --enable-pocketsphinx --enable-librsvg --enable-libjxl --enable-shared
+  libavutil      58. 29.100 / 58. 29.100
+  libavcodec     60. 31.102 / 60. 31.102
+  libavformat    60. 16.100 / 60. 16.100
+  libavdevice    60.  3.100 / 60.  3.100
+  libavfilter     9. 12.100 /  9. 12.100
+  libswscale      7.  5.100 /  7.  5.100
+  libswresample   4. 12.100 /  4. 12.100
+  libpostproc    57.  3.100 / 57.  3.100
+Input #0, image2, from '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resources/logo.bmp':
+  Duration: 00:00:00.04, start: 0.000000, bitrate: 92187 kb/s
+  Stream #0:0: Video: bmp, bgr24, 480x320, 25 fps, 25 tbr, 25 tbn
+Stream mapping:
+  Stream #0:0 -> #0:0 (bmp (native) -> bmp (native))
+Press [q] to stop, [?] for help
+Output #0, image2, to '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resources/logo.bmp.new.bmp':
+  Metadata:
+    encoder         : Lavf60.16.100
+  Stream #0:0: Video: bmp, bgr24(progressive), 480x320, q=2-31, 200 kb/s, 25 fps, 25 tbn
+    Metadata:
+      encoder         : Lavc60.31.102 bmp
+frame=    0 fps=0.0 q=-0.0 size=       0kB time=00:00:00.00 bitrate=N/A speed=N/A    [image2 @ 0x5f217e413f40] The specified filename '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resources/logo.bmp.new.bmp' does not contain an image sequence pattern or a pattern is invalid.
+[image2 @ 0x5f217e413f40] Use a pattern such as %03d for an image sequence or use the -update option (with -frames:v 1 if needed) to write a single image.
+[out#0/image2 @ 0x5f217e412d80] video:450kB audio:0kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: unknown
+frame=    1 fps=0.0 q=-0.0 Lsize=N/A time=00:00:00.00 bitrate=N/A speed=   0x    
+ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers
+  built with gcc 13 (Ubuntu 13.2.0-23ubuntu3)
+  configuration: --prefix=/usr --extra-version=3ubuntu5 --toolchain=hardened --libdir=/usr/lib/x86_64-linux-gnu --incdir=/usr/include/x86_64-linux-gnu --arch=amd64 --enable-gpl --disable-stripping --disable-omx --enable-gnutls --enable-libaom --enable-libass --enable-libbs2b --enable-libcaca --enable-libcdio --enable-libcodec2 --enable-libdav1d --enable-libflite --enable-libfontconfig --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgme --enable-libgsm --enable-libharfbuzz --enable-libmp3lame --enable-libmysofa --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-librubberband --enable-libshine --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libtheora --enable-libtwolame --enable-libvidstab --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libx265 --enable-libxml2 --enable-libxvid --enable-libzimg --enable-openal --enable-opencl --enable-opengl --disable-sndio --enable-libvpl --disable-libmfx --enable-libdc1394 --enable-libdrm --enable-libiec61883 --enable-chromaprint --enable-frei0r --enable-ladspa --enable-libbluray --enable-libjack --enable-libpulse --enable-librabbitmq --enable-librist --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libx264 --enable-libzmq --enable-libzvbi --enable-lv2 --enable-sdl2 --enable-libplacebo --enable-librav1e --enable-pocketsphinx --enable-librsvg --enable-libjxl --enable-shared
+  libavutil      58. 29.100 / 58. 29.100
+  libavcodec     60. 31.102 / 60. 31.102
+  libavformat    60. 16.100 / 60. 16.100
+  libavdevice    60.  3.100 / 60.  3.100
+  libavfilter     9. 12.100 /  9. 12.100
+  libswscale      7.  5.100 /  7.  5.100
+  libswresample   4. 12.100 /  4. 12.100
+  libpostproc    57.  3.100 / 57.  3.100
+Input #0, bmp_pipe, from '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resources/logo.bmp':
+  Duration: N/A, bitrate: N/A
+  Stream #0:0: Video: bmp, bgr24, 480x320, 25 fps, 25 tbr, 25 tbn
+Stream mapping:
+  Stream #0:0 -> #0:0 (bmp (native) -> bmp (native))
+Press [q] to stop, [?] for help
+Output #0, image2, to '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resources/logo.bmp.new.bmp':
+  Metadata:
+    encoder         : Lavf60.16.100
+  Stream #0:0: Video: bmp, bgr24(progressive), 480x320, q=2-31, 200 kb/s, 25 fps, 25 tbn
+    Metadata:
+      encoder         : Lavc60.31.102 bmp
+[image2 @ 0x59db5253ef00] The specified filename '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resources/logo.bmp.new.bmp' does not contain an image sequence pattern or a pattern is invalid.
+[image2 @ 0x59db5253ef00] Use a pattern such as %03d for an image sequence or use the -update option (with -frames:v 1 if needed) to write a single image.
+frame=    0 fps=0.0 q=-0.0 size=       0kB time=00:00:00.00 bitrate=N/A speed=N/A    [out#0/image2 @ 0x59db5253dd80] video:450kB audio:0kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: unknown
+frame=    1 fps=0.0 q=-0.0 Lsize=N/A time=00:00:00.00 bitrate=N/A speed=   0x    
+ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers
+  built with gcc 13 (Ubuntu 13.2.0-23ubuntu3)
+  configuration: --prefix=/usr --extra-version=3ubuntu5 --toolchain=hardened --libdir=/usr/lib/x86_64-linux-gnu --incdir=/usr/include/x86_64-linux-gnu --arch=amd64 --enable-gpl --disable-stripping --disable-omx --enable-gnutls --enable-libaom --enable-libass --enable-libbs2b --enable-libcaca --enable-libcdio --enable-libcodec2 --enable-libdav1d --enable-libflite --enable-libfontconfig --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgme --enable-libgsm --enable-libharfbuzz --enable-libmp3lame --enable-libmysofa --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-librubberband --enable-libshine --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libtheora --enable-libtwolame --enable-libvidstab --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libx265 --enable-libxml2 --enable-libxvid --enable-libzimg --enable-openal --enable-opencl --enable-opengl --disable-sndio --enable-libvpl --disable-libmfx --enable-libdc1394 --enable-libdrm --enable-libiec61883 --enable-chromaprint --enable-frei0r --enable-ladspa --enable-libbluray --enable-libjack --enable-libpulse --enable-librabbitmq --enable-librist --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libx264 --enable-libzmq --enable-libzvbi --enable-lv2 --enable-sdl2 --enable-libplacebo --enable-librav1e --enable-pocketsphinx --enable-librsvg --enable-libjxl --enable-shared
+  libavutil      58. 29.100 / 58. 29.100
+  libavcodec     60. 31.102 / 60. 31.102
+  libavformat    60. 16.100 / 60. 16.100
+  libavdevice    60.  3.100 / 60.  3.100
+  libavfilter     9. 12.100 /  9. 12.100
+  libswscale      7.  5.100 /  7.  5.100
+  libswresample   4. 12.100 /  4. 12.100
+  libpostproc    57.  3.100 / 57.  3.100
+Input #0, bmp_pipe, from '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resources/logo.bmp':
+  Duration: N/A, bitrate: N/A
+  Stream #0:0: Video: bmp, bgr24, 480x320, 25 fps, 25 tbr, 25 tbn
+Stream mapping:
+  Stream #0:0 -> #0:0 (bmp (native) -> bmp (native))
+Press [q] to stop, [?] for help
+Output #0, image2, to '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resources/logo.bmp.new.bmp':
+  Metadata:
+    encoder         : Lavf60.16.100
+  Stream #0:0: Video: bmp, bgr24(progressive), 480x320, q=2-31, 200 kb/s, 25 fps, 25 tbn
+    Metadata:
+      encoder         : Lavc60.31.102 bmp
+frame=    0 fps=0.0 q=-0.0 size=       0kB time=00:00:00.00 bitrate=N/A speed=N/A    [image2 @ 0x5c2e8d55bf00] The specified filename '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resources/logo.bmp.new.bmp' does not contain an image sequence pattern or a pattern is invalid.
+[image2 @ 0x5c2e8d55bf00] Use a pattern such as %03d for an image sequence or use the -update option (with -frames:v 1 if needed) to write a single image.
+[out#0/image2 @ 0x5c2e8d55ad80] video:450kB audio:0kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: unknown
+frame=    1 fps=0.0 q=-0.0 Lsize=N/A time=00:00:00.00 bitrate=N/A speed=   0x    
+ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers
+  built with gcc 13 (Ubuntu 13.2.0-23ubuntu3)
+  configuration: --prefix=/usr --extra-version=3ubuntu5 --toolchain=hardened --libdir=/usr/lib/x86_64-linux-gnu --incdir=/usr/include/x86_64-linux-gnu --arch=amd64 --enable-gpl --disable-stripping --disable-omx --enable-gnutls --enable-libaom --enable-libass --enable-libbs2b --enable-libcaca --enable-libcdio --enable-libcodec2 --enable-libdav1d --enable-libflite --enable-libfontconfig --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgme --enable-libgsm --enable-libharfbuzz --enable-libmp3lame --enable-libmysofa --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-librubberband --enable-libshine --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libtheora --enable-libtwolame --enable-libvidstab --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libx265 --enable-libxml2 --enable-libxvid --enable-libzimg --enable-openal --enable-opencl --enable-opengl --disable-sndio --enable-libvpl --disable-libmfx --enable-libdc1394 --enable-libdrm --enable-libiec61883 --enable-chromaprint --enable-frei0r --enable-ladspa --enable-libbluray --enable-libjack --enable-libpulse --enable-librabbitmq --enable-librist --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libx264 --enable-libzmq --enable-libzvbi --enable-lv2 --enable-sdl2 --enable-libplacebo --enable-librav1e --enable-pocketsphinx --enable-librsvg --enable-libjxl --enable-shared
+  libavutil      58. 29.100 / 58. 29.100
+  libavcodec     60. 31.102 / 60. 31.102
+  libavformat    60. 16.100 / 60. 16.100
+  libavdevice    60.  3.100 / 60.  3.100
+  libavfilter     9. 12.100 /  9. 12.100
+  libswscale      7.  5.100 /  7.  5.100
+  libswresample   4. 12.100 /  4. 12.100
+  libpostproc    57.  3.100 / 57.  3.100
+Input #0, image2, from '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resources/logo_kernel.bmp':
+  Duration: 00:00:00.04, start: 0.000000, bitrate: 92187 kb/s
+  Stream #0:0: Video: bmp, bgr24, 480x320, 25 fps, 25 tbr, 25 tbn
+Stream mapping:
+  Stream #0:0 -> #0:0 (bmp (native) -> bmp (native))
+Press [q] to stop, [?] for help
+Output #0, image2, to '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resources/logo_kernel.bmp.new.bmp':
+  Metadata:
+    encoder         : Lavf60.16.100
+  Stream #0:0: Video: bmp, bgr24(progressive), 480x320, q=2-31, 200 kb/s, 25 fps, 25 tbn
+    Metadata:
+      encoder         : Lavc60.31.102 bmp
+frame=    0 fps=0.0 q=-0.0 size=       0kB time=00:00:00.00 bitrate=N/A speed=N/A    [image2 @ 0x569047dd2f40] The specified filename '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resources/logo_kernel.bmp.new.bmp' does not contain an image sequence pattern or a pattern is invalid.
+[image2 @ 0x569047dd2f40] Use a pattern such as %03d for an image sequence or use the -update option (with -frames:v 1 if needed) to write a single image.
+[out#0/image2 @ 0x569047dd1d80] video:450kB audio:0kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: unknown
+frame=    1 fps=0.0 q=-0.0 Lsize=N/A time=00:00:00.00 bitrate=N/A speed=   0x    
+ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers
+  built with gcc 13 (Ubuntu 13.2.0-23ubuntu3)
+  configuration: --prefix=/usr --extra-version=3ubuntu5 --toolchain=hardened --libdir=/usr/lib/x86_64-linux-gnu --incdir=/usr/include/x86_64-linux-gnu --arch=amd64 --enable-gpl --disable-stripping --disable-omx --enable-gnutls --enable-libaom --enable-libass --enable-libbs2b --enable-libcaca --enable-libcdio --enable-libcodec2 --enable-libdav1d --enable-libflite --enable-libfontconfig --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgme --enable-libgsm --enable-libharfbuzz --enable-libmp3lame --enable-libmysofa --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-librubberband --enable-libshine --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libtheora --enable-libtwolame --enable-libvidstab --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libx265 --enable-libxml2 --enable-libxvid --enable-libzimg --enable-openal --enable-opencl --enable-opengl --disable-sndio --enable-libvpl --disable-libmfx --enable-libdc1394 --enable-libdrm --enable-libiec61883 --enable-chromaprint --enable-frei0r --enable-ladspa --enable-libbluray --enable-libjack --enable-libpulse --enable-librabbitmq --enable-librist --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libx264 --enable-libzmq --enable-libzvbi --enable-lv2 --enable-sdl2 --enable-libplacebo --enable-librav1e --enable-pocketsphinx --enable-librsvg --enable-libjxl --enable-shared
+  libavutil      58. 29.100 / 58. 29.100
+  libavcodec     60. 31.102 / 60. 31.102
+  libavformat    60. 16.100 / 60. 16.100
+  libavdevice    60.  3.100 / 60.  3.100
+  libavfilter     9. 12.100 /  9. 12.100
+  libswscale      7.  5.100 /  7.  5.100
+  libswresample   4. 12.100 /  4. 12.100
+  libpostproc    57.  3.100 / 57.  3.100
+Input #0, bmp_pipe, from '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resources/logo_kernel.bmp':
+  Duration: N/A, bitrate: N/A
+  Stream #0:0: Video: bmp, bgr24, 480x320, 25 fps, 25 tbr, 25 tbn
+Stream mapping:
+  Stream #0:0 -> #0:0 (bmp (native) -> bmp (native))
+Press [q] to stop, [?] for help
+Output #0, image2, to '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resources/logo_kernel.bmp.new.bmp':
+  Metadata:
+    encoder         : Lavf60.16.100
+  Stream #0:0: Video: bmp, bgr24(progressive), 480x320, q=2-31, 200 kb/s, 25 fps, 25 tbn
+    Metadata:
+      encoder         : Lavc60.31.102 bmp
+frame=    0 fps=0.0 q=-0.0 size=       0kB time=00:00:00.00 bitrate=N/A speed=N/A    [image2 @ 0x5a5c75dcaf00] The specified filename '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resources/logo_kernel.bmp.new.bmp' does not contain an image sequence pattern or a pattern is invalid.
+[image2 @ 0x5a5c75dcaf00] Use a pattern such as %03d for an image sequence or use the -update option (with -frames:v 1 if needed) to write a single image.
+[out#0/image2 @ 0x5a5c75dc9d80] video:450kB audio:0kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: unknown
+frame=    1 fps=0.0 q=-0.0 Lsize=N/A time=00:00:00.00 bitrate=N/A speed=   0x    
+ffmpeg version 6.1.1-3ubuntu5 Copyright (c) 2000-2023 the FFmpeg developers
+  built with gcc 13 (Ubuntu 13.2.0-23ubuntu3)
+  configuration: --prefix=/usr --extra-version=3ubuntu5 --toolchain=hardened --libdir=/usr/lib/x86_64-linux-gnu --incdir=/usr/include/x86_64-linux-gnu --arch=amd64 --enable-gpl --disable-stripping --disable-omx --enable-gnutls --enable-libaom --enable-libass --enable-libbs2b --enable-libcaca --enable-libcdio --enable-libcodec2 --enable-libdav1d --enable-libflite --enable-libfontconfig --enable-libfreetype --enable-libfribidi --enable-libglslang --enable-libgme --enable-libgsm --enable-libharfbuzz --enable-libmp3lame --enable-libmysofa --enable-libopenjpeg --enable-libopenmpt --enable-libopus --enable-librubberband --enable-libshine --enable-libsnappy --enable-libsoxr --enable-libspeex --enable-libtheora --enable-libtwolame --enable-libvidstab --enable-libvorbis --enable-libvpx --enable-libwebp --enable-libx265 --enable-libxml2 --enable-libxvid --enable-libzimg --enable-openal --enable-opencl --enable-opengl --disable-sndio --enable-libvpl --disable-libmfx --enable-libdc1394 --enable-libdrm --enable-libiec61883 --enable-chromaprint --enable-frei0r --enable-ladspa --enable-libbluray --enable-libjack --enable-libpulse --enable-librabbitmq --enable-librist --enable-libsrt --enable-libssh --enable-libsvtav1 --enable-libx264 --enable-libzmq --enable-libzvbi --enable-lv2 --enable-sdl2 --enable-libplacebo --enable-librav1e --enable-pocketsphinx --enable-librsvg --enable-libjxl --enable-shared
+  libavutil      58. 29.100 / 58. 29.100
+  libavcodec     60. 31.102 / 60. 31.102
+  libavformat    60. 16.100 / 60. 16.100
+  libavdevice    60.  3.100 / 60.  3.100
+  libavfilter     9. 12.100 /  9. 12.100
+  libswscale      7.  5.100 /  7.  5.100
+  libswresample   4. 12.100 /  4. 12.100
+  libpostproc    57.  3.100 / 57.  3.100
+Input #0, bmp_pipe, from '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resources/logo_kernel.bmp':
+  Duration: N/A, bitrate: N/A
+  Stream #0:0: Video: bmp, bgr24, 480x320, 25 fps, 25 tbr, 25 tbn
+Stream mapping:
+  Stream #0:0 -> #0:0 (bmp (native) -> bmp (native))
+Press [q] to stop, [?] for help
+Output #0, image2, to '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resources/logo_kernel.bmp.new.bmp':
+  Metadata:
+    encoder         : Lavf60.16.100
+  Stream #0:0: Video: bmp, bgr24(progressive), 480x320, q=2-31, 200 kb/s, 25 fps, 25 tbn
+    Metadata:
+      encoder         : Lavc60.31.102 bmp
+frame=    0 fps=0.0 q=-0.0 size=       0kB time=00:00:00.00 bitrate=N/A speed=N/A    [image2 @ 0x5988954b4f00] The specified filename '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resources/logo_kernel.bmp.new.bmp' does not contain an image sequence pattern or a pattern is invalid.
+[image2 @ 0x5988954b4f00] Use a pattern such as %03d for an image sequence or use the -update option (with -frames:v 1 if needed) to write a single image.
+[out#0/image2 @ 0x5988954b3d80] video:450kB audio:0kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: unknown
+frame=    1 fps=0.0 q=-0.0 Lsize=N/A time=00:00:00.00 bitrate=N/A speed=   0x    
+>> Repacking boot.img
+/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resources /home/administrator/00.Snapmaker-Firmware-build
+Pack to /home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/boot-unpacked/resource.img successed!
+/home/administrator/00.Snapmaker-Firmware-build
+Resource packing complete!
+=== Repacking FIT image ===
+FIT description: U-Boot FIT source file for arm
+Created:         Thu Oct  1 19:57:46 2026
+ Image 0 (fdt)
+  Description:  unavailable
+  Created:      Thu Oct  1 19:57:46 2026
+  Type:         Flat Device Tree
+  Compression:  uncompressed
+  Data Size:    144056 Bytes = 140.68 KiB = 0.14 MiB
+  Architecture: AArch64
+  Load Address: 0xffffff00
+  Hash algo:    sha256
+  Hash value:   53e2ac3e200fd94e0be052b479d5568fb3d32d5d508ff4a136f3e607e7aad411
+ Image 1 (kernel)
+  Description:  unavailable
+  Created:      Thu Oct  1 19:57:46 2026
+  Type:         Kernel Image
+  Compression:  lz4 compressed
+  Data Size:    16247250 Bytes = 15866.46 KiB = 15.49 MiB
+  Architecture: AArch64
+  OS:           Linux
+  Load Address: 0xffffff01
+  Entry Point:  0xffffff01
+  Hash algo:    sha256
+  Hash value:   fe0c723f7e145f9ea5af4e6548106fceed4ac71c0e6d8b2d113458ad8e4d4472
+ Image 2 (resource)
+  Description:  unavailable
+  Created:      Thu Oct  1 19:57:46 2026
+  Type:         Multi-File Image
+  Compression:  uncompressed
+  Data Size:    1069056 Bytes = 1044.00 KiB = 1.02 MiB
+  Hash algo:    sha256
+  Hash value:   1743d31f2ea60f96c3a9fbbc59915869c29c896fa4ac11f093c90ab426f42908
+ Default Configuration: 'conf'
+ Configuration 0 (conf)
+  Description:  unavailable
+  Kernel:       kernel
+  FDT:          fdt
+
+Repack complete: /home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rk-unpacked/boot.img
+>> Applying overlay overlays/common/02-enable-ssh/...
+[+] Applying patch: 01-enable-ssh.patch in subdir .
+patching file etc/init.d/S50dropbear
+>> Applying overlay overlays/common/03-disable-wlan-power-save/...
+>> Copying custom files...
+'overlays/common/03-disable-wlan-power-save//root/./etc/init.d/S99wlan-powersave-disable' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./etc/init.d/S99wlan-powersave-disable'
+'overlays/common/03-disable-wlan-power-save//root/./usr/sbin/wlan-powersave-disable' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/sbin/wlan-powersave-disable'
+>> Applying overlay overlays/common/04-nginx-fluidd.d/...
+[+] Applying patch: 04-nginx-fluidd-d.patch in subdir .
+patching file etc/nginx/sites-available/fluidd
+Hunk #1 succeeded at 98 (offset 5 lines).
+>> Applying overlay overlays/common/05-persist-dhcp/...
+>> Copying custom files...
+'overlays/common/05-persist-dhcp//root/./etc/init.d/S10persist-dhcp' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./etc/init.d/S10persist-dhcp'
+>> Applying overlay overlays/common/06-restore-eth0-mac/...
+[+] Applying patch: 01-restore-eth0-mac.patch in subdir .
+patching file etc/network/interfaces.d/eth0
+>> Copying custom files...
+'overlays/common/06-restore-eth0-mac//root/./usr/local' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local'
+'overlays/common/06-restore-eth0-mac//root/./usr/local/sbin' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/sbin'
+'overlays/common/06-restore-eth0-mac//root/./usr/local/sbin/restore-mac' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/sbin/restore-mac'
+>> Applying overlay overlays/firmware-extended/01-system-utils/...
+[+] Applying patch: 01-add-service-hooks.patch in subdir .
+patching file etc/init.d/S60klipper
+Hunk #1 succeeded at 25 (offset 5 lines).
+patching file etc/init.d/S61moonraker
+patching file etc/init.d/S90lmd
+>> Copying custom files...
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./etc/hooks'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/klipper.d' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./etc/hooks/klipper.d'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/klipper.d/.keep' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./etc/hooks/klipper.d/.keep'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/lmd.d' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./etc/hooks/lmd.d'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/lmd.d/.keep' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./etc/hooks/lmd.d/.keep'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/moonraker.d' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./etc/hooks/moonraker.d'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/moonraker.d/.keep' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./etc/hooks/moonraker.d/.keep'
+'overlays/firmware-extended/01-system-utils//root/./etc/profile.d/activate_path_01_usr_local.sh' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./etc/profile.d/activate_path_01_usr_local.sh'
+'overlays/firmware-extended/01-system-utils//root/./usr/local/bin' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/bin'
+'overlays/firmware-extended/01-system-utils//root/./usr/local/bin/extended-pkg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/bin/extended-pkg'
+[+] Running script: curl_install.sh
+>> Verifying /home/administrator/00.Snapmaker-Firmware-build/tmp/cache/curl-linux-aarch64-glibc-8.17.0.tar.xz checksum...
+>> Extracting curl-linux-aarch64-glibc-8.17.0.tar.xz...
+[+] Running script: fix_timelapse_install.sh
+>> Using cached git repository in /home/administrator/00.Snapmaker-Firmware-build/tmp/cache/snapmaker-u1-timelapse-recovery
+>> Installing Timelapse Recovery Tool...
+[+] Running script: rsync_install.sh
+>> Applying overlay overlays/firmware-extended/02-firmware-config/...
+[+] Applying patch: 01-add-klipper-includes.patch in subdir .
+patching file home/lava/origin_printer_data/config/printer.cfg
+Hunk #1 succeeded at 1343 (offset 82 lines).
+[+] Applying patch: 01-add-moonraker-includes.patch in subdir .
+patching file home/lava/origin_printer_data/config/moonraker.conf
+>> Copying custom files...
+'overlays/firmware-extended/02-firmware-config//root/./etc/init.d/S49extended-config' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./etc/init.d/S49extended-config'
+'overlays/firmware-extended/02-firmware-config//root/./etc/init.d/S99firmware-config' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./etc/init.d/S99firmware-config'
+'overlays/firmware-extended/02-firmware-config//root/./etc/nginx/fluidd.d' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./etc/nginx/fluidd.d'
+'overlays/firmware-extended/02-firmware-config//root/./etc/nginx/fluidd.d/firmware-config.conf' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./etc/nginx/fluidd.d/firmware-config.conf'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/bin/extended-config.py' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/bin/extended-config.py'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/bin/firmware-config.py' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/bin/firmware-config.py'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/extended' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/extended'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/extended/klipper' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/extended/klipper'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/extended/klipper/00_keep.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/extended/klipper/00_keep.cfg'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/extended/moonraker' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/extended/moonraker'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/extended/moonraker/00_keep.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/extended/moonraker/00_keep.cfg'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/extended/extended2.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/extended/extended2.cfg'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/01_status_system.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/01_status_system.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/02_status_wlan.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/02_status_wlan.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/03_status_eth.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/03_status_eth.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/04_status_mmc.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/04_status_mmc.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/05_settings.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/05_settings.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/06_actions.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/06_actions.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/12_settings_firmware_config.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/12_settings_firmware_config.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/15_settings_security.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/15_settings_security.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/20_actions_troubleshooting.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/20_actions_troubleshooting.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/21_actions_services.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/21_actions_services.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/22_actions_system.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/22_actions_system.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/30_upgrade.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/30_upgrade.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/html' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/html'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/html/index.html' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/html/index.html'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/force-cleanup.sha256' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/force-cleanup.sha256'
+[+] Running script: 01-install-yaml.sh
+>> Installing PyYAML via pip3
+>> Applying overlay overlays/firmware-extended/03-extended-runtime/...
+>> Copying custom files...
+'overlays/firmware-extended/03-extended-runtime//root/./usr/local/bin/memory-report' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/bin/memory-report'
+'overlays/firmware-extended/03-extended-runtime//root/./usr/local/sbin/limits-helper.sh' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/sbin/limits-helper.sh'
+>> Applying overlay overlays/firmware-extended/10-patch-kernel-modules/...
+[+] Running script: 01_compile_kernel_modules.sh
+>> Applying overlay overlays/firmware-extended/11-patch-klipper/...
+[+] Applying patch: 01_6d1256ddc.patch in subdir ./home/lava/klipper
+patching file klippy/extras/resonance_tester.py
+Hunk #2 succeeded at 247 (offset 14 lines).
+[+] Applying patch: 02_8291788f4.patch in subdir ./home/lava/klipper
+patching file klippy/toolhead.py
+[+] Applying patch: 03_847331260.patch in subdir ./home/lava/klipper
+patching file klippy/toolhead.py
+[+] Applying patch: 04_16b4b6b30.patch in subdir ./home/lava/klipper
+patching file klippy/extras/resonance_tester.py
+Hunk #5 succeeded at 266 (offset 14 lines).
+Hunk #6 succeeded at 293 (offset 14 lines).
+Hunk #7 succeeded at 326 (offset 14 lines).
+patching file klippy/extras/shaper_calibrate.py
+patching file klippy/toolhead.py
+[+] Applying patch: 05_16fc46fe5.patch in subdir ./home/lava/klipper
+patching file klippy/toolhead.py
+Hunk #1 succeeded at 138 (offset 4 lines).
+[+] Applying patch: 06_snapmaker_fix.patch in subdir ./home/lava/klipper
+patching file klippy/extras/resonance_tester.py
+Hunk #1 succeeded at 549 (offset 20 lines).
+[+] Applying patch: 07_aht10_mainline_klipper.patch in subdir ./home/lava/klipper
+patching file klippy/extras/aht10.py
+patching file klippy/extras/aht10.py
+patching file klippy/extras/aht10.py
+[+] Applying patch: 08_temperature_combined.patch in subdir ./home/lava/klipper
+patching file klippy/extras/temperature_combined.py
+>> Applying overlay overlays/firmware-extended/12-patch-moonraker/...
+[+] Running script: 01-install-apprise.sh
+>> Installing Apprise via pip3
+[+] Running script: 02-install-wled.sh
+>> Installing WLED via pip3
+>> Applying overlay overlays/firmware-extended/13-patch-rfid/...
+[+] Running pre-script: 01_klippy_fix_lf.sh
+[+] Applying patch: 01-add-ntag215-support.patch in subdir .
+patching file home/lava/klipper/klippy/extras/fm175xx_reader.py
+Hunk #1 succeeded at 122 (offset 1 line).
+Hunk #2 succeeded at 556 (offset -36 lines).
+Hunk #3 succeeded at 832 (offset -34 lines).
+Hunk #4 succeeded at 1024 (offset -19 lines).
+Hunk #5 succeeded at 1041 (offset -19 lines).
+[+] Applying patch: 02-add-ndef-protocol.patch in subdir .
+patching file home/lava/klipper/klippy/extras/filament_detect.py
+[+] Applying patch: 03-fm175xx-reader-enabled-guard.patch in subdir .
+patching file home/lava/klipper/klippy/extras/fm175xx_reader.py
+Hunk #1 succeeded at 218 (offset 5 lines).
+[+] Applying patch: 04-filament-detect-reader-enabled-guard.patch in subdir .
+patching file home/lava/klipper/klippy/extras/filament_detect.py
+Hunk #1 succeeded at 54 (offset -1 lines).
+Hunk #2 succeeded at 158 (offset 7 lines).
+Hunk #3 succeeded at 169 (offset 7 lines).
+Hunk #4 succeeded at 237 (offset -39 lines).
+[+] Applying patch: 05-add-filament-detect-set-endpoint.patch in subdir .
+patching file home/lava/klipper/klippy/extras/filament_detect.py
+Hunk #1 succeeded at 51 (offset -1 lines).
+Hunk #2 succeeded at 188 (offset 12 lines).
+[+] Applying patch: 06-add-card-type-to-filament-protocol.patch in subdir .
+patching file home/lava/klipper/klippy/extras/filament_protocol.py
+Hunk #1 succeeded at 35 (offset -1 lines).
+[+] Applying patch: 06-add-spool-id-support.patch in subdir .
+patching file home/lava/klipper/klippy/extras/print_task_config.py
+Hunk #1 succeeded at 37 (offset 13 lines).
+Hunk #2 succeeded at 349 (offset 167 lines).
+Hunk #3 succeeded at 496 (offset 212 lines).
+Hunk #4 succeeded at 595 (offset 247 lines).
+Hunk #5 succeeded at 612 (offset 247 lines).
+Hunk #6 succeeded at 705 (offset 294 lines).
+[+] Applying patch: 07-detect-card-type-on-parse-failure.patch in subdir .
+patching file home/lava/klipper/klippy/extras/filament_detect.py
+Hunk #1 succeeded at 145 (offset 13 lines).
+[+] Applying patch: 08-pass-uid-on-m1-auth-failure.patch in subdir .
+patching file home/lava/klipper/klippy/extras/fm175xx_reader.py
+Hunk #1 succeeded at 1036 (offset -23 lines).
+[+] Applying patch: 09-add-card-event-time.patch in subdir .
+patching file home/lava/klipper/klippy/extras/filament_protocol.py
+patching file home/lava/klipper/klippy/extras/filament_detect.py
+>> Copying custom files...
+'overlays/firmware-extended/13-patch-rfid//root/./etc/init.d/S59rfid-support' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./etc/init.d/S59rfid-support'
+'overlays/firmware-extended/13-patch-rfid//root/./home/lava/klipper/klippy/extras/filament_protocol_ndef.py' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./home/lava/klipper/klippy/extras/filament_protocol_ndef.py'
+'overlays/firmware-extended/13-patch-rfid//root/./usr/local/share/firmware-config/functions/13_settings_rfid_reader.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/13_settings_rfid_reader.yaml'
+'overlays/firmware-extended/13-patch-rfid//root/./usr/local/share/firmware-config/tweaks' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/tweaks'
+'overlays/firmware-extended/13-patch-rfid//root/./usr/local/share/firmware-config/tweaks/klipper' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/tweaks/klipper'
+'overlays/firmware-extended/13-patch-rfid//root/./usr/local/share/firmware-config/tweaks/klipper/disable-rfid-reader.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/tweaks/klipper/disable-rfid-reader.cfg'
+>> Applying overlay overlays/firmware-extended/30-feature-ssh/...
+[+] Applying patch: 01-check-ssh-config.patch in subdir .
+patching file etc/init.d/S50dropbear
+Hunk #1 succeeded at 16 (offset 2 lines).
+>> Copying custom files...
+'overlays/firmware-extended/30-feature-ssh//root/./usr/local/share/firmware-config/functions/14_settings_ssh.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/14_settings_ssh.yaml'
+>> Applying overlay overlays/firmware-extended/31-feature-afc-lite/...
+>> Copying custom files...
+'overlays/firmware-extended/31-feature-afc-lite//root/./home/lava/klipper/klippy/extras/AFC.py' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./home/lava/klipper/klippy/extras/AFC.py'
+'overlays/firmware-extended/31-feature-afc-lite//root/./home/lava/klipper/klippy/extras/AFC_lane.py' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./home/lava/klipper/klippy/extras/AFC_lane.py'
+'overlays/firmware-extended/31-feature-afc-lite//root/./home/lava/klipper/klippy/extras/AFC_unit.py' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./home/lava/klipper/klippy/extras/AFC_unit.py'
+'overlays/firmware-extended/31-feature-afc-lite//root/./usr/local/share/firmware-config/functions/23_settings_afc.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/23_settings_afc.yaml'
+'overlays/firmware-extended/31-feature-afc-lite//root/./usr/local/share/firmware-config/tweaks/klipper/afc.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/tweaks/klipper/afc.cfg'
+>> Applying overlay overlays/firmware-extended/32-feature-klipper-tweaks/...
+>> Copying custom files...
+'overlays/firmware-extended/32-feature-klipper-tweaks//root/./usr/local/share/firmware-config/functions/21_settings_tweaks_fan_curves.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/21_settings_tweaks_fan_curves.yaml'
+'overlays/firmware-extended/32-feature-klipper-tweaks//root/./usr/local/share/firmware-config/functions/21_settings_tweaks_max_speed.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/21_settings_tweaks_max_speed.yaml'
+'overlays/firmware-extended/32-feature-klipper-tweaks//root/./usr/local/share/firmware-config/functions/21_settings_tweaks_tmc_autotune.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/21_settings_tweaks_tmc_autotune.yaml'
+'overlays/firmware-extended/32-feature-klipper-tweaks//root/./usr/local/share/firmware-config/functions/21_settings_tweaks_tmc_current.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/21_settings_tweaks_tmc_current.yaml'
+'overlays/firmware-extended/32-feature-klipper-tweaks//root/./usr/local/share/firmware-config/tweaks/klipper/fan_curves_balanced.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/tweaks/klipper/fan_curves_balanced.cfg'
+'overlays/firmware-extended/32-feature-klipper-tweaks//root/./usr/local/share/firmware-config/tweaks/klipper/fan_curves_quiet.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/tweaks/klipper/fan_curves_quiet.cfg'
+'overlays/firmware-extended/32-feature-klipper-tweaks//root/./usr/local/share/firmware-config/tweaks/klipper/max_speed_aggressive.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/tweaks/klipper/max_speed_aggressive.cfg'
+'overlays/firmware-extended/32-feature-klipper-tweaks//root/./usr/local/share/firmware-config/tweaks/klipper/max_speed_balanced.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/tweaks/klipper/max_speed_balanced.cfg'
+'overlays/firmware-extended/32-feature-klipper-tweaks//root/./usr/local/share/firmware-config/tweaks/klipper/tmc_autotune.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/tweaks/klipper/tmc_autotune.cfg'
+'overlays/firmware-extended/32-feature-klipper-tweaks//root/./usr/local/share/firmware-config/tweaks/klipper/tmc_current.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/tweaks/klipper/tmc_current.cfg'
+'overlays/firmware-extended/32-feature-klipper-tweaks//root/./usr/local/share/firmware-config/tweaks/moonraker' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/tweaks/moonraker'
+'overlays/firmware-extended/32-feature-klipper-tweaks//root/./usr/local/share/firmware-config/tweaks/moonraker/authorization.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/tweaks/moonraker/authorization.cfg'
+>> Applying overlay overlays/firmware-extended/33-feature-timelapse-stub/...
+>> Copying custom files...
+'overlays/firmware-extended/33-feature-timelapse-stub//root/./home/lava/moonraker/moonraker/components/timelapse.py' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./home/lava/moonraker/moonraker/components/timelapse.py'
+'overlays/firmware-extended/33-feature-timelapse-stub//root/./usr/local/share/firmware-config/extended/moonraker/01_timelapse_stub.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/extended/moonraker/01_timelapse_stub.cfg'
+>> Applying overlay overlays/firmware-extended/34-feature-faulty-toolhead/...
+>> Copying custom files...
+'overlays/firmware-extended/34-feature-faulty-toolhead//root/./usr/local/share/firmware-config/functions/24_settings_troubleshooting_faulty_toolhead1.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/24_settings_troubleshooting_faulty_toolhead1.yaml'
+'overlays/firmware-extended/34-feature-faulty-toolhead//root/./usr/local/share/firmware-config/functions/25_settings_troubleshooting_faulty_toolhead2.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/25_settings_troubleshooting_faulty_toolhead2.yaml'
+'overlays/firmware-extended/34-feature-faulty-toolhead//root/./usr/local/share/firmware-config/functions/26_settings_troubleshooting_faulty_toolhead3.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/26_settings_troubleshooting_faulty_toolhead3.yaml'
+'overlays/firmware-extended/34-feature-faulty-toolhead//root/./usr/local/share/firmware-config/functions/27_settings_troubleshooting_faulty_toolhead4.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/27_settings_troubleshooting_faulty_toolhead4.yaml'
+'overlays/firmware-extended/34-feature-faulty-toolhead//root/./usr/local/share/firmware-config/tweaks/klipper/faulty_toolhead1.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/tweaks/klipper/faulty_toolhead1.cfg'
+'overlays/firmware-extended/34-feature-faulty-toolhead//root/./usr/local/share/firmware-config/tweaks/klipper/faulty_toolhead2.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/tweaks/klipper/faulty_toolhead2.cfg'
+'overlays/firmware-extended/34-feature-faulty-toolhead//root/./usr/local/share/firmware-config/tweaks/klipper/faulty_toolhead3.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/tweaks/klipper/faulty_toolhead3.cfg'
+'overlays/firmware-extended/34-feature-faulty-toolhead//root/./usr/local/share/firmware-config/tweaks/klipper/faulty_toolhead4.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/tweaks/klipper/faulty_toolhead4.cfg'
+>> Applying overlay overlays/firmware-extended/35-feature-klipper-hooks/...
+[+] Applying patch: 01-klipper-hooks.patch in subdir ./home/lava/origin_printer_data/config
+patching file fluidd.cfg
+>> Applying overlay overlays/firmware-extended/36-feature-print-preferences/...
+[+] Applying patch: 01-set-print-preferences-force.patch in subdir .
+patching file home/lava/klipper/klippy/extras/print_task_config.py
+Hunk #1 succeeded at 735 (offset 25 lines).
+>> Copying custom files...
+'overlays/firmware-extended/36-feature-print-preferences//root/./usr/local/share/firmware-config/functions/21_settings_print_preferences_bed_leveling_force.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/21_settings_print_preferences_bed_leveling_force.yaml'
+'overlays/firmware-extended/36-feature-print-preferences//root/./usr/local/share/firmware-config/functions/21_settings_print_preferences_object_processing.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/21_settings_print_preferences_object_processing.yaml'
+'overlays/firmware-extended/36-feature-print-preferences//root/./usr/local/share/firmware-config/functions/21_settings_print_preferences_timelapse_force.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/21_settings_print_preferences_timelapse_force.yaml'
+'overlays/firmware-extended/36-feature-print-preferences//root/./usr/local/share/firmware-config/tweaks/klipper/bed_leveling_adaptive_force.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/tweaks/klipper/bed_leveling_adaptive_force.cfg'
+'overlays/firmware-extended/36-feature-print-preferences//root/./usr/local/share/firmware-config/tweaks/klipper/bed_leveling_force.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/tweaks/klipper/bed_leveling_force.cfg'
+'overlays/firmware-extended/36-feature-print-preferences//root/./usr/local/share/firmware-config/tweaks/klipper/timelapse_force.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/tweaks/klipper/timelapse_force.cfg'
+'overlays/firmware-extended/36-feature-print-preferences//root/./usr/local/share/firmware-config/tweaks/moonraker/object_processing.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/tweaks/moonraker/object_processing.cfg'
+>> Applying overlay overlays/firmware-extended/38-feature-spoollink/...
+>> Copying custom files...
+'overlays/firmware-extended/38-feature-spoollink//root/./etc/hooks/klipper.d/10-spoollink.sh' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./etc/hooks/klipper.d/10-spoollink.sh'
+'overlays/firmware-extended/38-feature-spoollink//root/./etc/hooks/moonraker.d/10-spoollink.sh' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./etc/hooks/moonraker.d/10-spoollink.sh'
+'overlays/firmware-extended/38-feature-spoollink//root/./home/lava/klipper/klippy/extras/spoollink.py' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./home/lava/klipper/klippy/extras/spoollink.py'
+'overlays/firmware-extended/38-feature-spoollink//root/./home/lava/moonraker/moonraker/components/spoollink.py' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./home/lava/moonraker/moonraker/components/spoollink.py'
+'overlays/firmware-extended/38-feature-spoollink//root/./usr/local/share/firmware-config/functions/24_settings_snapmaker_components_spoolman.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/24_settings_snapmaker_components_spoolman.yaml'
+'overlays/firmware-extended/38-feature-spoollink//root/./usr/local/share/spoollink' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/spoollink'
+'overlays/firmware-extended/38-feature-spoollink//root/./usr/local/share/spoollink/klipper.cfg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/spoollink/klipper.cfg'
+>> Applying overlay overlays/firmware-extended/41-feature-generic-purifier/...
+[+] Applying patch: 01-purifier-fan-generic.patch in subdir ./home/lava/klipper
+patching file klippy/extras/purifier.py
+[+] Applying patch: 01-purifier-fan-generic.patch in subdir ./home/lava/origin_printer_data/config
+patching file printer.cfg
+Hunk #1 succeeded at 263 (offset 1 line).
+Hunk #2 succeeded at 738 (offset 1 line).
+>> Applying overlay overlays/firmware-extended/66-app-vpn/...
+[+] Applying patch: 01-add-tailscale-trusted-client.patch in subdir .
+patching file home/lava/origin_printer_data/config/moonraker.conf
+>> Copying custom files...
+'overlays/firmware-extended/66-app-vpn//root/./etc/init.d/S99vpn' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./etc/init.d/S99vpn'
+'overlays/firmware-extended/66-app-vpn//root/./usr/local/bin/tailscale' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/bin/tailscale'
+'overlays/firmware-extended/66-app-vpn//root/./usr/local/sbin/tailscaled' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/sbin/tailscaled'
+'overlays/firmware-extended/66-app-vpn//root/./usr/local/share/extended-pkg' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/extended-pkg'
+'overlays/firmware-extended/66-app-vpn//root/./usr/local/share/extended-pkg/tailscale' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/extended-pkg/tailscale'
+'overlays/firmware-extended/66-app-vpn//root/./usr/local/share/firmware-config/functions/16_settings_vpn.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/16_settings_vpn.yaml'
+'overlays/firmware-extended/66-app-vpn//root/./usr/local/share/firmware-config/functions/24_actions_vpn.yaml' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/24_actions_vpn.yaml'
+>> Saving chroot cache...
+>> Checking for non-ARM binaries in rootfs...
+>> Create squash filesystem...
+Parallel mksquashfs: Using 22 processors
+Creating 4.0 filesystem on /home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rk-unpacked/rootfs-v2.img, block size 131072.
+[===========================/                                ]  4900/10629  46%[=====================================|                      ]  6700/10629  63%[===========================================================\] 10629/10629 100%
+
+Exportable Squashfs 4.0 filesystem, zstd compressed, data block size 131072
+	compressed data, compressed metadata, compressed fragments,
+	compressed xattrs, compressed ids
+	duplicates are removed
+Filesystem size 174567.23 Kbytes (170.48 Mbytes)
+	40.72% of uncompressed filesystem size (428668.60 Kbytes)
+Inode table size 94595 bytes (92.38 Kbytes)
+	25.84% of uncompressed inode table size (366127 bytes)
+Directory table size 110711 bytes (108.12 Kbytes)
+	44.80% of uncompressed directory table size (247111 bytes)
+Number of duplicate files found 442
+Number of inodes 10368
+Number of files 8244
+Number of fragments 834
+Number of symbolic links 1327
+Number of device nodes 0
+Number of fifo nodes 0
+Number of socket nodes 0
+Number of directories 797
+Number of hard-links 493
+Number of ids (unique uids + gids) 4
+Number of uids 3
+	root (0)
+	b (1000)
+	www-data (33)
+Number of gids 4
+	root (0)
+	b (1000)
+	syslog (102)
+	www-data (33)
+>> Replace rootfs.img in firmware...
+renamed '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rk-unpacked/rootfs-v2.img' -> '/home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/rk-unpacked/rootfs.img'
+>> Update version...
+>> Repacking firmware...
+>> Repacking rk-rom.new.img
+------ PACKAGE ------
+Added: name=package-file path=rk-unpacked/package-file nand_addr=4294967295/0 pos=2048/251/1
+Added: name=parameter path=rk-unpacked/parameter.txt nand_addr=0/16384 pos=4096/541/1
+Added: name=bootloader path=rk-unpacked/MiniLoaderAll.bin nand_addr=4294967295/0 pos=6144/469440/230
+Added: name=uboot_a path=rk-unpacked/uboot.img nand_addr=16384/8192 pos=477184/4194304/2048
+Re-using: name=uboot_b from=uboot_a filename=uboot.img nand_addr=24576/8192 pos=477184/4194304/2048
+Added: name=misc path=rk-unpacked/misc.img nand_addr=32768/8192 pos=4671488/49152/24
+Added: name=boot_a path=rk-unpacked/boot.img nand_addr=40960/65536 pos=4720640/17462784/8527
+Re-using: name=boot_b from=boot_a filename=boot.img nand_addr=106496/65536 pos=4720640/17462784/8527
+Added: name=system_a path=rk-unpacked/rootfs.img nand_addr=172032/614400 pos=22183936/178757632/87284
+Re-using: name=system_b from=system_a filename=rootfs.img nand_addr=786432/614400 pos=22183936/178757632/87284
+Added: name=oem path=rk-unpacked/oem.img nand_addr=1400832/2097152 pos=200941568/8388608/4096
+Added: name=userdata path=rk-unpacked/userdata.img nand_addr=3497984/4294967295 pos=209330176/8388608/4096
+Add CRC...
+------ OK ------
+Pack OK!
+>> Repacking update.img
+generate image...
+append md5sum...
+success!
+>> Repacking output firmware
+Packing UPFILE with 4 files
+Packing file update.img as type 0
+Packing file at32f403a.bin as type 1
+Packing file at32f415.bin as type 2
+Packing file MCU_DESC as type 3
+Packed UPFILE to /home/administrator/00.Snapmaker-Firmware-build/firmware/firmware.bin
+>> Done. Output written to /home/administrator/00.Snapmaker-Firmware-build/firmware/firmware.bin
+>> Done: /home/administrator/00.Snapmaker-Firmware-build/firmware/firmware.bin

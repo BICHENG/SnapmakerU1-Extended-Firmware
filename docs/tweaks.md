@@ -99,14 +99,28 @@ is short, so a slightly slower dock approach is expected, not a regression.
 - Start with `Balanced` and a small test print, and watch the first tool changes
 - Disable if you see dock alignment problems or layer shifts
 
-**Note:** This tweak cannot be combined with
-[TMC Reduced Current](#tmc-reduced-current) — running the X/Y motors at 1.0A with
-these raised speed limits is untested. Firmware Config refuses that combination
-and tells you which tweak to disable first. [TMC AutoTune](#tmc-autotune) can be
-used alongside Max Speed; the two no longer change any setting in common.
+**Note:** This tweak can be combined with
+[TMC Reduced Current](#tmc-reduced-current). The combination runs X/Y motors at
+1.0A with raised speed limits, so monitor for skipped steps, layer shifts, and
+motor temperature during the first prints. [TMC AutoTune](#tmc-autotune) can
+also be used alongside Max Speed; the two do not change any setting in common.
 
 **Configuration:**
 This feature can **only** be configured via Firmware Configuration web interface. Manual configuration is not supported.
+
+## Fan Curves
+
+Selects nonlinear fan curves for the power fan and all four nozzle fans.
+
+**Options:**
+
+- `Quiet` - no nozzle fan below 50°C, then ramps from actual nozzle temperature; the power fan pre-spins at 10% when a nozzle target reaches 70°C, follows actual temperature from 70°C, stops below 65°C, and keeps the cavity guard at 55°C / 60%.
+- `Balanced` - no nozzle fan below 60°C, then ramps earlier than Quiet; the power fan pre-spins at 12% at a 70°C target, follows actual temperature from 70°C, stops below 65°C, and keeps the cavity guard at 55°C / 60%.
+- `Stock` - removes the override and restores the curves from the base printer configuration.
+
+The nozzle fan curves ignore nozzle target temperature, so a 250°C target does not immediately select the 250°C nozzle-fan speed. The power fan uses the target only for its quiet 10%/12% pre-spin at 70°C; its higher speeds still require measured nozzle temperature. This prevents the original 60% jump during preheating while keeping a small airflow before the actual-temperature ramp.
+
+The setting is available under **Settings → Tweaks → Fan Curves**. Applying an option writes one file to `/oem/printer_data/config/extended/klipper/20_fan_curves.cfg` and restarts Klipper.
 
 ## Object Processing for Adaptive Mesh
 

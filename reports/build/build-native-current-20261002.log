@@ -1,0 +1,1623 @@
+make -C tools/rk2918_tools
+make[1]: Entering directory '/home/administrator/00.Snapmaker-Firmware-current/tools/rk2918_tools'
+gcc -g -O3 -DUSE_OPENSSL -Wall    afptool.c  -lssl -lcrypto -o afptool
+gcc -g -O3 -DUSE_OPENSSL -Wall    img_unpack.c  -lssl -lcrypto -o img_unpack
+gcc -g -O3 -DUSE_OPENSSL -Wall    img_maker.c  -lssl -lcrypto -o img_maker
+gcc -g -O3 -DUSE_OPENSSL -Wall    mkkrnlimg.c  -lssl -lcrypto -o mkkrnlimg
+make[1]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-current/tools/rk2918_tools'
+make -C tools/upfile
+make[1]: Entering directory '/home/administrator/00.Snapmaker-Firmware-current/tools/upfile'
+cc -o upfile upfile.c -lcrypto
+make[1]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-current/tools/upfile'
+make -C tools/resource_tool
+make[1]: Entering directory '/home/administrator/00.Snapmaker-Firmware-current/tools/resource_tool'
+gcc -o resource_tool resource_tool.c
+make[1]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-current/tools/resource_tool'
+./scripts/create_firmware.sh firmware/U1_2.0.0.205_20260914173503_upgrade.bin tmp/firmware firmware/firmware.bin overlays/common/01-store-version/ overlays/common/02-enable-ssh/ overlays/common/03-disable-wlan-power-save/ overlays/common/04-nginx-fluidd.d/ overlays/common/05-persist-dhcp/ overlays/common/06-restore-eth0-mac/ overlays/firmware-extended/01-system-utils/ overlays/firmware-extended/02-firmware-config/ overlays/firmware-extended/03-extended-runtime/ overlays/firmware-extended/10-patch-kernel-modules/ overlays/firmware-extended/11-patch-klipper/ overlays/firmware-extended/12-patch-moonraker/ overlays/firmware-extended/13-patch-rfid/ overlays/firmware-extended/30-feature-ssh/ overlays/firmware-extended/31-feature-afc-lite/ overlays/firmware-extended/32-feature-klipper-tweaks/ overlays/firmware-extended/33-feature-timelapse-stub/ overlays/firmware-extended/34-feature-faulty-toolhead/ overlays/firmware-extended/35-feature-klipper-hooks/ overlays/firmware-extended/36-feature-print-preferences/ overlays/firmware-extended/37-feature-chamber-heater/ overlays/firmware-extended/38-feature-spoollink/ overlays/firmware-extended/40-feature-upgrade-firmware/ overlays/firmware-extended/41-feature-generic-purifier/ overlays/firmware-extended/41-feature-toolhead-mcu-simulator/ overlays/firmware-extended/60-app-camera/ overlays/firmware-extended/61-app-remote-screen/ overlays/firmware-extended/62-app-fluidd/ overlays/firmware-extended/63-app-mainsail/ overlays/firmware-extended/64-app-openrfid/ overlays/firmware-extended/65-app-cloud/ overlays/firmware-extended/66-app-vpn/ overlays/firmware-extended/67-app-monitoring/ overlays/firmware-extended/68-app-filament-ui/ overlays/firmware-extended/69-app-helixscreen/ 
+>> Unpacking firmware...
+>> Extracting input firmware /home/administrator/00.Snapmaker-Firmware-current/firmware/U1_2.0.0.205_20260914173503_upgrade.bin...
+UPFILE Header:
+  Magic:	0x4b4d4e53
+  Magic Ver:	0x0002
+  Version:	               2.0.0.205
+  Build Date:	20260914173503
+  Checksum:	0x06f4
+  Files:	4
+Extracted UPFILE_VERSION (9 bytes)
+Extracted UPFILE_BUILD_DATE (14 bytes)
+File Entry 0:
+  Type:		0
+  Offset:	0x00000000000000c0
+  Size:		216572490
+  Checksum:	0x0a72
+  MD5:		a139887ceb430beee8349db04a4d8f3e
+Extracted update.img (216572490 bytes)
+File Entry 1:
+  Type:		1
+  Offset:	0x000000000ce8a30a
+  Size:		47800
+  Checksum:	0x0d3f
+  MD5:		95a8849d95f1eff22f5ffd9f61a76dc7
+Extracted at32f403a.bin (47800 bytes)
+File Entry 2:
+  Type:		2
+  Offset:	0x000000000ce95dc2
+  Size:		46372
+  Checksum:	0x0ac3
+  MD5:		a77c8a08bf776734f751ec0f9244e253
+Extracted at32f415.bin (46372 bytes)
+File Entry 3:
+  Type:		3
+  Offset:	0x000000000cea12e6
+  Size:		26
+  Checksum:	0x09ca
+  MD5:		a1a266748349988906e11d2d9aca2bf5
+Extracted MCU_DESC (26 bytes)
+>> Unpacking update.img...
+rom version: 1.0.0
+build time: 2026-09-14 17:35:48
+chip: 33353632
+checking md5sum....OK
+>> Unpacking rk-rom.img to rk-unpacked/...
+Check file...OK
+------- UNPACK -------
+Unpacking: name=package-file filename=package-file	nand_addr=4294967295/0	pos=2048/251/1
+Unpacking: name=parameter filename=parameter.txt	nand_addr=0/16384	pos=4096/541/1
+Unpacking: name=bootloader filename=MiniLoaderAll.bin	nand_addr=4294967295/0	pos=6144/469440/230
+Unpacking: name=uboot_a filename=uboot.img	nand_addr=16384/8192	pos=477184/4194304/2048
+Unpacking: name=uboot_b filename=uboot.img	nand_addr=24576/8192	pos=477184/4194304/2048
+Unpacking: name=misc filename=misc.img	nand_addr=32768/8192	pos=4671488/49152/24
+Unpacking: name=boot_a filename=boot.img	nand_addr=40960/65536	pos=4720640/17463808/8528
+Unpacking: name=boot_b filename=boot.img	nand_addr=106496/65536	pos=4720640/17463808/8528
+Unpacking: name=system_a filename=rootfs.img	nand_addr=172032/614400	pos=22185984/177139712/86494
+Unpacking: name=system_b filename=rootfs.img	nand_addr=786432/614400	pos=22185984/177139712/86494
+Unpacking: name=oem filename=oem.img	nand_addr=1400832/2097152	pos=199325696/8388608/4096
+Unpacking: name=userdata filename=userdata.img	nand_addr=3497984/4294967295	pos=207714304/8388608/4096
+UnPack OK!
+>> Done. Unpacked files are in /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/
+>> Extracting squashfs from rootfs.img...
+Parallel unsquashfs: Using 22 processors
+9940 inodes (13237 blocks) to write
+
+[======================|                                     ]  8846/23177  38%[===========================================================/] 23177/23177 100%
+
+created 8120 files
+created 775 directories
+created 1327 symlinks
+created 0 devices
+created 0 fifos
+created 0 sockets
+created 493 hardlinks
+>> Verifying ownership preservation...
+   Ownership check passed
+>> Restoring chroot cache...
+>> Applying overlay overlays/common/01-store-version/...
+[+] Running script: 01_store_version.sh
+[+] Running script: 02_update_boot_logo.sh
+>> Unpacking boot.img to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked
+=== Extracting FIT image: /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rk-unpacked/boot.img ===
+FIT description: U-Boot FIT source file for arm
+Created:         Mon Sep 14 17:01:22 2026
+ Image 0 (fdt)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Flat Device Tree
+  Compression:  uncompressed
+  Data Size:    144056 Bytes = 140.68 KiB = 0.14 MiB
+  Architecture: AArch64
+  Load Address: 0xffffff00
+  Hash algo:    sha256
+  Hash value:   53e2ac3e200fd94e0be052b479d5568fb3d32d5d508ff4a136f3e607e7aad411
+ Image 1 (kernel)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Kernel Image
+  Compression:  lz4 compressed
+  Data Size:    16247250 Bytes = 15866.46 KiB = 15.49 MiB
+  Architecture: AArch64
+  OS:           Linux
+  Load Address: 0xffffff01
+  Entry Point:  0xffffff01
+  Hash algo:    sha256
+  Hash value:   fe0c723f7e145f9ea5af4e6548106fceed4ac71c0e6d8b2d113458ad8e4d4472
+ Image 2 (resource)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Multi-File Image
+  Compression:  uncompressed
+  Data Size:    1069056 Bytes = 1044.00 KiB = 1.02 MiB
+  Hash algo:    sha256
+  Hash value:   61dd19adc7de4941bf2d6397833c80d6bbd0c5f913fc6896d7058fe9323bb4e1
+ Default Configuration: 'conf'
+ Configuration 0 (conf)
+  Description:  unavailable
+  Kernel:       kernel
+  FDT:          fdt
+  Sign algo:    sha256,rsa2048:dev
+  Sign padding: pss
+  Sign value:   unavailable
+  Timestamp:    unavailable
+
+Validating FIT structure...
+  [✓] Image 0: fdt
+  [✓] Image 1: kernel
+  [✓] Image 2: resource
+
+Extracting components...
+Extracted:
+ Image 0 (fdt)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Flat Device Tree
+  Compression:  uncompressed
+  Data Size:    144056 Bytes = 140.68 KiB = 0.14 MiB
+  Architecture: AArch64
+  Load Address: 0xffffff00
+  Hash algo:    sha256
+  Hash value:   53e2ac3e200fd94e0be052b479d5568fb3d32d5d508ff4a136f3e607e7aad411
+  [✓] FDT extracted to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/fdt.dtb
+Extracted:
+ Image 1 (kernel)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Kernel Image
+  Compression:  lz4 compressed
+  Data Size:    16247250 Bytes = 15866.46 KiB = 15.49 MiB
+  Architecture: AArch64
+  OS:           Linux
+  Load Address: 0xffffff01
+  Entry Point:  0xffffff01
+  Hash algo:    sha256
+  Hash value:   fe0c723f7e145f9ea5af4e6548106fceed4ac71c0e6d8b2d113458ad8e4d4472
+  [✓] Kernel extracted to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/kernel.img
+Extracted:
+ Image 2 (resource)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Multi-File Image
+  Compression:  uncompressed
+  Data Size:    1069056 Bytes = 1044.00 KiB = 1.02 MiB
+  Hash algo:    sha256
+  Hash value:   61dd19adc7de4941bf2d6397833c80d6bbd0c5f913fc6896d7058fe9323bb4e1
+  [✓] Resource extracted to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resource.img
+
+Creating its file for repacking...
+  [✓] ITS file created at /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/boot.its
+
+Extraction complete!
+/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resources /home/administrator/00.Snapmaker-Firmware-current
+Dump header:
+partition version:0.0
+header size:1
+index tbl:
+	offset:1	entry size:1	entry num:3
+Dump Index table:
+entry(0):
+	path:rk-kernel.dtb
+	offset:4	size:144056
+entry(1):
+	path:logo.bmp
+	offset:286	size:460938
+entry(2):
+	path:logo_kernel.bmp
+	offset:1187	size:460938
+Unack /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resource.img to out successed!
+/home/administrator/00.Snapmaker-Firmware-current
+Resource extraction complete!
+>> Replacing logo.bmp in boot image
+>> Repacking boot.img
+/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resources /home/administrator/00.Snapmaker-Firmware-current
+Pack to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resource.img successed!
+/home/administrator/00.Snapmaker-Firmware-current
+Resource packing complete!
+=== Repacking FIT image ===
+FIT description: U-Boot FIT source file for arm
+Created:         Fri Oct  2 21:34:50 2026
+ Image 0 (fdt)
+  Description:  unavailable
+  Created:      Fri Oct  2 21:34:50 2026
+  Type:         Flat Device Tree
+  Compression:  uncompressed
+  Data Size:    144056 Bytes = 140.68 KiB = 0.14 MiB
+  Architecture: AArch64
+  Load Address: 0xffffff00
+  Hash algo:    sha256
+  Hash value:   53e2ac3e200fd94e0be052b479d5568fb3d32d5d508ff4a136f3e607e7aad411
+ Image 1 (kernel)
+  Description:  unavailable
+  Created:      Fri Oct  2 21:34:50 2026
+  Type:         Kernel Image
+  Compression:  lz4 compressed
+  Data Size:    16247250 Bytes = 15866.46 KiB = 15.49 MiB
+  Architecture: AArch64
+  OS:           Linux
+  Load Address: 0xffffff01
+  Entry Point:  0xffffff01
+  Hash algo:    sha256
+  Hash value:   fe0c723f7e145f9ea5af4e6548106fceed4ac71c0e6d8b2d113458ad8e4d4472
+ Image 2 (resource)
+  Description:  unavailable
+  Created:      Fri Oct  2 21:34:50 2026
+  Type:         Multi-File Image
+  Compression:  uncompressed
+  Data Size:    1069056 Bytes = 1044.00 KiB = 1.02 MiB
+  Hash algo:    sha256
+  Hash value:   b2b016375dcf7b8edbd46de4fe975d9b3becfc865ba416337600a5cad806a09c
+ Default Configuration: 'conf'
+ Configuration 0 (conf)
+  Description:  unavailable
+  Kernel:       kernel
+  FDT:          fdt
+
+Repack complete: /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rk-unpacked/boot.img
+>> Applying overlay overlays/common/02-enable-ssh/...
+[+] Applying patch: 01-enable-ssh.patch in subdir .
+patching file etc/init.d/S50dropbear
+>> Applying overlay overlays/common/03-disable-wlan-power-save/...
+>> Copying custom files...
+'overlays/common/03-disable-wlan-power-save//root/./etc/init.d/S99wlan-powersave-disable' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/init.d/S99wlan-powersave-disable'
+'overlays/common/03-disable-wlan-power-save//root/./usr/sbin/wlan-powersave-disable' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/sbin/wlan-powersave-disable'
+>> Applying overlay overlays/common/04-nginx-fluidd.d/...
+[+] Applying patch: 04-nginx-fluidd-d.patch in subdir .
+patching file etc/nginx/sites-available/fluidd
+Hunk #1 succeeded at 98 (offset 5 lines).
+>> Applying overlay overlays/common/05-persist-dhcp/...
+>> Copying custom files...
+'overlays/common/05-persist-dhcp//root/./etc/init.d/S10persist-dhcp' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/init.d/S10persist-dhcp'
+>> Applying overlay overlays/common/06-restore-eth0-mac/...
+[+] Applying patch: 01-restore-eth0-mac.patch in subdir .
+patching file etc/network/interfaces.d/eth0
+>> Copying custom files...
+'overlays/common/06-restore-eth0-mac//root/./usr/local' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local'
+'overlays/common/06-restore-eth0-mac//root/./usr/local/sbin' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/sbin'
+'overlays/common/06-restore-eth0-mac//root/./usr/local/sbin/restore-mac' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/sbin/restore-mac'
+>> Applying overlay overlays/firmware-extended/01-system-utils/...
+[+] Applying patch: 01-add-service-hooks.patch in subdir .
+patching file etc/init.d/S60klipper
+Hunk #1 succeeded at 25 (offset 5 lines).
+patching file etc/init.d/S61moonraker
+patching file etc/init.d/S90lmd
+>> Copying custom files...
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/klipper.d' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/klipper.d'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/klipper.d/.keep' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/klipper.d/.keep'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/lmd.d' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/lmd.d'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/lmd.d/.keep' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/lmd.d/.keep'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/moonraker.d' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/moonraker.d'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/moonraker.d/.keep' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/moonraker.d/.keep'
+'overlays/firmware-extended/01-system-utils//root/./etc/profile.d/activate_path_01_usr_local.sh' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/profile.d/activate_path_01_usr_local.sh'
+'overlays/firmware-extended/01-system-utils//root/./usr/local/bin' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/bin'
+'overlays/firmware-extended/01-system-utils//root/./usr/local/bin/extended-pkg' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/bin/extended-pkg'
+[+] Running script: curl_install.sh
+>> Downloading curl-linux-aarch64-glibc-8.17.0.tar.xz...
+make -C tools/rk2918_tools
+make[1]: Entering directory '/home/administrator/00.Snapmaker-Firmware-current/tools/rk2918_tools'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-current/tools/rk2918_tools'
+make -C tools/upfile
+make[1]: Entering directory '/home/administrator/00.Snapmaker-Firmware-current/tools/upfile'
+make[1]: 'upfile' is up to date.
+make[1]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-current/tools/upfile'
+make -C tools/resource_tool
+make[1]: Entering directory '/home/administrator/00.Snapmaker-Firmware-current/tools/resource_tool'
+make[1]: 'resource_tool' is up to date.
+make[1]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-current/tools/resource_tool'
+./scripts/create_firmware.sh firmware/U1_2.0.0.205_20260914173503_upgrade.bin tmp/firmware firmware/firmware.bin overlays/common/01-store-version/ overlays/common/02-enable-ssh/ overlays/common/03-disable-wlan-power-save/ overlays/common/04-nginx-fluidd.d/ overlays/common/05-persist-dhcp/ overlays/common/06-restore-eth0-mac/ overlays/firmware-extended/01-system-utils/ overlays/firmware-extended/02-firmware-config/ overlays/firmware-extended/03-extended-runtime/ overlays/firmware-extended/10-patch-kernel-modules/ overlays/firmware-extended/11-patch-klipper/ overlays/firmware-extended/12-patch-moonraker/ overlays/firmware-extended/13-patch-rfid/ overlays/firmware-extended/30-feature-ssh/ overlays/firmware-extended/31-feature-afc-lite/ overlays/firmware-extended/32-feature-klipper-tweaks/ overlays/firmware-extended/33-feature-timelapse-stub/ overlays/firmware-extended/34-feature-faulty-toolhead/ overlays/firmware-extended/35-feature-klipper-hooks/ overlays/firmware-extended/36-feature-print-preferences/ overlays/firmware-extended/37-feature-chamber-heater/ overlays/firmware-extended/38-feature-spoollink/ overlays/firmware-extended/40-feature-upgrade-firmware/ overlays/firmware-extended/41-feature-generic-purifier/ overlays/firmware-extended/41-feature-toolhead-mcu-simulator/ overlays/firmware-extended/60-app-camera/ overlays/firmware-extended/61-app-remote-screen/ overlays/firmware-extended/62-app-fluidd/ overlays/firmware-extended/63-app-mainsail/ overlays/firmware-extended/64-app-openrfid/ overlays/firmware-extended/65-app-cloud/ overlays/firmware-extended/66-app-vpn/ overlays/firmware-extended/67-app-monitoring/ overlays/firmware-extended/68-app-filament-ui/ overlays/firmware-extended/69-app-helixscreen/ 
+>> Unpacking firmware...
+>> Extracting input firmware /home/administrator/00.Snapmaker-Firmware-current/firmware/U1_2.0.0.205_20260914173503_upgrade.bin...
+UPFILE Header:
+  Magic:	0x4b4d4e53
+  Magic Ver:	0x0002
+  Version:	               2.0.0.205
+  Build Date:	20260914173503
+  Checksum:	0x06f4
+  Files:	4
+Extracted UPFILE_VERSION (9 bytes)
+Extracted UPFILE_BUILD_DATE (14 bytes)
+File Entry 0:
+  Type:		0
+  Offset:	0x00000000000000c0
+  Size:		216572490
+  Checksum:	0x0a72
+  MD5:		a139887ceb430beee8349db04a4d8f3e
+Extracted update.img (216572490 bytes)
+File Entry 1:
+  Type:		1
+  Offset:	0x000000000ce8a30a
+  Size:		47800
+  Checksum:	0x0d3f
+  MD5:		95a8849d95f1eff22f5ffd9f61a76dc7
+Extracted at32f403a.bin (47800 bytes)
+File Entry 2:
+  Type:		2
+  Offset:	0x000000000ce95dc2
+  Size:		46372
+  Checksum:	0x0ac3
+  MD5:		a77c8a08bf776734f751ec0f9244e253
+Extracted at32f415.bin (46372 bytes)
+File Entry 3:
+  Type:		3
+  Offset:	0x000000000cea12e6
+  Size:		26
+  Checksum:	0x09ca
+  MD5:		a1a266748349988906e11d2d9aca2bf5
+Extracted MCU_DESC (26 bytes)
+>> Unpacking update.img...
+rom version: 1.0.0
+build time: 2026-09-14 17:35:48
+chip: 33353632
+checking md5sum....OK
+>> Unpacking rk-rom.img to rk-unpacked/...
+Check file...OK
+------- UNPACK -------
+Unpacking: name=package-file filename=package-file	nand_addr=4294967295/0	pos=2048/251/1
+Unpacking: name=parameter filename=parameter.txt	nand_addr=0/16384	pos=4096/541/1
+Unpacking: name=bootloader filename=MiniLoaderAll.bin	nand_addr=4294967295/0	pos=6144/469440/230
+Unpacking: name=uboot_a filename=uboot.img	nand_addr=16384/8192	pos=477184/4194304/2048
+Unpacking: name=uboot_b filename=uboot.img	nand_addr=24576/8192	pos=477184/4194304/2048
+Unpacking: name=misc filename=misc.img	nand_addr=32768/8192	pos=4671488/49152/24
+Unpacking: name=boot_a filename=boot.img	nand_addr=40960/65536	pos=4720640/17463808/8528
+Unpacking: name=boot_b filename=boot.img	nand_addr=106496/65536	pos=4720640/17463808/8528
+Unpacking: name=system_a filename=rootfs.img	nand_addr=172032/614400	pos=22185984/177139712/86494
+Unpacking: name=system_b filename=rootfs.img	nand_addr=786432/614400	pos=22185984/177139712/86494
+Unpacking: name=oem filename=oem.img	nand_addr=1400832/2097152	pos=199325696/8388608/4096
+Unpacking: name=userdata filename=userdata.img	nand_addr=3497984/4294967295	pos=207714304/8388608/4096
+UnPack OK!
+>> Done. Unpacked files are in /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/
+>> Extracting squashfs from rootfs.img...
+Parallel unsquashfs: Using 22 processors
+9940 inodes (13237 blocks) to write
+
+[=======================|                                    ]  9190/23177  39%[===========================================================/] 23177/23177 100%
+
+created 8120 files
+created 775 directories
+created 1327 symlinks
+created 0 devices
+created 0 fifos
+created 0 sockets
+created 493 hardlinks
+>> Verifying ownership preservation...
+   Ownership check passed
+>> Restoring chroot cache...
+>> Applying overlay overlays/common/01-store-version/...
+[+] Running script: 01_store_version.sh
+[+] Running script: 02_update_boot_logo.sh
+>> Unpacking boot.img to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked
+=== Extracting FIT image: /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rk-unpacked/boot.img ===
+FIT description: U-Boot FIT source file for arm
+Created:         Mon Sep 14 17:01:22 2026
+ Image 0 (fdt)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Flat Device Tree
+  Compression:  uncompressed
+  Data Size:    144056 Bytes = 140.68 KiB = 0.14 MiB
+  Architecture: AArch64
+  Load Address: 0xffffff00
+  Hash algo:    sha256
+  Hash value:   53e2ac3e200fd94e0be052b479d5568fb3d32d5d508ff4a136f3e607e7aad411
+ Image 1 (kernel)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Kernel Image
+  Compression:  lz4 compressed
+  Data Size:    16247250 Bytes = 15866.46 KiB = 15.49 MiB
+  Architecture: AArch64
+  OS:           Linux
+  Load Address: 0xffffff01
+  Entry Point:  0xffffff01
+  Hash algo:    sha256
+  Hash value:   fe0c723f7e145f9ea5af4e6548106fceed4ac71c0e6d8b2d113458ad8e4d4472
+ Image 2 (resource)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Multi-File Image
+  Compression:  uncompressed
+  Data Size:    1069056 Bytes = 1044.00 KiB = 1.02 MiB
+  Hash algo:    sha256
+  Hash value:   61dd19adc7de4941bf2d6397833c80d6bbd0c5f913fc6896d7058fe9323bb4e1
+ Default Configuration: 'conf'
+ Configuration 0 (conf)
+  Description:  unavailable
+  Kernel:       kernel
+  FDT:          fdt
+  Sign algo:    sha256,rsa2048:dev
+  Sign padding: pss
+  Sign value:   unavailable
+  Timestamp:    unavailable
+
+Validating FIT structure...
+  [✓] Image 0: fdt
+  [✓] Image 1: kernel
+  [✓] Image 2: resource
+
+Extracting components...
+Extracted:
+ Image 0 (fdt)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Flat Device Tree
+  Compression:  uncompressed
+  Data Size:    144056 Bytes = 140.68 KiB = 0.14 MiB
+  Architecture: AArch64
+  Load Address: 0xffffff00
+  Hash algo:    sha256
+  Hash value:   53e2ac3e200fd94e0be052b479d5568fb3d32d5d508ff4a136f3e607e7aad411
+  [✓] FDT extracted to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/fdt.dtb
+Extracted:
+ Image 1 (kernel)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Kernel Image
+  Compression:  lz4 compressed
+  Data Size:    16247250 Bytes = 15866.46 KiB = 15.49 MiB
+  Architecture: AArch64
+  OS:           Linux
+  Load Address: 0xffffff01
+  Entry Point:  0xffffff01
+  Hash algo:    sha256
+  Hash value:   fe0c723f7e145f9ea5af4e6548106fceed4ac71c0e6d8b2d113458ad8e4d4472
+  [✓] Kernel extracted to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/kernel.img
+Extracted:
+ Image 2 (resource)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Multi-File Image
+  Compression:  uncompressed
+  Data Size:    1069056 Bytes = 1044.00 KiB = 1.02 MiB
+  Hash algo:    sha256
+  Hash value:   61dd19adc7de4941bf2d6397833c80d6bbd0c5f913fc6896d7058fe9323bb4e1
+  [✓] Resource extracted to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resource.img
+
+Creating its file for repacking...
+  [✓] ITS file created at /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/boot.its
+
+Extraction complete!
+/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resources /home/administrator/00.Snapmaker-Firmware-current
+Dump header:
+partition version:0.0
+header size:1
+index tbl:
+	offset:1	entry size:1	entry num:3
+Dump Index table:
+entry(0):
+	path:rk-kernel.dtb
+	offset:4	size:144056
+entry(1):
+	path:logo.bmp
+	offset:286	size:460938
+entry(2):
+	path:logo_kernel.bmp
+	offset:1187	size:460938
+Unack /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resource.img to out successed!
+/home/administrator/00.Snapmaker-Firmware-current
+Resource extraction complete!
+>> Replacing logo.bmp in boot image
+>> Repacking boot.img
+/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resources /home/administrator/00.Snapmaker-Firmware-current
+Pack to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resource.img successed!
+/home/administrator/00.Snapmaker-Firmware-current
+Resource packing complete!
+=== Repacking FIT image ===
+FIT description: U-Boot FIT source file for arm
+Created:         Fri Oct  2 21:36:58 2026
+ Image 0 (fdt)
+  Description:  unavailable
+  Created:      Fri Oct  2 21:36:58 2026
+  Type:         Flat Device Tree
+  Compression:  uncompressed
+  Data Size:    144056 Bytes = 140.68 KiB = 0.14 MiB
+  Architecture: AArch64
+  Load Address: 0xffffff00
+  Hash algo:    sha256
+  Hash value:   53e2ac3e200fd94e0be052b479d5568fb3d32d5d508ff4a136f3e607e7aad411
+ Image 1 (kernel)
+  Description:  unavailable
+  Created:      Fri Oct  2 21:36:58 2026
+  Type:         Kernel Image
+  Compression:  lz4 compressed
+  Data Size:    16247250 Bytes = 15866.46 KiB = 15.49 MiB
+  Architecture: AArch64
+  OS:           Linux
+  Load Address: 0xffffff01
+  Entry Point:  0xffffff01
+  Hash algo:    sha256
+  Hash value:   fe0c723f7e145f9ea5af4e6548106fceed4ac71c0e6d8b2d113458ad8e4d4472
+ Image 2 (resource)
+  Description:  unavailable
+  Created:      Fri Oct  2 21:36:58 2026
+  Type:         Multi-File Image
+  Compression:  uncompressed
+  Data Size:    1069056 Bytes = 1044.00 KiB = 1.02 MiB
+  Hash algo:    sha256
+  Hash value:   e05875735b27165c7f30b87303ad2ba4f567e839588eaf1b42bee7ec79a20b3b
+ Default Configuration: 'conf'
+ Configuration 0 (conf)
+  Description:  unavailable
+  Kernel:       kernel
+  FDT:          fdt
+
+Repack complete: /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rk-unpacked/boot.img
+>> Applying overlay overlays/common/02-enable-ssh/...
+[+] Applying patch: 01-enable-ssh.patch in subdir .
+patching file etc/init.d/S50dropbear
+>> Applying overlay overlays/common/03-disable-wlan-power-save/...
+>> Copying custom files...
+'overlays/common/03-disable-wlan-power-save//root/./etc/init.d/S99wlan-powersave-disable' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/init.d/S99wlan-powersave-disable'
+'overlays/common/03-disable-wlan-power-save//root/./usr/sbin/wlan-powersave-disable' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/sbin/wlan-powersave-disable'
+>> Applying overlay overlays/common/04-nginx-fluidd.d/...
+[+] Applying patch: 04-nginx-fluidd-d.patch in subdir .
+patching file etc/nginx/sites-available/fluidd
+Hunk #1 succeeded at 98 (offset 5 lines).
+>> Applying overlay overlays/common/05-persist-dhcp/...
+>> Copying custom files...
+'overlays/common/05-persist-dhcp//root/./etc/init.d/S10persist-dhcp' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/init.d/S10persist-dhcp'
+>> Applying overlay overlays/common/06-restore-eth0-mac/...
+[+] Applying patch: 01-restore-eth0-mac.patch in subdir .
+patching file etc/network/interfaces.d/eth0
+>> Copying custom files...
+'overlays/common/06-restore-eth0-mac//root/./usr/local' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local'
+'overlays/common/06-restore-eth0-mac//root/./usr/local/sbin' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/sbin'
+'overlays/common/06-restore-eth0-mac//root/./usr/local/sbin/restore-mac' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/sbin/restore-mac'
+>> Applying overlay overlays/firmware-extended/01-system-utils/...
+[+] Applying patch: 01-add-service-hooks.patch in subdir .
+patching file etc/init.d/S60klipper
+Hunk #1 succeeded at 25 (offset 5 lines).
+patching file etc/init.d/S61moonraker
+patching file etc/init.d/S90lmd
+>> Copying custom files...
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/klipper.d' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/klipper.d'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/klipper.d/.keep' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/klipper.d/.keep'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/lmd.d' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/lmd.d'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/lmd.d/.keep' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/lmd.d/.keep'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/moonraker.d' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/moonraker.d'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/moonraker.d/.keep' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/moonraker.d/.keep'
+'overlays/firmware-extended/01-system-utils//root/./etc/profile.d/activate_path_01_usr_local.sh' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/profile.d/activate_path_01_usr_local.sh'
+'overlays/firmware-extended/01-system-utils//root/./usr/local/bin' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/bin'
+'overlays/firmware-extended/01-system-utils//root/./usr/local/bin/extended-pkg' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/bin/extended-pkg'
+[+] Running script: curl_install.sh
+>> Verifying /home/administrator/00.Snapmaker-Firmware-current/tmp/cache/curl-linux-aarch64-glibc-8.17.0.tar.xz checksum...
+>> Extracting curl-linux-aarch64-glibc-8.17.0.tar.xz...
+[+] Running script: fix_timelapse_install.sh
+>> Cloning https://github.com/horzadome/snapmaker-u1-timelapse-recovery.git into /home/administrator/00.Snapmaker-Firmware-current/tmp/cache/snapmaker-u1-timelapse-recovery
+make -C tools/rk2918_tools
+make[1]: Entering directory '/home/administrator/00.Snapmaker-Firmware-current/tools/rk2918_tools'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-current/tools/rk2918_tools'
+make -C tools/upfile
+make[1]: Entering directory '/home/administrator/00.Snapmaker-Firmware-current/tools/upfile'
+make[1]: 'upfile' is up to date.
+make[1]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-current/tools/upfile'
+make -C tools/resource_tool
+make[1]: Entering directory '/home/administrator/00.Snapmaker-Firmware-current/tools/resource_tool'
+make[1]: 'resource_tool' is up to date.
+make[1]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-current/tools/resource_tool'
+./scripts/create_firmware.sh firmware/U1_2.0.0.205_20260914173503_upgrade.bin tmp/firmware firmware/firmware.bin overlays/common/01-store-version/ overlays/common/02-enable-ssh/ overlays/common/03-disable-wlan-power-save/ overlays/common/04-nginx-fluidd.d/ overlays/common/05-persist-dhcp/ overlays/common/06-restore-eth0-mac/ overlays/firmware-extended/01-system-utils/ overlays/firmware-extended/02-firmware-config/ overlays/firmware-extended/03-extended-runtime/ overlays/firmware-extended/10-patch-kernel-modules/ overlays/firmware-extended/11-patch-klipper/ overlays/firmware-extended/12-patch-moonraker/ overlays/firmware-extended/13-patch-rfid/ overlays/firmware-extended/30-feature-ssh/ overlays/firmware-extended/31-feature-afc-lite/ overlays/firmware-extended/32-feature-klipper-tweaks/ overlays/firmware-extended/33-feature-timelapse-stub/ overlays/firmware-extended/34-feature-faulty-toolhead/ overlays/firmware-extended/35-feature-klipper-hooks/ overlays/firmware-extended/36-feature-print-preferences/ overlays/firmware-extended/37-feature-chamber-heater/ overlays/firmware-extended/38-feature-spoollink/ overlays/firmware-extended/40-feature-upgrade-firmware/ overlays/firmware-extended/41-feature-generic-purifier/ overlays/firmware-extended/41-feature-toolhead-mcu-simulator/ overlays/firmware-extended/60-app-camera/ overlays/firmware-extended/61-app-remote-screen/ overlays/firmware-extended/62-app-fluidd/ overlays/firmware-extended/63-app-mainsail/ overlays/firmware-extended/64-app-openrfid/ overlays/firmware-extended/65-app-cloud/ overlays/firmware-extended/66-app-vpn/ overlays/firmware-extended/67-app-monitoring/ overlays/firmware-extended/68-app-filament-ui/ overlays/firmware-extended/69-app-helixscreen/ 
+>> Unpacking firmware...
+>> Extracting input firmware /home/administrator/00.Snapmaker-Firmware-current/firmware/U1_2.0.0.205_20260914173503_upgrade.bin...
+UPFILE Header:
+  Magic:	0x4b4d4e53
+  Magic Ver:	0x0002
+  Version:	               2.0.0.205
+  Build Date:	20260914173503
+  Checksum:	0x06f4
+  Files:	4
+Extracted UPFILE_VERSION (9 bytes)
+Extracted UPFILE_BUILD_DATE (14 bytes)
+File Entry 0:
+  Type:		0
+  Offset:	0x00000000000000c0
+  Size:		216572490
+  Checksum:	0x0a72
+  MD5:		a139887ceb430beee8349db04a4d8f3e
+Extracted update.img (216572490 bytes)
+File Entry 1:
+  Type:		1
+  Offset:	0x000000000ce8a30a
+  Size:		47800
+  Checksum:	0x0d3f
+  MD5:		95a8849d95f1eff22f5ffd9f61a76dc7
+Extracted at32f403a.bin (47800 bytes)
+File Entry 2:
+  Type:		2
+  Offset:	0x000000000ce95dc2
+  Size:		46372
+  Checksum:	0x0ac3
+  MD5:		a77c8a08bf776734f751ec0f9244e253
+Extracted at32f415.bin (46372 bytes)
+File Entry 3:
+  Type:		3
+  Offset:	0x000000000cea12e6
+  Size:		26
+  Checksum:	0x09ca
+  MD5:		a1a266748349988906e11d2d9aca2bf5
+Extracted MCU_DESC (26 bytes)
+>> Unpacking update.img...
+rom version: 1.0.0
+build time: 2026-09-14 17:35:48
+chip: 33353632
+checking md5sum....OK
+>> Unpacking rk-rom.img to rk-unpacked/...
+Check file...OK
+------- UNPACK -------
+Unpacking: name=package-file filename=package-file	nand_addr=4294967295/0	pos=2048/251/1
+Unpacking: name=parameter filename=parameter.txt	nand_addr=0/16384	pos=4096/541/1
+Unpacking: name=bootloader filename=MiniLoaderAll.bin	nand_addr=4294967295/0	pos=6144/469440/230
+Unpacking: name=uboot_a filename=uboot.img	nand_addr=16384/8192	pos=477184/4194304/2048
+Unpacking: name=uboot_b filename=uboot.img	nand_addr=24576/8192	pos=477184/4194304/2048
+Unpacking: name=misc filename=misc.img	nand_addr=32768/8192	pos=4671488/49152/24
+Unpacking: name=boot_a filename=boot.img	nand_addr=40960/65536	pos=4720640/17463808/8528
+Unpacking: name=boot_b filename=boot.img	nand_addr=106496/65536	pos=4720640/17463808/8528
+Unpacking: name=system_a filename=rootfs.img	nand_addr=172032/614400	pos=22185984/177139712/86494
+Unpacking: name=system_b filename=rootfs.img	nand_addr=786432/614400	pos=22185984/177139712/86494
+Unpacking: name=oem filename=oem.img	nand_addr=1400832/2097152	pos=199325696/8388608/4096
+Unpacking: name=userdata filename=userdata.img	nand_addr=3497984/4294967295	pos=207714304/8388608/4096
+UnPack OK!
+>> Done. Unpacked files are in /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/
+>> Extracting squashfs from rootfs.img...
+Parallel unsquashfs: Using 22 processors
+9940 inodes (13237 blocks) to write
+
+[==================================/                         ] 13408/23177  57%[===========================================================/] 23177/23177 100%
+
+created 8120 files
+created 775 directories
+created 1327 symlinks
+created 0 devices
+created 0 fifos
+created 0 sockets
+created 493 hardlinks
+>> Verifying ownership preservation...
+   Ownership check passed
+>> Restoring chroot cache...
+>> Applying overlay overlays/common/01-store-version/...
+[+] Running script: 01_store_version.sh
+[+] Running script: 02_update_boot_logo.sh
+>> Unpacking boot.img to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked
+=== Extracting FIT image: /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rk-unpacked/boot.img ===
+FIT description: U-Boot FIT source file for arm
+Created:         Mon Sep 14 17:01:22 2026
+ Image 0 (fdt)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Flat Device Tree
+  Compression:  uncompressed
+  Data Size:    144056 Bytes = 140.68 KiB = 0.14 MiB
+  Architecture: AArch64
+  Load Address: 0xffffff00
+  Hash algo:    sha256
+  Hash value:   53e2ac3e200fd94e0be052b479d5568fb3d32d5d508ff4a136f3e607e7aad411
+ Image 1 (kernel)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Kernel Image
+  Compression:  lz4 compressed
+  Data Size:    16247250 Bytes = 15866.46 KiB = 15.49 MiB
+  Architecture: AArch64
+  OS:           Linux
+  Load Address: 0xffffff01
+  Entry Point:  0xffffff01
+  Hash algo:    sha256
+  Hash value:   fe0c723f7e145f9ea5af4e6548106fceed4ac71c0e6d8b2d113458ad8e4d4472
+ Image 2 (resource)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Multi-File Image
+  Compression:  uncompressed
+  Data Size:    1069056 Bytes = 1044.00 KiB = 1.02 MiB
+  Hash algo:    sha256
+  Hash value:   61dd19adc7de4941bf2d6397833c80d6bbd0c5f913fc6896d7058fe9323bb4e1
+ Default Configuration: 'conf'
+ Configuration 0 (conf)
+  Description:  unavailable
+  Kernel:       kernel
+  FDT:          fdt
+  Sign algo:    sha256,rsa2048:dev
+  Sign padding: pss
+  Sign value:   unavailable
+  Timestamp:    unavailable
+
+Validating FIT structure...
+  [✓] Image 0: fdt
+  [✓] Image 1: kernel
+  [✓] Image 2: resource
+
+Extracting components...
+Extracted:
+ Image 0 (fdt)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Flat Device Tree
+  Compression:  uncompressed
+  Data Size:    144056 Bytes = 140.68 KiB = 0.14 MiB
+  Architecture: AArch64
+  Load Address: 0xffffff00
+  Hash algo:    sha256
+  Hash value:   53e2ac3e200fd94e0be052b479d5568fb3d32d5d508ff4a136f3e607e7aad411
+  [✓] FDT extracted to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/fdt.dtb
+Extracted:
+ Image 1 (kernel)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Kernel Image
+  Compression:  lz4 compressed
+  Data Size:    16247250 Bytes = 15866.46 KiB = 15.49 MiB
+  Architecture: AArch64
+  OS:           Linux
+  Load Address: 0xffffff01
+  Entry Point:  0xffffff01
+  Hash algo:    sha256
+  Hash value:   fe0c723f7e145f9ea5af4e6548106fceed4ac71c0e6d8b2d113458ad8e4d4472
+  [✓] Kernel extracted to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/kernel.img
+Extracted:
+ Image 2 (resource)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Multi-File Image
+  Compression:  uncompressed
+  Data Size:    1069056 Bytes = 1044.00 KiB = 1.02 MiB
+  Hash algo:    sha256
+  Hash value:   61dd19adc7de4941bf2d6397833c80d6bbd0c5f913fc6896d7058fe9323bb4e1
+  [✓] Resource extracted to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resource.img
+
+Creating its file for repacking...
+  [✓] ITS file created at /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/boot.its
+
+Extraction complete!
+/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resources /home/administrator/00.Snapmaker-Firmware-current
+Dump header:
+partition version:0.0
+header size:1
+index tbl:
+	offset:1	entry size:1	entry num:3
+Dump Index table:
+entry(0):
+	path:rk-kernel.dtb
+	offset:4	size:144056
+entry(1):
+	path:logo.bmp
+	offset:286	size:460938
+entry(2):
+	path:logo_kernel.bmp
+	offset:1187	size:460938
+Unack /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resource.img to out successed!
+/home/administrator/00.Snapmaker-Firmware-current
+Resource extraction complete!
+>> Replacing logo.bmp in boot image
+>> Repacking boot.img
+/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resources /home/administrator/00.Snapmaker-Firmware-current
+Pack to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resource.img successed!
+/home/administrator/00.Snapmaker-Firmware-current
+Resource packing complete!
+=== Repacking FIT image ===
+FIT description: U-Boot FIT source file for arm
+Created:         Fri Oct  2 21:38:11 2026
+ Image 0 (fdt)
+  Description:  unavailable
+  Created:      Fri Oct  2 21:38:11 2026
+  Type:         Flat Device Tree
+  Compression:  uncompressed
+  Data Size:    144056 Bytes = 140.68 KiB = 0.14 MiB
+  Architecture: AArch64
+  Load Address: 0xffffff00
+  Hash algo:    sha256
+  Hash value:   53e2ac3e200fd94e0be052b479d5568fb3d32d5d508ff4a136f3e607e7aad411
+ Image 1 (kernel)
+  Description:  unavailable
+  Created:      Fri Oct  2 21:38:11 2026
+  Type:         Kernel Image
+  Compression:  lz4 compressed
+  Data Size:    16247250 Bytes = 15866.46 KiB = 15.49 MiB
+  Architecture: AArch64
+  OS:           Linux
+  Load Address: 0xffffff01
+  Entry Point:  0xffffff01
+  Hash algo:    sha256
+  Hash value:   fe0c723f7e145f9ea5af4e6548106fceed4ac71c0e6d8b2d113458ad8e4d4472
+ Image 2 (resource)
+  Description:  unavailable
+  Created:      Fri Oct  2 21:38:11 2026
+  Type:         Multi-File Image
+  Compression:  uncompressed
+  Data Size:    1069056 Bytes = 1044.00 KiB = 1.02 MiB
+  Hash algo:    sha256
+  Hash value:   deeb09688effebaba55b07c9123d4980d4831954a5e08c0cf76845b0a469b7be
+ Default Configuration: 'conf'
+ Configuration 0 (conf)
+  Description:  unavailable
+  Kernel:       kernel
+  FDT:          fdt
+
+Repack complete: /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rk-unpacked/boot.img
+>> Applying overlay overlays/common/02-enable-ssh/...
+[+] Applying patch: 01-enable-ssh.patch in subdir .
+patching file etc/init.d/S50dropbear
+>> Applying overlay overlays/common/03-disable-wlan-power-save/...
+>> Copying custom files...
+'overlays/common/03-disable-wlan-power-save//root/./etc/init.d/S99wlan-powersave-disable' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/init.d/S99wlan-powersave-disable'
+'overlays/common/03-disable-wlan-power-save//root/./usr/sbin/wlan-powersave-disable' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/sbin/wlan-powersave-disable'
+>> Applying overlay overlays/common/04-nginx-fluidd.d/...
+[+] Applying patch: 04-nginx-fluidd-d.patch in subdir .
+patching file etc/nginx/sites-available/fluidd
+Hunk #1 succeeded at 98 (offset 5 lines).
+>> Applying overlay overlays/common/05-persist-dhcp/...
+>> Copying custom files...
+'overlays/common/05-persist-dhcp//root/./etc/init.d/S10persist-dhcp' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/init.d/S10persist-dhcp'
+>> Applying overlay overlays/common/06-restore-eth0-mac/...
+[+] Applying patch: 01-restore-eth0-mac.patch in subdir .
+patching file etc/network/interfaces.d/eth0
+>> Copying custom files...
+'overlays/common/06-restore-eth0-mac//root/./usr/local' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local'
+'overlays/common/06-restore-eth0-mac//root/./usr/local/sbin' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/sbin'
+'overlays/common/06-restore-eth0-mac//root/./usr/local/sbin/restore-mac' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/sbin/restore-mac'
+>> Applying overlay overlays/firmware-extended/01-system-utils/...
+[+] Applying patch: 01-add-service-hooks.patch in subdir .
+patching file etc/init.d/S60klipper
+Hunk #1 succeeded at 25 (offset 5 lines).
+patching file etc/init.d/S61moonraker
+patching file etc/init.d/S90lmd
+>> Copying custom files...
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/klipper.d' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/klipper.d'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/klipper.d/.keep' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/klipper.d/.keep'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/lmd.d' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/lmd.d'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/lmd.d/.keep' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/lmd.d/.keep'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/moonraker.d' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/moonraker.d'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/moonraker.d/.keep' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/moonraker.d/.keep'
+'overlays/firmware-extended/01-system-utils//root/./etc/profile.d/activate_path_01_usr_local.sh' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/profile.d/activate_path_01_usr_local.sh'
+'overlays/firmware-extended/01-system-utils//root/./usr/local/bin' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/bin'
+'overlays/firmware-extended/01-system-utils//root/./usr/local/bin/extended-pkg' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/bin/extended-pkg'
+[+] Running script: curl_install.sh
+>> Verifying /home/administrator/00.Snapmaker-Firmware-current/tmp/cache/curl-linux-aarch64-glibc-8.17.0.tar.xz checksum...
+>> Extracting curl-linux-aarch64-glibc-8.17.0.tar.xz...
+[+] Running script: fix_timelapse_install.sh
+>> Using cached git repository in /home/administrator/00.Snapmaker-Firmware-current/tmp/cache/snapmaker-u1-timelapse-recovery
+>> Installing Timelapse Recovery Tool...
+[+] Running script: rsync_install.sh
+>> Downloading rsync-3.2.7.tar.gz...
+make -C tools/rk2918_tools
+make[1]: Entering directory '/home/administrator/00.Snapmaker-Firmware-current/tools/rk2918_tools'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-current/tools/rk2918_tools'
+make -C tools/upfile
+make[1]: Entering directory '/home/administrator/00.Snapmaker-Firmware-current/tools/upfile'
+make[1]: 'upfile' is up to date.
+make[1]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-current/tools/upfile'
+make -C tools/resource_tool
+make[1]: Entering directory '/home/administrator/00.Snapmaker-Firmware-current/tools/resource_tool'
+make[1]: 'resource_tool' is up to date.
+make[1]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-current/tools/resource_tool'
+./scripts/create_firmware.sh firmware/U1_2.0.0.205_20260914173503_upgrade.bin tmp/firmware firmware/firmware.bin overlays/common/01-store-version/ overlays/common/02-enable-ssh/ overlays/common/03-disable-wlan-power-save/ overlays/common/04-nginx-fluidd.d/ overlays/common/05-persist-dhcp/ overlays/common/06-restore-eth0-mac/ overlays/firmware-extended/01-system-utils/ overlays/firmware-extended/02-firmware-config/ overlays/firmware-extended/03-extended-runtime/ overlays/firmware-extended/10-patch-kernel-modules/ overlays/firmware-extended/11-patch-klipper/ overlays/firmware-extended/12-patch-moonraker/ overlays/firmware-extended/13-patch-rfid/ overlays/firmware-extended/30-feature-ssh/ overlays/firmware-extended/31-feature-afc-lite/ overlays/firmware-extended/32-feature-klipper-tweaks/ overlays/firmware-extended/33-feature-timelapse-stub/ overlays/firmware-extended/34-feature-faulty-toolhead/ overlays/firmware-extended/35-feature-klipper-hooks/ overlays/firmware-extended/36-feature-print-preferences/ overlays/firmware-extended/37-feature-chamber-heater/ overlays/firmware-extended/38-feature-spoollink/ overlays/firmware-extended/40-feature-upgrade-firmware/ overlays/firmware-extended/41-feature-generic-purifier/ overlays/firmware-extended/41-feature-toolhead-mcu-simulator/ overlays/firmware-extended/60-app-camera/ overlays/firmware-extended/61-app-remote-screen/ overlays/firmware-extended/62-app-fluidd/ overlays/firmware-extended/63-app-mainsail/ overlays/firmware-extended/64-app-openrfid/ overlays/firmware-extended/65-app-cloud/ overlays/firmware-extended/66-app-vpn/ overlays/firmware-extended/67-app-monitoring/ overlays/firmware-extended/68-app-filament-ui/ overlays/firmware-extended/69-app-helixscreen/ 
+>> Unpacking firmware...
+>> Extracting input firmware /home/administrator/00.Snapmaker-Firmware-current/firmware/U1_2.0.0.205_20260914173503_upgrade.bin...
+UPFILE Header:
+  Magic:	0x4b4d4e53
+  Magic Ver:	0x0002
+  Version:	               2.0.0.205
+  Build Date:	20260914173503
+  Checksum:	0x06f4
+  Files:	4
+Extracted UPFILE_VERSION (9 bytes)
+Extracted UPFILE_BUILD_DATE (14 bytes)
+File Entry 0:
+  Type:		0
+  Offset:	0x00000000000000c0
+  Size:		216572490
+  Checksum:	0x0a72
+  MD5:		a139887ceb430beee8349db04a4d8f3e
+Extracted update.img (216572490 bytes)
+File Entry 1:
+  Type:		1
+  Offset:	0x000000000ce8a30a
+  Size:		47800
+  Checksum:	0x0d3f
+  MD5:		95a8849d95f1eff22f5ffd9f61a76dc7
+Extracted at32f403a.bin (47800 bytes)
+File Entry 2:
+  Type:		2
+  Offset:	0x000000000ce95dc2
+  Size:		46372
+  Checksum:	0x0ac3
+  MD5:		a77c8a08bf776734f751ec0f9244e253
+Extracted at32f415.bin (46372 bytes)
+File Entry 3:
+  Type:		3
+  Offset:	0x000000000cea12e6
+  Size:		26
+  Checksum:	0x09ca
+  MD5:		a1a266748349988906e11d2d9aca2bf5
+Extracted MCU_DESC (26 bytes)
+>> Unpacking update.img...
+rom version: 1.0.0
+build time: 2026-09-14 17:35:48
+chip: 33353632
+checking md5sum....OK
+>> Unpacking rk-rom.img to rk-unpacked/...
+Check file...OK
+------- UNPACK -------
+Unpacking: name=package-file filename=package-file	nand_addr=4294967295/0	pos=2048/251/1
+Unpacking: name=parameter filename=parameter.txt	nand_addr=0/16384	pos=4096/541/1
+Unpacking: name=bootloader filename=MiniLoaderAll.bin	nand_addr=4294967295/0	pos=6144/469440/230
+Unpacking: name=uboot_a filename=uboot.img	nand_addr=16384/8192	pos=477184/4194304/2048
+Unpacking: name=uboot_b filename=uboot.img	nand_addr=24576/8192	pos=477184/4194304/2048
+Unpacking: name=misc filename=misc.img	nand_addr=32768/8192	pos=4671488/49152/24
+Unpacking: name=boot_a filename=boot.img	nand_addr=40960/65536	pos=4720640/17463808/8528
+Unpacking: name=boot_b filename=boot.img	nand_addr=106496/65536	pos=4720640/17463808/8528
+Unpacking: name=system_a filename=rootfs.img	nand_addr=172032/614400	pos=22185984/177139712/86494
+Unpacking: name=system_b filename=rootfs.img	nand_addr=786432/614400	pos=22185984/177139712/86494
+Unpacking: name=oem filename=oem.img	nand_addr=1400832/2097152	pos=199325696/8388608/4096
+Unpacking: name=userdata filename=userdata.img	nand_addr=3497984/4294967295	pos=207714304/8388608/4096
+UnPack OK!
+>> Done. Unpacked files are in /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/
+>> Extracting squashfs from rootfs.img...
+Parallel unsquashfs: Using 22 processors
+9940 inodes (13237 blocks) to write
+
+[============================/                               ] 11271/23177  48%[===========================================================/] 23177/23177 100%
+
+created 8120 files
+created 775 directories
+created 1327 symlinks
+created 0 devices
+created 0 fifos
+created 0 sockets
+created 493 hardlinks
+>> Verifying ownership preservation...
+   Ownership check passed
+>> Restoring chroot cache...
+>> Applying overlay overlays/common/01-store-version/...
+[+] Running script: 01_store_version.sh
+[+] Running script: 02_update_boot_logo.sh
+>> Unpacking boot.img to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked
+=== Extracting FIT image: /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rk-unpacked/boot.img ===
+FIT description: U-Boot FIT source file for arm
+Created:         Mon Sep 14 17:01:22 2026
+ Image 0 (fdt)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Flat Device Tree
+  Compression:  uncompressed
+  Data Size:    144056 Bytes = 140.68 KiB = 0.14 MiB
+  Architecture: AArch64
+  Load Address: 0xffffff00
+  Hash algo:    sha256
+  Hash value:   53e2ac3e200fd94e0be052b479d5568fb3d32d5d508ff4a136f3e607e7aad411
+ Image 1 (kernel)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Kernel Image
+  Compression:  lz4 compressed
+  Data Size:    16247250 Bytes = 15866.46 KiB = 15.49 MiB
+  Architecture: AArch64
+  OS:           Linux
+  Load Address: 0xffffff01
+  Entry Point:  0xffffff01
+  Hash algo:    sha256
+  Hash value:   fe0c723f7e145f9ea5af4e6548106fceed4ac71c0e6d8b2d113458ad8e4d4472
+ Image 2 (resource)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Multi-File Image
+  Compression:  uncompressed
+  Data Size:    1069056 Bytes = 1044.00 KiB = 1.02 MiB
+  Hash algo:    sha256
+  Hash value:   61dd19adc7de4941bf2d6397833c80d6bbd0c5f913fc6896d7058fe9323bb4e1
+ Default Configuration: 'conf'
+ Configuration 0 (conf)
+  Description:  unavailable
+  Kernel:       kernel
+  FDT:          fdt
+  Sign algo:    sha256,rsa2048:dev
+  Sign padding: pss
+  Sign value:   unavailable
+  Timestamp:    unavailable
+
+Validating FIT structure...
+  [✓] Image 0: fdt
+  [✓] Image 1: kernel
+  [✓] Image 2: resource
+
+Extracting components...
+Extracted:
+ Image 0 (fdt)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Flat Device Tree
+  Compression:  uncompressed
+  Data Size:    144056 Bytes = 140.68 KiB = 0.14 MiB
+  Architecture: AArch64
+  Load Address: 0xffffff00
+  Hash algo:    sha256
+  Hash value:   53e2ac3e200fd94e0be052b479d5568fb3d32d5d508ff4a136f3e607e7aad411
+  [✓] FDT extracted to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/fdt.dtb
+Extracted:
+ Image 1 (kernel)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Kernel Image
+  Compression:  lz4 compressed
+  Data Size:    16247250 Bytes = 15866.46 KiB = 15.49 MiB
+  Architecture: AArch64
+  OS:           Linux
+  Load Address: 0xffffff01
+  Entry Point:  0xffffff01
+  Hash algo:    sha256
+  Hash value:   fe0c723f7e145f9ea5af4e6548106fceed4ac71c0e6d8b2d113458ad8e4d4472
+  [✓] Kernel extracted to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/kernel.img
+Extracted:
+ Image 2 (resource)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Multi-File Image
+  Compression:  uncompressed
+  Data Size:    1069056 Bytes = 1044.00 KiB = 1.02 MiB
+  Hash algo:    sha256
+  Hash value:   61dd19adc7de4941bf2d6397833c80d6bbd0c5f913fc6896d7058fe9323bb4e1
+  [✓] Resource extracted to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resource.img
+
+Creating its file for repacking...
+  [✓] ITS file created at /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/boot.its
+
+Extraction complete!
+/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resources /home/administrator/00.Snapmaker-Firmware-current
+Dump header:
+partition version:0.0
+header size:1
+index tbl:
+	offset:1	entry size:1	entry num:3
+Dump Index table:
+entry(0):
+	path:rk-kernel.dtb
+	offset:4	size:144056
+entry(1):
+	path:logo.bmp
+	offset:286	size:460938
+entry(2):
+	path:logo_kernel.bmp
+	offset:1187	size:460938
+Unack /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resource.img to out successed!
+/home/administrator/00.Snapmaker-Firmware-current
+Resource extraction complete!
+>> Replacing logo.bmp in boot image
+>> Repacking boot.img
+/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resources /home/administrator/00.Snapmaker-Firmware-current
+Pack to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resource.img successed!
+/home/administrator/00.Snapmaker-Firmware-current
+Resource packing complete!
+=== Repacking FIT image ===
+FIT description: U-Boot FIT source file for arm
+Created:         Fri Oct  2 21:41:37 2026
+ Image 0 (fdt)
+  Description:  unavailable
+  Created:      Fri Oct  2 21:41:37 2026
+  Type:         Flat Device Tree
+  Compression:  uncompressed
+  Data Size:    144056 Bytes = 140.68 KiB = 0.14 MiB
+  Architecture: AArch64
+  Load Address: 0xffffff00
+  Hash algo:    sha256
+  Hash value:   53e2ac3e200fd94e0be052b479d5568fb3d32d5d508ff4a136f3e607e7aad411
+ Image 1 (kernel)
+  Description:  unavailable
+  Created:      Fri Oct  2 21:41:37 2026
+  Type:         Kernel Image
+  Compression:  lz4 compressed
+  Data Size:    16247250 Bytes = 15866.46 KiB = 15.49 MiB
+  Architecture: AArch64
+  OS:           Linux
+  Load Address: 0xffffff01
+  Entry Point:  0xffffff01
+  Hash algo:    sha256
+  Hash value:   fe0c723f7e145f9ea5af4e6548106fceed4ac71c0e6d8b2d113458ad8e4d4472
+ Image 2 (resource)
+  Description:  unavailable
+  Created:      Fri Oct  2 21:41:37 2026
+  Type:         Multi-File Image
+  Compression:  uncompressed
+  Data Size:    1069056 Bytes = 1044.00 KiB = 1.02 MiB
+  Hash algo:    sha256
+  Hash value:   c4e011c0b8d76d15b396401b1ad25316659f2576b2ae9abf2e7f5593a7360e85
+ Default Configuration: 'conf'
+ Configuration 0 (conf)
+  Description:  unavailable
+  Kernel:       kernel
+  FDT:          fdt
+
+Repack complete: /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rk-unpacked/boot.img
+>> Applying overlay overlays/common/02-enable-ssh/...
+[+] Applying patch: 01-enable-ssh.patch in subdir .
+patching file etc/init.d/S50dropbear
+>> Applying overlay overlays/common/03-disable-wlan-power-save/...
+>> Copying custom files...
+'overlays/common/03-disable-wlan-power-save//root/./etc/init.d/S99wlan-powersave-disable' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/init.d/S99wlan-powersave-disable'
+'overlays/common/03-disable-wlan-power-save//root/./usr/sbin/wlan-powersave-disable' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/sbin/wlan-powersave-disable'
+>> Applying overlay overlays/common/04-nginx-fluidd.d/...
+[+] Applying patch: 04-nginx-fluidd-d.patch in subdir .
+patching file etc/nginx/sites-available/fluidd
+Hunk #1 succeeded at 98 (offset 5 lines).
+>> Applying overlay overlays/common/05-persist-dhcp/...
+>> Copying custom files...
+'overlays/common/05-persist-dhcp//root/./etc/init.d/S10persist-dhcp' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/init.d/S10persist-dhcp'
+>> Applying overlay overlays/common/06-restore-eth0-mac/...
+[+] Applying patch: 01-restore-eth0-mac.patch in subdir .
+patching file etc/network/interfaces.d/eth0
+>> Copying custom files...
+'overlays/common/06-restore-eth0-mac//root/./usr/local' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local'
+'overlays/common/06-restore-eth0-mac//root/./usr/local/sbin' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/sbin'
+'overlays/common/06-restore-eth0-mac//root/./usr/local/sbin/restore-mac' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/sbin/restore-mac'
+>> Applying overlay overlays/firmware-extended/01-system-utils/...
+[+] Applying patch: 01-add-service-hooks.patch in subdir .
+patching file etc/init.d/S60klipper
+Hunk #1 succeeded at 25 (offset 5 lines).
+patching file etc/init.d/S61moonraker
+patching file etc/init.d/S90lmd
+>> Copying custom files...
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/klipper.d' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/klipper.d'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/klipper.d/.keep' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/klipper.d/.keep'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/lmd.d' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/lmd.d'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/lmd.d/.keep' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/lmd.d/.keep'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/moonraker.d' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/moonraker.d'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/moonraker.d/.keep' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/moonraker.d/.keep'
+'overlays/firmware-extended/01-system-utils//root/./etc/profile.d/activate_path_01_usr_local.sh' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/profile.d/activate_path_01_usr_local.sh'
+'overlays/firmware-extended/01-system-utils//root/./usr/local/bin' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/bin'
+'overlays/firmware-extended/01-system-utils//root/./usr/local/bin/extended-pkg' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/bin/extended-pkg'
+[+] Running script: curl_install.sh
+>> Verifying /home/administrator/00.Snapmaker-Firmware-current/tmp/cache/curl-linux-aarch64-glibc-8.17.0.tar.xz checksum...
+>> Extracting curl-linux-aarch64-glibc-8.17.0.tar.xz...
+[+] Running script: fix_timelapse_install.sh
+>> Using cached git repository in /home/administrator/00.Snapmaker-Firmware-current/tmp/cache/snapmaker-u1-timelapse-recovery
+>> Installing Timelapse Recovery Tool...
+[+] Running script: rsync_install.sh
+>> Downloading rsync-3.2.7.tar.gz...
+>> Verifying /home/administrator/00.Snapmaker-Firmware-current/tmp/cache/rsync-3.2.7.tar.gz checksum...
+>> Extracting rsync-3.2.7.tar.gz...
+>> Applying overlay overlays/firmware-extended/02-firmware-config/...
+[+] Applying patch: 01-add-klipper-includes.patch in subdir .
+patching file home/lava/origin_printer_data/config/printer.cfg
+Hunk #1 succeeded at 1343 (offset 82 lines).
+[+] Applying patch: 01-add-moonraker-includes.patch in subdir .
+patching file home/lava/origin_printer_data/config/moonraker.conf
+>> Copying custom files...
+'overlays/firmware-extended/02-firmware-config//root/./etc/init.d/S49extended-config' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/init.d/S49extended-config'
+'overlays/firmware-extended/02-firmware-config//root/./etc/init.d/S99firmware-config' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/init.d/S99firmware-config'
+'overlays/firmware-extended/02-firmware-config//root/./etc/nginx/fluidd.d' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/nginx/fluidd.d'
+'overlays/firmware-extended/02-firmware-config//root/./etc/nginx/fluidd.d/firmware-config.conf' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/nginx/fluidd.d/firmware-config.conf'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/bin/extended-config.py' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/bin/extended-config.py'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/bin/firmware-config.py' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/bin/firmware-config.py'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/extended' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/extended'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/extended/extended2.cfg' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/extended/extended2.cfg'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/extended/klipper' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/extended/klipper'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/extended/klipper/00_keep.cfg' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/extended/klipper/00_keep.cfg'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/extended/moonraker' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/extended/moonraker'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/extended/moonraker/00_keep.cfg' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/extended/moonraker/00_keep.cfg'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/force-cleanup.sha256' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/force-cleanup.sha256'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/01_status_system.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/01_status_system.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/02_status_wlan.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/02_status_wlan.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/03_status_eth.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/03_status_eth.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/04_status_mmc.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/04_status_mmc.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/05_settings.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/05_settings.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/06_actions.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/06_actions.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/12_settings_firmware_config.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/12_settings_firmware_config.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/15_settings_security.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/15_settings_security.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/20_actions_troubleshooting.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/20_actions_troubleshooting.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/21_actions_services.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/21_actions_services.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/22_actions_system.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/22_actions_system.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/30_upgrade.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/30_upgrade.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/html' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/html'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/html/index.html' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/html/index.html'
+[+] Running script: 01-install-yaml.sh
+>> Installing PyYAML via pip3
+Looking in links: /cache/pip
+Collecting pyyaml
+  Downloading pyyaml-6.0.3-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (2.4 kB)
+Downloading pyyaml-6.0.3-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (775 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 775.6/775.6 kB 527.7 kB/s eta 0:00:00
+Saved /cache/pip/pyyaml-6.0.3-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl
+Successfully downloaded pyyaml
+Looking in links: /cache/pip
+Processing /cache/pip/pyyaml-6.0.3-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl
+Installing collected packages: pyyaml
+Successfully installed pyyaml-6.0.3
+>> Applying overlay overlays/firmware-extended/03-extended-runtime/...
+>> Copying custom files...
+'overlays/firmware-extended/03-extended-runtime//root/./usr/local/bin/memory-report' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/bin/memory-report'
+'overlays/firmware-extended/03-extended-runtime//root/./usr/local/sbin/limits-helper.sh' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/sbin/limits-helper.sh'
+>> Applying overlay overlays/firmware-extended/10-patch-kernel-modules/...
+[+] Running script: 01_compile_kernel_modules.sh
++Linux version 6.1.99 (snapmaker@build-srv) (aarch64-none-l9
+>> Setting up kernel source directory
+Initialized empty Git repository in /home/administrator/00.Snapmaker-Firmware-current/tmp/kernel/.git/
+/home/administrator/00.Snapmaker-Firmware-current/tmp/kernel /home/administrator/00.Snapmaker-Firmware-current
+>> Configuring and preparing kernel build environment
+'/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/info/config-6.1' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/kernel-build/.config'
+make[1]: Entering directory '/home/administrator/00.Snapmaker-Firmware-current/tmp/kernel'
+make[2]: Entering directory '/home/administrator/00.Snapmaker-Firmware-current/tmp/kernel-build'
+  GEN     Makefile
+  HOSTCC  scripts/basic/fixdep
+  HOSTCC  scripts/kconfig/conf.o
+  HOSTCC  scripts/kconfig/confdata.o
+  HOSTCC  scripts/kconfig/expr.o
+  LEX     scripts/kconfig/lexer.lex.c
+make[2]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-current/tmp/kernel-build'
+make[1]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-current/tmp/kernel'
+make -C tools/rk2918_tools
+make[1]: Entering directory '/home/administrator/00.Snapmaker-Firmware-current/tools/rk2918_tools'
+make[1]: Nothing to be done for 'all'.
+make[1]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-current/tools/rk2918_tools'
+make -C tools/upfile
+make[1]: Entering directory '/home/administrator/00.Snapmaker-Firmware-current/tools/upfile'
+make[1]: 'upfile' is up to date.
+make[1]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-current/tools/upfile'
+make -C tools/resource_tool
+make[1]: Entering directory '/home/administrator/00.Snapmaker-Firmware-current/tools/resource_tool'
+make[1]: 'resource_tool' is up to date.
+make[1]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-current/tools/resource_tool'
+./scripts/create_firmware.sh firmware/U1_2.0.0.205_20260914173503_upgrade.bin tmp/firmware firmware/firmware.bin overlays/common/01-store-version/ overlays/common/02-enable-ssh/ overlays/common/03-disable-wlan-power-save/ overlays/common/04-nginx-fluidd.d/ overlays/common/05-persist-dhcp/ overlays/common/06-restore-eth0-mac/ overlays/firmware-extended/01-system-utils/ overlays/firmware-extended/02-firmware-config/ overlays/firmware-extended/03-extended-runtime/ overlays/firmware-extended/10-patch-kernel-modules/ overlays/firmware-extended/11-patch-klipper/ overlays/firmware-extended/12-patch-moonraker/ overlays/firmware-extended/13-patch-rfid/ overlays/firmware-extended/30-feature-ssh/ overlays/firmware-extended/31-feature-afc-lite/ overlays/firmware-extended/32-feature-klipper-tweaks/ overlays/firmware-extended/33-feature-timelapse-stub/ overlays/firmware-extended/34-feature-faulty-toolhead/ overlays/firmware-extended/35-feature-klipper-hooks/ overlays/firmware-extended/36-feature-print-preferences/ overlays/firmware-extended/37-feature-chamber-heater/ overlays/firmware-extended/38-feature-spoollink/ overlays/firmware-extended/40-feature-upgrade-firmware/ overlays/firmware-extended/41-feature-generic-purifier/ overlays/firmware-extended/41-feature-toolhead-mcu-simulator/ overlays/firmware-extended/60-app-camera/ overlays/firmware-extended/61-app-remote-screen/ overlays/firmware-extended/62-app-fluidd/ overlays/firmware-extended/63-app-mainsail/ overlays/firmware-extended/64-app-openrfid/ overlays/firmware-extended/65-app-cloud/ overlays/firmware-extended/66-app-vpn/ overlays/firmware-extended/67-app-monitoring/ overlays/firmware-extended/68-app-filament-ui/ overlays/firmware-extended/69-app-helixscreen/ 
+>> Unpacking firmware...
+>> Extracting input firmware /home/administrator/00.Snapmaker-Firmware-current/firmware/U1_2.0.0.205_20260914173503_upgrade.bin...
+UPFILE Header:
+  Magic:	0x4b4d4e53
+  Magic Ver:	0x0002
+  Version:	               2.0.0.205
+  Build Date:	20260914173503
+  Checksum:	0x06f4
+  Files:	4
+Extracted UPFILE_VERSION (9 bytes)
+Extracted UPFILE_BUILD_DATE (14 bytes)
+File Entry 0:
+  Type:		0
+  Offset:	0x00000000000000c0
+  Size:		216572490
+  Checksum:	0x0a72
+  MD5:		a139887ceb430beee8349db04a4d8f3e
+Extracted update.img (216572490 bytes)
+File Entry 1:
+  Type:		1
+  Offset:	0x000000000ce8a30a
+  Size:		47800
+  Checksum:	0x0d3f
+  MD5:		95a8849d95f1eff22f5ffd9f61a76dc7
+Extracted at32f403a.bin (47800 bytes)
+File Entry 2:
+  Type:		2
+  Offset:	0x000000000ce95dc2
+  Size:		46372
+  Checksum:	0x0ac3
+  MD5:		a77c8a08bf776734f751ec0f9244e253
+Extracted at32f415.bin (46372 bytes)
+File Entry 3:
+  Type:		3
+  Offset:	0x000000000cea12e6
+  Size:		26
+  Checksum:	0x09ca
+  MD5:		a1a266748349988906e11d2d9aca2bf5
+Extracted MCU_DESC (26 bytes)
+>> Unpacking update.img...
+rom version: 1.0.0
+build time: 2026-09-14 17:35:48
+chip: 33353632
+checking md5sum....OK
+>> Unpacking rk-rom.img to rk-unpacked/...
+Check file...OK
+------- UNPACK -------
+Unpacking: name=package-file filename=package-file	nand_addr=4294967295/0	pos=2048/251/1
+Unpacking: name=parameter filename=parameter.txt	nand_addr=0/16384	pos=4096/541/1
+Unpacking: name=bootloader filename=MiniLoaderAll.bin	nand_addr=4294967295/0	pos=6144/469440/230
+Unpacking: name=uboot_a filename=uboot.img	nand_addr=16384/8192	pos=477184/4194304/2048
+Unpacking: name=uboot_b filename=uboot.img	nand_addr=24576/8192	pos=477184/4194304/2048
+Unpacking: name=misc filename=misc.img	nand_addr=32768/8192	pos=4671488/49152/24
+Unpacking: name=boot_a filename=boot.img	nand_addr=40960/65536	pos=4720640/17463808/8528
+Unpacking: name=boot_b filename=boot.img	nand_addr=106496/65536	pos=4720640/17463808/8528
+Unpacking: name=system_a filename=rootfs.img	nand_addr=172032/614400	pos=22185984/177139712/86494
+Unpacking: name=system_b filename=rootfs.img	nand_addr=786432/614400	pos=22185984/177139712/86494
+Unpacking: name=oem filename=oem.img	nand_addr=1400832/2097152	pos=199325696/8388608/4096
+Unpacking: name=userdata filename=userdata.img	nand_addr=3497984/4294967295	pos=207714304/8388608/4096
+UnPack OK!
+>> Done. Unpacked files are in /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/
+>> Extracting squashfs from rootfs.img...
+Parallel unsquashfs: Using 22 processors
+9940 inodes (13237 blocks) to write
+
+[=========================/                                  ] 10089/23177  43%[===========================================================/] 23177/23177 100%
+
+created 8120 files
+created 775 directories
+created 1327 symlinks
+created 0 devices
+created 0 fifos
+created 0 sockets
+created 493 hardlinks
+>> Verifying ownership preservation...
+   Ownership check passed
+>> Restoring chroot cache...
+>> Applying overlay overlays/common/01-store-version/...
+[+] Running script: 01_store_version.sh
+[+] Running script: 02_update_boot_logo.sh
+>> Unpacking boot.img to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked
+=== Extracting FIT image: /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rk-unpacked/boot.img ===
+FIT description: U-Boot FIT source file for arm
+Created:         Mon Sep 14 17:01:22 2026
+ Image 0 (fdt)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Flat Device Tree
+  Compression:  uncompressed
+  Data Size:    144056 Bytes = 140.68 KiB = 0.14 MiB
+  Architecture: AArch64
+  Load Address: 0xffffff00
+  Hash algo:    sha256
+  Hash value:   53e2ac3e200fd94e0be052b479d5568fb3d32d5d508ff4a136f3e607e7aad411
+ Image 1 (kernel)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Kernel Image
+  Compression:  lz4 compressed
+  Data Size:    16247250 Bytes = 15866.46 KiB = 15.49 MiB
+  Architecture: AArch64
+  OS:           Linux
+  Load Address: 0xffffff01
+  Entry Point:  0xffffff01
+  Hash algo:    sha256
+  Hash value:   fe0c723f7e145f9ea5af4e6548106fceed4ac71c0e6d8b2d113458ad8e4d4472
+ Image 2 (resource)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Multi-File Image
+  Compression:  uncompressed
+  Data Size:    1069056 Bytes = 1044.00 KiB = 1.02 MiB
+  Hash algo:    sha256
+  Hash value:   61dd19adc7de4941bf2d6397833c80d6bbd0c5f913fc6896d7058fe9323bb4e1
+ Default Configuration: 'conf'
+ Configuration 0 (conf)
+  Description:  unavailable
+  Kernel:       kernel
+  FDT:          fdt
+  Sign algo:    sha256,rsa2048:dev
+  Sign padding: pss
+  Sign value:   unavailable
+  Timestamp:    unavailable
+
+Validating FIT structure...
+  [✓] Image 0: fdt
+  [✓] Image 1: kernel
+  [✓] Image 2: resource
+
+Extracting components...
+Extracted:
+ Image 0 (fdt)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Flat Device Tree
+  Compression:  uncompressed
+  Data Size:    144056 Bytes = 140.68 KiB = 0.14 MiB
+  Architecture: AArch64
+  Load Address: 0xffffff00
+  Hash algo:    sha256
+  Hash value:   53e2ac3e200fd94e0be052b479d5568fb3d32d5d508ff4a136f3e607e7aad411
+  [✓] FDT extracted to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/fdt.dtb
+Extracted:
+ Image 1 (kernel)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Kernel Image
+  Compression:  lz4 compressed
+  Data Size:    16247250 Bytes = 15866.46 KiB = 15.49 MiB
+  Architecture: AArch64
+  OS:           Linux
+  Load Address: 0xffffff01
+  Entry Point:  0xffffff01
+  Hash algo:    sha256
+  Hash value:   fe0c723f7e145f9ea5af4e6548106fceed4ac71c0e6d8b2d113458ad8e4d4472
+  [✓] Kernel extracted to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/kernel.img
+Extracted:
+ Image 2 (resource)
+  Description:  unavailable
+  Created:      Mon Sep 14 17:01:22 2026
+  Type:         Multi-File Image
+  Compression:  uncompressed
+  Data Size:    1069056 Bytes = 1044.00 KiB = 1.02 MiB
+  Hash algo:    sha256
+  Hash value:   61dd19adc7de4941bf2d6397833c80d6bbd0c5f913fc6896d7058fe9323bb4e1
+  [✓] Resource extracted to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resource.img
+
+Creating its file for repacking...
+  [✓] ITS file created at /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/boot.its
+
+Extraction complete!
+/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resources /home/administrator/00.Snapmaker-Firmware-current
+Dump header:
+partition version:0.0
+header size:1
+index tbl:
+	offset:1	entry size:1	entry num:3
+Dump Index table:
+entry(0):
+	path:rk-kernel.dtb
+	offset:4	size:144056
+entry(1):
+	path:logo.bmp
+	offset:286	size:460938
+entry(2):
+	path:logo_kernel.bmp
+	offset:1187	size:460938
+Unack /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resource.img to out successed!
+/home/administrator/00.Snapmaker-Firmware-current
+Resource extraction complete!
+>> Replacing logo.bmp in boot image
+>> Repacking boot.img
+/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resources /home/administrator/00.Snapmaker-Firmware-current
+Pack to /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/boot-unpacked/resource.img successed!
+/home/administrator/00.Snapmaker-Firmware-current
+Resource packing complete!
+=== Repacking FIT image ===
+FIT description: U-Boot FIT source file for arm
+Created:         Fri Oct  2 21:48:33 2026
+ Image 0 (fdt)
+  Description:  unavailable
+  Created:      Fri Oct  2 21:48:33 2026
+  Type:         Flat Device Tree
+  Compression:  uncompressed
+  Data Size:    144056 Bytes = 140.68 KiB = 0.14 MiB
+  Architecture: AArch64
+  Load Address: 0xffffff00
+  Hash algo:    sha256
+  Hash value:   53e2ac3e200fd94e0be052b479d5568fb3d32d5d508ff4a136f3e607e7aad411
+ Image 1 (kernel)
+  Description:  unavailable
+  Created:      Fri Oct  2 21:48:33 2026
+  Type:         Kernel Image
+  Compression:  lz4 compressed
+  Data Size:    16247250 Bytes = 15866.46 KiB = 15.49 MiB
+  Architecture: AArch64
+  OS:           Linux
+  Load Address: 0xffffff01
+  Entry Point:  0xffffff01
+  Hash algo:    sha256
+  Hash value:   fe0c723f7e145f9ea5af4e6548106fceed4ac71c0e6d8b2d113458ad8e4d4472
+ Image 2 (resource)
+  Description:  unavailable
+  Created:      Fri Oct  2 21:48:33 2026
+  Type:         Multi-File Image
+  Compression:  uncompressed
+  Data Size:    1069056 Bytes = 1044.00 KiB = 1.02 MiB
+  Hash algo:    sha256
+  Hash value:   49fd64c9cfb6bdaae046c2ac7172ae30bdfee182d71ddc223ca0d6a19e7528b5
+ Default Configuration: 'conf'
+ Configuration 0 (conf)
+  Description:  unavailable
+  Kernel:       kernel
+  FDT:          fdt
+
+Repack complete: /home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rk-unpacked/boot.img
+>> Applying overlay overlays/common/02-enable-ssh/...
+[+] Applying patch: 01-enable-ssh.patch in subdir .
+patching file etc/init.d/S50dropbear
+>> Applying overlay overlays/common/03-disable-wlan-power-save/...
+>> Copying custom files...
+'overlays/common/03-disable-wlan-power-save//root/./etc/init.d/S99wlan-powersave-disable' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/init.d/S99wlan-powersave-disable'
+'overlays/common/03-disable-wlan-power-save//root/./usr/sbin/wlan-powersave-disable' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/sbin/wlan-powersave-disable'
+>> Applying overlay overlays/common/04-nginx-fluidd.d/...
+[+] Applying patch: 04-nginx-fluidd-d.patch in subdir .
+patching file etc/nginx/sites-available/fluidd
+Hunk #1 succeeded at 98 (offset 5 lines).
+>> Applying overlay overlays/common/05-persist-dhcp/...
+>> Copying custom files...
+'overlays/common/05-persist-dhcp//root/./etc/init.d/S10persist-dhcp' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/init.d/S10persist-dhcp'
+>> Applying overlay overlays/common/06-restore-eth0-mac/...
+[+] Applying patch: 01-restore-eth0-mac.patch in subdir .
+patching file etc/network/interfaces.d/eth0
+>> Copying custom files...
+'overlays/common/06-restore-eth0-mac//root/./usr/local' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local'
+'overlays/common/06-restore-eth0-mac//root/./usr/local/sbin' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/sbin'
+'overlays/common/06-restore-eth0-mac//root/./usr/local/sbin/restore-mac' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/sbin/restore-mac'
+>> Applying overlay overlays/firmware-extended/01-system-utils/...
+[+] Applying patch: 01-add-service-hooks.patch in subdir .
+patching file etc/init.d/S60klipper
+Hunk #1 succeeded at 25 (offset 5 lines).
+patching file etc/init.d/S61moonraker
+patching file etc/init.d/S90lmd
+>> Copying custom files...
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/klipper.d' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/klipper.d'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/klipper.d/.keep' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/klipper.d/.keep'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/lmd.d' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/lmd.d'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/lmd.d/.keep' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/lmd.d/.keep'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/moonraker.d' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/moonraker.d'
+'overlays/firmware-extended/01-system-utils//root/./etc/hooks/moonraker.d/.keep' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/hooks/moonraker.d/.keep'
+'overlays/firmware-extended/01-system-utils//root/./etc/profile.d/activate_path_01_usr_local.sh' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/profile.d/activate_path_01_usr_local.sh'
+'overlays/firmware-extended/01-system-utils//root/./usr/local/bin' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/bin'
+'overlays/firmware-extended/01-system-utils//root/./usr/local/bin/extended-pkg' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/bin/extended-pkg'
+[+] Running script: curl_install.sh
+>> Verifying /home/administrator/00.Snapmaker-Firmware-current/tmp/cache/curl-linux-aarch64-glibc-8.17.0.tar.xz checksum...
+>> Extracting curl-linux-aarch64-glibc-8.17.0.tar.xz...
+[+] Running script: fix_timelapse_install.sh
+>> Using cached git repository in /home/administrator/00.Snapmaker-Firmware-current/tmp/cache/snapmaker-u1-timelapse-recovery
+>> Installing Timelapse Recovery Tool...
+[+] Running script: rsync_install.sh
+>> Verifying /home/administrator/00.Snapmaker-Firmware-current/tmp/cache/rsync-3.2.7.tar.gz checksum...
+>> Extracting rsync-3.2.7.tar.gz...
+>> Applying overlay overlays/firmware-extended/02-firmware-config/...
+[+] Applying patch: 01-add-klipper-includes.patch in subdir .
+patching file home/lava/origin_printer_data/config/printer.cfg
+Hunk #1 succeeded at 1343 (offset 82 lines).
+[+] Applying patch: 01-add-moonraker-includes.patch in subdir .
+patching file home/lava/origin_printer_data/config/moonraker.conf
+>> Copying custom files...
+'overlays/firmware-extended/02-firmware-config//root/./etc/init.d/S49extended-config' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/init.d/S49extended-config'
+'overlays/firmware-extended/02-firmware-config//root/./etc/init.d/S99firmware-config' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/init.d/S99firmware-config'
+'overlays/firmware-extended/02-firmware-config//root/./etc/nginx/fluidd.d' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/nginx/fluidd.d'
+'overlays/firmware-extended/02-firmware-config//root/./etc/nginx/fluidd.d/firmware-config.conf' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./etc/nginx/fluidd.d/firmware-config.conf'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/bin/extended-config.py' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/bin/extended-config.py'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/bin/firmware-config.py' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/bin/firmware-config.py'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/extended' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/extended'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/extended/extended2.cfg' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/extended/extended2.cfg'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/extended/klipper' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/extended/klipper'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/extended/klipper/00_keep.cfg' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/extended/klipper/00_keep.cfg'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/extended/moonraker' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/extended/moonraker'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/extended/moonraker/00_keep.cfg' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/extended/moonraker/00_keep.cfg'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/force-cleanup.sha256' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/force-cleanup.sha256'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/01_status_system.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/01_status_system.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/02_status_wlan.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/02_status_wlan.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/03_status_eth.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/03_status_eth.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/04_status_mmc.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/04_status_mmc.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/05_settings.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/05_settings.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/06_actions.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/06_actions.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/12_settings_firmware_config.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/12_settings_firmware_config.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/15_settings_security.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/15_settings_security.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/20_actions_troubleshooting.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/20_actions_troubleshooting.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/21_actions_services.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/21_actions_services.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/22_actions_system.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/22_actions_system.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/functions/30_upgrade.yaml' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/functions/30_upgrade.yaml'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/html' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/html'
+'overlays/firmware-extended/02-firmware-config//root/./usr/local/share/firmware-config/html/index.html' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/share/firmware-config/html/index.html'
+[+] Running script: 01-install-yaml.sh
+>> Installing PyYAML via pip3
+Looking in links: /cache/pip
+Collecting pyyaml
+  Downloading pyyaml-6.0.3-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (2.4 kB)
+Downloading pyyaml-6.0.3-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (775 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 775.6/775.6 kB 795.8 kB/s eta 0:00:00
+Saved /cache/pip/pyyaml-6.0.3-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl
+Successfully downloaded pyyaml
+Looking in links: /cache/pip
+Processing /cache/pip/pyyaml-6.0.3-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl
+Installing collected packages: pyyaml
+Successfully installed pyyaml-6.0.3
+>> Applying overlay overlays/firmware-extended/03-extended-runtime/...
+>> Copying custom files...
+'overlays/firmware-extended/03-extended-runtime//root/./usr/local/bin/memory-report' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/bin/memory-report'
+'overlays/firmware-extended/03-extended-runtime//root/./usr/local/sbin/limits-helper.sh' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/./usr/local/sbin/limits-helper.sh'
+>> Applying overlay overlays/firmware-extended/10-patch-kernel-modules/...
+[+] Running script: 01_compile_kernel_modules.sh
++Linux version 6.1.99 (snapmaker@build-srv) (aarch64-none-l9
+>> Setting up kernel source directory
+/home/administrator/00.Snapmaker-Firmware-current/tmp/kernel /home/administrator/00.Snapmaker-Firmware-current
+>> Configuring and preparing kernel build environment
+'/home/administrator/00.Snapmaker-Firmware-current/tmp/firmware/rootfs/info/config-6.1' -> '/home/administrator/00.Snapmaker-Firmware-current/tmp/kernel-build/.config'
+make[1]: Entering directory '/home/administrator/00.Snapmaker-Firmware-current/tmp/kernel'
+make[2]: Entering directory '/home/administrator/00.Snapmaker-Firmware-current/tmp/kernel-build'
+  GEN     Makefile
+  HOSTCC  scripts/basic/fixdep
+  HOSTCC  scripts/kconfig/conf.o
+  HOSTCC  scripts/kconfig/confdata.o
+  HOSTCC  scripts/kconfig/expr.o
+  LEX     scripts/kconfig/lexer.lex.c
+  YACC    scripts/kconfig/parser.tab.[ch]
+  HOSTCC  scripts/kconfig/lexer.lex.o
+  HOSTCC  scripts/kconfig/menu.o
+  HOSTCC  scripts/kconfig/parser.tab.o
+  HOSTCC  scripts/kconfig/preprocess.o
+  HOSTCC  scripts/kconfig/symbol.o
+  HOSTCC  scripts/kconfig/util.o
+  HOSTLD  scripts/kconfig/conf
+make[2]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-current/tmp/kernel-build'
+make[1]: Leaving directory '/home/administrator/00.Snapmaker-Firmware-current/tmp/kernel'

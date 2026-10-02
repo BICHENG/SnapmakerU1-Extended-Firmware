@@ -1,0 +1,9 @@
+run=37044194647
+repo=BICHENG/SnapmakerU1-Extended-Firmware
+headSha=922aed212f0180273bff87c226b1fea9b172f913
+workflow=Develop Release
+release=rolling
+artifact=U1_extended_2.0.0-paxx12-develop-922aed2_upgrade.bin
+size=252582656
+sha256=8C62B5371CF0AF0E7B94177A592F308A978B94BA801A783C5AEE348EA84AEC74
+source=reports/build/actions-37044194647-release/U1_extended_2.0.0-paxx12-develop-922aed2_upgrade.bin

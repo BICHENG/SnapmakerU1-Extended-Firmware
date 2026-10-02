@@ -1,0 +1,4 @@
+d132f06237b5c0dc1476b3721d2959448f29d602fa96170bdab6e02443860385  /home/administrator/00.Snapmaker-Firmware-build/firmware/firmware.bin
+46879f6a91e27518a3b4601fbe08102eef3a520edca6c09a13f54831015e4d9a  /home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/update.img
+9aa51975df87aa8648ed5ae961aaf462394b1e847a87142c1958840111eabe10  /home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/UPFILE_VERSION
+9dd2d293416dd085d0a5b177bddf8822456469c12109ec27e394489ff6e6f542  /home/administrator/00.Snapmaker-Firmware-build/tmp/firmware/UPFILE_BUILD_DATE

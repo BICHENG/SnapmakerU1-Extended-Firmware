@@ -1,0 +1,60 @@
+>> Extracting input firmware /mnt/c/Users/Administrator/Desktop/00.POC/00.Snapmaker-Firmware/work/github-actions-37019633229/extended-build/U1_extended__upgrade.bin...
+UPFILE Header:
+  Magic:	0x4b4d4e53
+  Magic Ver:	0x0001
+  Version:	        2.0.0.2053f7af47
+  Build Date:	20260914173503
+  Checksum:	0x07be
+  Files:	4
+Extracted UPFILE_VERSION (16 bytes)
+Extracted UPFILE_BUILD_DATE (14 bytes)
+File Entry 0:
+  Type:		0
+  Offset:	0x00000000000000c0
+  Size:		252488266
+  Checksum:	0x0a49
+  MD5:		b5c33cef1085e215e0ec360fd82488b6
+Extracted update.img (252488266 bytes)
+File Entry 1:
+  Type:		1
+  Offset:	0x000000000f0cab0a
+  Size:		47800
+  Checksum:	0x0c6e
+  MD5:		95a8849d95f1eff22f5ffd9f61a76dc7
+Extracted at32f403a.bin (47800 bytes)
+File Entry 2:
+  Type:		2
+  Offset:	0x000000000f0d65c2
+  Size:		46372
+  Checksum:	0x09f2
+  MD5:		a77c8a08bf776734f751ec0f9244e253
+Extracted at32f415.bin (46372 bytes)
+File Entry 3:
+  Type:		3
+  Offset:	0x000000000f0e1ae6
+  Size:		26
+  Checksum:	0x08f9
+  MD5:		a1a266748349988906e11d2d9aca2bf5
+Extracted MCU_DESC (26 bytes)
+>> Unpacking update.img...
+rom version: 1.0.0
+build time: 2026-10-02 14:26:58
+chip: 50
+checking md5sum....OK
+>> Unpacking rk-rom.img to rk-unpacked/...
+Check file...OK
+------- UNPACK -------
+Unpacking: name=package-file filename=package-file	nand_addr=4294967295/0	pos=2048/251/1
+Unpacking: name=parameter filename=parameter.txt	nand_addr=0/16384	pos=4096/541/1
+Unpacking: name=bootloader filename=MiniLoaderAll.bin	nand_addr=4294967295/0	pos=6144/469440/230
+Unpacking: name=uboot_a filename=uboot.img	nand_addr=16384/8192	pos=477184/4194304/2048
+Unpacking: name=uboot_b filename=uboot.img	nand_addr=24576/8192	pos=477184/4194304/2048
+Unpacking: name=misc filename=misc.img	nand_addr=32768/8192	pos=4671488/49152/24
+Unpacking: name=boot_a filename=boot.img	nand_addr=40960/65536	pos=4720640/17462784/8527
+Unpacking: name=boot_b filename=boot.img	nand_addr=106496/65536	pos=4720640/17462784/8527
+Unpacking: name=system_a filename=rootfs.img	nand_addr=172032/614400	pos=22183936/213057536/104032
+Unpacking: name=system_b filename=rootfs.img	nand_addr=786432/614400	pos=22183936/213057536/104032
+Unpacking: name=oem filename=oem.img	nand_addr=1400832/2097152	pos=235241472/8388608/4096
+Unpacking: name=userdata filename=userdata.img	nand_addr=3497984/4294967295	pos=243630080/8388608/4096
+UnPack OK!
+>> Done. Unpacked files are in /mnt/c/Users/Administrator/Desktop/00.POC/00.Snapmaker-Firmware/work/unpack-37019633229/

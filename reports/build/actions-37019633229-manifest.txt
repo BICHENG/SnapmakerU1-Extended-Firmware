@@ -1,0 +1,7 @@
+run=37019633229
+repo=BICHENG/SnapmakerU1-Extended-Firmware
+headSha=3f7af47cf2a40fbb6c810bf46bd468d19f74b872
+artifact=extended-build/U1_extended__upgrade.bin
+size=252582656
+sha256=61916B7947CEC8EA88C440B79BFD696A4ADD03BA861BA304381710C580E03081
+upfile_version=2.0.0.2053f7af47

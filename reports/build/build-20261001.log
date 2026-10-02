@@ -1,0 +1,19 @@
+make -C tools/rk2918_tools
+make[1]: Entering directory '/mnt/c/Users/Administrator/Desktop/00.POC/00.Snapmaker-Firmware/tools/rk2918_tools'
+gcc -g -O3 -DUSE_OPENSSL -Wall    afptool.c  -lssl -lcrypto -o afptool
+afptool.c: In function ‘action_parse_key’:
+afptool.c:279:17: warning: ‘__builtin_strncpy’ specified bound 56 equals destination size [-Wstringop-truncation]
+  279 |                 strncpy(package_image.manufacturer, value,
+      |                 ^
+afptool.c:273:17: warning: ‘__builtin_strncpy’ specified bound 30 equals destination size [-Wstringop-truncation]
+  273 |                 strncpy(package_image.machine_id, value,
+      |                 ^
+afptool.c:267:17: warning: ‘__builtin_strncpy’ specified bound 34 equals destination size [-Wstringop-truncation]
+  267 |                 strncpy(package_image.machine_model, value,
+      |                 ^
+/usr/bin/ld: cannot find -lssl: No such file or directory
+/usr/bin/ld: cannot find -lcrypto: No such file or directory
+collect2: error: ld returned 1 exit status
+make[1]: *** [<builtin>: afptool] Error 1
+make[1]: Leaving directory '/mnt/c/Users/Administrator/Desktop/00.POC/00.Snapmaker-Firmware/tools/rk2918_tools'
+make: *** [Makefile:64: tools/rk2918_tools] Error 2

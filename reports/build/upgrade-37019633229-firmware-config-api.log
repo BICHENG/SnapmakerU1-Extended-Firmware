@@ -1,0 +1,64 @@
+Warning: Permanently added '100.70.57.39' (ED25519) to the list of known hosts.
+=== Upgrade Started ===
+File: /userdata/web_upgrade.bin
+Size: 252488266 bytes
+Time: 2026-10-02 15:08:13
+========================================
+
+Starting upgrade (240 MB)...
+Name                State    Build time      Version
+Main processor      N/A      poc/fan-curves-imu-20261001-latest  poc/fan-curves-imu-20261001-latest
+Main MCU            online   20260914170131  3ebf909a39
+Print head0 MCU     online   20260914170131  3ebf909a39
+Print head1 MCU     online   20260914170131  3ebf909a39
+Print head2 MCU     online   20260914170131  3ebf909a39
+Print head3 MCU     online   20260914170131  3ebf909a39
+[2026-10-02 15:08:14] [UPG] additional_operations_before_active: Additional operations before activating the soc firmware.
+[2026-10-02 15:08:14] [UPG] upgrade_all: Upgrade all start: 2026-10-02 15:08:14
+[2026-10-02 15:08:14] [UPG] upgrade_all: Main MCU model is stm32f103xe
+[2026-10-02 15:08:14] [UPG] additional_operations_before_upgrade_all: Additional operations before upgrade all.
+Stopping moonraker...
+Stopping klipper...
+lava_io set successfully.
+Unpack parameter:
+Input file       : /userdata/web_upgrade.bin
+Output directory : /userdata/.tmp_upgrade/unpack
+
+Process:
+The input upgrade file is invalid.
+Error ret = -14, please enter 'upfileUnpack -h' to view help information.
+[2026-10-02 15:08:15] [UPG] upgrade_all: Unpack upgrade file failed. Upgrade abort.
+[2026-10-02 15:08:15] [UPG] additional_operations_after_unpack_failed: Additional operations after unpack failed.
+Starting klipper...
+lava_io set successfully.
+Main MCU offline, wait 1s.
+Main MCU offline, wait 1s.
+Main MCU offline, wait 1s.
+Main MCU offline, wait 1s.
+Main MCU offline, wait 1s.
+Main MCU offline, wait 1s.
+Main MCU offline, wait 1s.
+Main MCU offline, wait 1s.
+Main MCU offline, wait 1s.
+Main MCU offline, wait 1s.
+Main MCU offline, wait 1s.
+Main MCU offline, wait 1s.
+Main MCU offline, wait 1s.
+Main MCU offline, wait 1s.
+Main MCU offline, wait 1s.
+Main MCU offline, wait 1s.
+Main MCU offline, wait 1s.
+Main MCU offline, wait 1s.
+Main MCU offline, wait 1s.
+Main MCU offline, wait 1s.
+Check MCU version and restore...
+The upgrade is in progress.
+The upgrade is in progress.
+MCU version check failed.
+The upgrade is in progress.
+Main MCU model: The upgrade is in progress., config: printer.cfg
+Starting klipper with normal config...
+Starting moonraker...
+
+========================================
+ERROR: Failed with exit code 2

@@ -1,0 +1,23 @@
+=== Updating Fan Curves ===
+Setting: Quiet
+Time: 2026-10-02 15:22:14
+========================================
+
+Applying changes...
++ mkdir -p /oem/printer_data/config/extended/klipper
++ cp -v /usr/local/share/firmware-config/tweaks/klipper/fan_curves_quiet.cfg /oem/printer_data/config/extended/klipper/20_fan_curves.cfg
+'/usr/local/share/firmware-config/tweaks/klipper/fan_curves_quiet.cfg' -> '/oem/printer_data/config/extended/klipper/20_fan_curves.cfg'
++ echo 'Quiet fan curves enabled. Restarting Klipper...'
+Quiet fan curves enabled. Restarting Klipper...
++ /etc/init.d/S60klipper restart
+Stopping klipper...
+lava_io set successfully.
+Starting klipper...
+lava_io set successfully.
+Check MCU version and restore...
+All passed
+Main MCU model: stm32f103xe, config: printer.cfg
+Starting klipper with normal config...
+
+========================================
+SUCCESS: Setting updated successfully
