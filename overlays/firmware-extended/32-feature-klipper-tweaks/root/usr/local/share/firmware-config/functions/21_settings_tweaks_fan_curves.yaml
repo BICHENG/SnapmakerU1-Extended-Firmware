@@ -7,7 +7,7 @@ settings:
     items:
       fan_curves:
         label: Fan Curves
-        description: Select quieter nonlinear cooling curves for the power and nozzle fans. Nozzle fans follow actual nozzle temperature; the power fan starts at 70°C actual temperature with 5°C hysteresis and keeps the cavity guard.
+        description: Select quieter nonlinear cooling curves for the power and nozzle fans. Nozzle fans follow actual nozzle temperature; the power fan pre-spins quietly at a 70°C target, then follows actual nozzle temperature with 5°C hysteresis and keeps the cavity guard.
         help_url: http://snapmakeru1-extended-firmware.pages.dev/tweaks#fan-curves
         get_cmd:
           - bash
@@ -26,7 +26,7 @@ settings:
             label: Quiet
             confirm: |-
               Apply the Quiet fan curves?
-              Nozzle fans stay off below 50°C and ramp nonlinearly from actual temperature. The power fan starts at 70°C actual temperature, stops below 65°C, and ramps gently. The cavity guard is 55°C and 60%.
+              Nozzle fans stay off below 50°C and ramp nonlinearly from actual temperature. The power fan pre-spins at 10% when a nozzle target reaches 70°C, starts its actual-temperature curve at 70°C, stops below 65°C, and ramps gently. The cavity guard is 55°C and 60%.
             cmd:
               - bash
               - -xc
@@ -39,7 +39,7 @@ settings:
             label: Balanced
             confirm: |-
               Apply the Balanced fan curves?
-              Nozzle fans stay off below 60°C and ramp earlier than Quiet. The power fan starts at 70°C actual temperature, stops below 65°C, and ramps with more cooling margin. The cavity guard is 55°C and 60%.
+              Nozzle fans stay off below 60°C and ramp earlier than Quiet. The power fan pre-spins at 12% when a nozzle target reaches 70°C, starts its actual-temperature curve at 70°C, stops below 65°C, and ramps with more cooling margin. The cavity guard is 55°C and 60%.
             cmd:
               - bash
               - -xc

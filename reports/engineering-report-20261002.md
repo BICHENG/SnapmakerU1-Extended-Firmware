@@ -13,6 +13,14 @@ Firmware Config 已出现 `Tweaks → Fan Curves`，并成功切换到 `Quiet`�
 
 升级后的 IMU 首轮数据已覆盖待机、主风扇 25/50/100% 和腔体风扇 25/50/100%。随后又在 Stock、Quiet、Balanced 三个设置下完成 45/50/70/90°C 单喷嘴测试。主风扇在工具头 IMU 上接近待机底噪；腔体风扇在 50% 与 100% 时出现清楚的结构振动增长；Stock 的喷嘴风扇结构振动显著高于两个新曲线。IMU 只能说明结构振动，不能当作 `dB(A)` 声压结果。
 
+## 2026-10-03 预转改动与现场复核
+
+为解决“目标温度一设就突然大风量”和“高温预热阶段电源风扇完全没有气流”之间的矛盾，`heater_fan` 增加两个可选字段：`target_temp_threshold` 和 `target_temp_speed`。Quiet 的电源风扇配置为 `70°C / 0.10`，Balanced 为 `70°C / 0.12`。目标温度只允许这一级低速预转；后续速度仍由四个喷嘴最高实际温度的非线性表决定，`70/65°C` 回差继续有效。所有其他风扇不启用这两个字段。
+
+本次提交 `922aed2` 由 fork Actions run `37044194647` 成功构建，完整 UPFILE 大小 `252582656`，SHA256 为 `8C62B5371CF0AF0E7B94177A592F308A978B94BA801A783C5AEE348EA84AEC74`。通过 Firmware Config 的 `/firmware-config/api/upgrade/upload` 上传后，设备切换到 `_a`，Moonraker 返回 `klippy_state=ready`、`failed_components=[]`，Tailscale 状态哈希仍为 `c88fde2b9bd93e0f0c54184ed194e588ec330670832ef8321823d7c9c197e1e2`。
+
+现场点：目标 `69°C` 时电源风扇为 `0.0`；目标 `70°C`、实际约 `66°C` 时为 `0.10`；目标关闭、实际约 `70°C` 时仍为 `0.10`；冷却到实际 `60°C` 后为 `0.0`；实际升到 `131°C` 时为 `0.18`。原始返回数据在 `reports/imu/20261003-power-fan-test.jsonl`。这些结果确认了预转、实际温度曲线和回差，仍不等价于电源板温度保护，因为机器没有独立电源板温度和电源风扇转速反馈。
+
 ## 实现
 
 ### Fan Curves
@@ -193,6 +201,8 @@ Firmware Config 成功写入 `/oem/printer_data/config/extended/klipper/20_fan_c
 原始数据：`reports/imu/20261002-post-upgrade/*.csv`。  
 分析结果：`reports/imu/20261002-post-upgrade/imu-metrics.json`。  
 校验：`reports/imu/20261002-post-upgrade/SHA256SUMS`。
+
+本次新固件另采集了电源风扇从 Quiet `0.10` 预转进入实际温度 `0.18` 档的 8.109 秒样本：`e0_lis2dw` 约 1593.8 Hz，动态 RMS `87.554 mm/s²`，P95 `170.802 mm/s²`，峰值 `282.001 mm/s²`。样本跨越两个档位，只用于确认电源风扇振动能够被工具头 IMU 采到，不能当作固定档位对照，也不能换算为 `dB(A)`。原始 CSV 和指标在 `reports/imu/20261003-powerfan-010/`。
 
 ## 电源风扇为什么原厂会乱转
 

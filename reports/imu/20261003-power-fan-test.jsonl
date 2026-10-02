@@ -1,0 +1,7 @@
+{"phase":"target_69","extruder_temperature":44.0,"extruder_target":69.0,"extruder_power":0.2408837186,"power_fan_speed":0.0}
+{"phase":"target_70","extruder_temperature":66.0,"extruder_target":70.0,"extruder_power":0.0,"power_fan_speed":0.1}
+{"phase":"target_off_actual_70","extruder_temperature":70.0,"extruder_target":0.0,"extruder_power":0.0,"power_fan_speed":0.1}
+{"phase":"cooled_actual_60","extruder_temperature":60.0,"extruder_target":0.0,"extruder_power":0.0,"power_fan_speed":0.0}
+{"phase":"target_130_heating","extruder_temperature":93.0,"extruder_target":130.0,"extruder_power":1.0,"power_fan_speed":0.1}
+{"phase":"actual_131_curve","extruder_temperature":131.0,"extruder_target":130.0,"extruder_power":0.1438808236,"power_fan_speed":0.18}
+{"phase":"final_safe_hot_nozzle","extruder_temperature":129.0,"extruder_target":0.0,"extruder_power":0.0,"power_fan_speed":0.18,"e0_nozzle_fan_speed":0.3,"cavity_fan_speed":0.0}

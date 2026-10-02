@@ -114,11 +114,11 @@ Selects nonlinear fan curves for the power fan and all four nozzle fans.
 
 **Options:**
 
-- `Quiet` - no nozzle fan below 50°C, then ramps from actual nozzle temperature; the cavity guard starts at 55°C and is limited to 60%.
-- `Balanced` - no nozzle fan below 60°C, then ramps earlier than Quiet; the cavity guard starts at 55°C and is limited to 60%.
+- `Quiet` - no nozzle fan below 50°C, then ramps from actual nozzle temperature; the power fan pre-spins at 10% when a nozzle target reaches 70°C, follows actual temperature from 70°C, stops below 65°C, and keeps the cavity guard at 55°C / 60%.
+- `Balanced` - no nozzle fan below 60°C, then ramps earlier than Quiet; the power fan pre-spins at 12% at a 70°C target, follows actual temperature from 70°C, stops below 65°C, and keeps the cavity guard at 55°C / 60%.
 - `Stock` - removes the override and restores the curves from the base printer configuration.
 
-The custom curves ignore nozzle target temperature. A nozzle target of 250°C therefore does not immediately select the 250°C fan speed; the measured nozzle temperature must reach that threshold. This prevents all four nozzle fans from starting loudly during preheating.
+The nozzle fan curves ignore nozzle target temperature, so a 250°C target does not immediately select the 250°C nozzle-fan speed. The power fan uses the target only for its quiet 10%/12% pre-spin at 70°C; its higher speeds still require measured nozzle temperature. This prevents the original 60% jump during preheating while keeping a small airflow before the actual-temperature ramp.
 
 The setting is available under **Settings → Tweaks → Fan Curves**. Applying an option writes one file to `/oem/printer_data/config/extended/klipper/20_fan_curves.cfg` and restarts Klipper.
 

@@ -1,0 +1,20 @@
+{
+  "sample": "powerfan_transition",
+  "sensor": "e0_lis2dw",
+  "duration_s": 8.109,
+  "sample_rate_hz": 1593.8,
+  "dynamic_rms_mm_s2": 87.554,
+  "dynamic_p95_mm_s2": 170.802,
+  "dynamic_peak_mm_s2": 282.001,
+  "before": {
+    "extruder_temperature_c": 60.0,
+    "extruder_target_c": 130.0,
+    "power_fan_speed": 0.10
+  },
+  "after": {
+    "extruder_temperature_c": 128.0,
+    "extruder_target_c": 130.0,
+    "power_fan_speed": 0.18
+  },
+  "interpretation": "The 8-second sample spans the 0.10-to-0.18 transition; it is a valid power-fan structural-vibration sample, not a fixed-speed comparison."
+}

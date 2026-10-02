@@ -11,7 +11,7 @@
 - C 构建：已完成。fork Actions run `37044194647` 从提交 `922aed2` 构建完整 `U1_extended__upgrade.bin`，大小 `252582656`，SHA256 `8C62B5371CF0AF0E7B94177A592F308A978B94BA801A783C5AEE348EA84AEC74`；产物清单在 `reports/build/actions-37044194647-manifest.txt`。
 - D 备份：已完成。最终刷机前备份位于 `reports/baseline/20261002-224938-final-pre-upgrade/`，包含配置、Tailscale 状态、运行状态和校验值；已保存 pax `2.0.0` 完整回滚固件。
 - E 升级：已完成。完整 UPFILE 经 Firmware Config `/api/upgrade/upload` 上传，root 升级服务写入并校验 `uboot_b`、`boot_b`、`system_b`，页面返回 `SUCCESS: Completed successfully`。
-- F 运行验证：进行中。Klipper、Moonraker、Firmware Config、Tailscale、Quiet、Balanced、Stock、Max Speed 与 Reduced Current 共存、主风扇和腔体风扇 IMU 档位已验证；新电源风扇 70°C 曲线和典型打印窗口仍需在新固件上验证。
+- F 运行验证：进行中。Klipper、Moonraker、Firmware Config、Tailscale、Quiet、Balanced、Stock、Max Speed 与 Reduced Current 共存、主风扇和腔体风扇 IMU 档位，以及新固件电源风扇的目标预转、实际温度曲线和 65°C 停止点已验证；典型打印窗口仍待补测。
 - G 报告：进行中。正在把升级时间线、恢复状态、IMU 原始数据、局限和剩余验证整理到工程报告与决策记录。
 - 最新构建门：已通过。Actions run `37044194647` 对提交 `922aed2` 成功生成并发布完整 UPFILE；下一步重新做刷机前备份，再走 Firmware Config 上传和现场验证。
 
@@ -74,6 +74,7 @@
 | 升级后 Klipper/Moonraker | VERIFIED | `klippy_state=ready`、`failed_components=[]`，见 `reports/build/post-upgrade-37019633229-status.txt` |
 | Max Speed 与 Reduced Current 共存 | VERIFIED | `max_velocity=600`、`max_accel=22000`、X/Y `run_current=1.0`，见 `reports/build/configfile-after-upgrade-37019633229.json` |
 | Tailscale 升级后保留 | VERIFIED | `100.70.57.39`，状态哈希仍为 `c88fde...e1e2`，见 `reports/build/post-upgrade-37019633229-status.txt` |
+| 新固件 power_fan 目标预转与实际温度曲线 | VERIFIED（单次点测） | `reports/imu/20261003-power-fan-test.jsonl`；目标 69/70、实际 60/131°C 点均符合预期 |
 | 升级后 IMU 风扇档位矩阵 | VERIFIED（单次样本） | `reports/imu/20261002-post-upgrade/imu-metrics.json`、原始 CSV 与 `SHA256SUMS` |
 
 ## Bug 与根因
@@ -116,6 +117,7 @@
 - 根因：`e0_lis2dw` 只测工具头结构加速度，没有声压校准链路。
 - 影响：可以比较风扇引起的结构振动代理，不能写成 `dB(A)`。
 - 处理：报告只使用 RMS、P95/P99、峰值和相对变化；声学结论标记为 `INCONCLUSIVE`。
+- 新增电源风扇样本：`reports/imu/20261003-powerfan-010/` 记录了 `0.10 → 0.18` 档位转换期间的 8.109 秒 IMU 数据；第一段未能把状态时间与 CSV 时间严格对齐，未纳入结论。
 
 ## 未完成顺序
 
