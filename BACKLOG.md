@@ -1,6 +1,6 @@
 # Snapmaker U1 当前板块
 
-更新时间：2026-10-03 00:40（Asia/Shanghai）
+更新时间：2026-10-03 00:58（Asia/Shanghai）
 
 ## 当前板块
 
@@ -13,6 +13,7 @@
 - E 升级：已完成。完整 UPFILE 经 Firmware Config `/api/upgrade/upload` 上传，root 升级服务写入并校验 `uboot_b`、`boot_b`、`system_b`，页面返回 `SUCCESS: Completed successfully`。
 - F 运行验证：进行中。Klipper、Moonraker、Firmware Config、Tailscale、Quiet、Balanced、Stock、Max Speed 与 Reduced Current 共存、主风扇和腔体风扇 IMU 档位已验证；新电源风扇 70°C 曲线和典型打印窗口仍需在新固件上验证。
 - G 报告：进行中。正在把升级时间线、恢复状态、IMU 原始数据、局限和剩余验证整理到工程报告与决策记录。
+- 最新构建门：进行中。Actions run `37035716572` 在 `10_fan_temp_speed_hysteresis.patch` 的严格匹配阶段失败；已按 `09` 之后的实际源码重生成补丁，并在本地 `--fuzz=0` 顺序检查通过，尚未重新刷机。
 
 当前已经跑通的升级入口是：**推送最新分支 → Actions 成功 → 校验完整 UPFILE → 刷机前备份 → Firmware Config 页面上传完整 `U1_extended__upgrade.bin` → 健康检查 → IMU/功能矩阵 → 报告。** 后续升级复用这条路径。
 
@@ -32,10 +33,16 @@
 
 ### 现在正在做
 
-1. 单喷嘴验证 Quiet 在 45/50/70/90°C 附近的实际速度与 RPM，其他三个喷嘴目标保持 0，结束后执行 `TURN_OFF_HEATERS`。
-2. 对 Quiet、Balanced、Stock 的温控、起转可靠性、低温体验和腔体保护做同口径比较。
-3. 运行一个短、安全的典型打印窗口，记录运动、温度、风扇和 IMU。
-4. 完成工程报告，保留原始数据、方法、限制、结论和回滚入口。
+1. 重新触发当前 `4830e27` 的官方 `Build`，确认完整 UPFILE 与提交一致。
+2. 单喷嘴验证 Quiet 在 45/50/69/70/65/64.9/90°C 附近的实际速度与 RPM，其他三个喷嘴目标保持 0，结束后执行 `TURN_OFF_HEATERS`。
+3. 对 Quiet、Balanced、Stock 的温控、起转可靠性、低温体验和腔体保护做同口径比较。
+4. 运行一个短、安全的典型打印窗口，记录运动、温度、风扇和 IMU，并完成工程报告。
+
+### 2026-10-03 Actions 纠偏
+
+- `37035716572` 的真正失败点是 `10_fan_temp_speed_hysteresis.patch` 两个 hunk 在官方严格 `--fuzz=0` 下无法匹配；前面的 PyYAML 下载提示不是失败原因。
+- 根因是 `10` 以 `09` 之前的行结构生成，尤其把回调中的空行当成删除内容；本地宽松 patch 会掩盖这个问题，Actions 才暴露出来。
+- 已按 `09` 已应用后的 Klipper 源码重写 hunk，并用相同 `09 → 10` 顺序与 `--fuzz=0` 通过本地检查；下一步只重新跑官方 Actions，不直接刷机。
 
 ### 电源风扇判断
 
