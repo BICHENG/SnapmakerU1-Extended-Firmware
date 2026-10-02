@@ -1,0 +1,66 @@
+--- a/klippy/extras/heater_fan.py
++++ b/klippy/extras/heater_fan.py
+@@ -21,5 +21,6 @@
+         self.min_speed = config.getfloat("min_speed", 0., minval=0., maxval=1.)
+         self.probe_speed = config.getfloat("probe_speed", self.fan_speed, minval=0., maxval=1.)
+         self.temp_speed_table = config.getlists('temp_speed_table', None, seps=(',', '\n'), count=5, parser=float)
++        self.temp_speed_rule = None
+         self.original_fan_speed = None
+         self.last_speed = 0.
+@@ -124,20 +124,44 @@
+     def callback(self, eventtime):
+         speed = 0.
+         if self.temp_speed_table is not None:
+-            for rule in self.temp_speed_table:
+-                temp_threshold, target_temp_threshold, satisfied_heater_threshold, heater_count_threshold, rule_speed = rule
+-                satisfied_heaters = 0
+-                heater_count = 0
+-                for heater in self.heaters:
+-                    current_temp, target_temp = heater.get_temp(eventtime)
+-                    if target_temp > 0:
+-                        heater_count += 1
+-                    if current_temp > temp_threshold or target_temp > target_temp_threshold:
+-                        satisfied_heaters += 1
+-
+-                if satisfied_heaters >= satisfied_heater_threshold and heater_count >= heater_count_threshold:
+-                    speed = max(self.min_speed, min(rule_speed, 1.0))
+-                    break
++            actual_temperature_table = all(
++                target_temp_threshold >= 9999
++                and satisfied_heater_threshold == 1
++                and heater_count_threshold == 0
++                for _, target_temp_threshold, satisfied_heater_threshold,
++                heater_count_threshold, _ in self.temp_speed_table)
++            if actual_temperature_table and self.temp_hysteresis > 0:
++                maximum_current_temp = max(
++                    heater.get_temp(eventtime)[0] for heater in self.heaters)
++                matching_rule = None
++                for rule_index, rule in enumerate(self.temp_speed_table):
++                    if maximum_current_temp >= rule[0]:
++                        matching_rule = rule_index
++                        break
++                if self.temp_speed_rule is not None:
++                    held_rule = self.temp_speed_table[self.temp_speed_rule]
++                    if (matching_rule is None or matching_rule > self.temp_speed_rule) and \
++                            maximum_current_temp >= held_rule[0] - self.temp_hysteresis:
++                        matching_rule = self.temp_speed_rule
++                self.temp_speed_rule = matching_rule
++                if matching_rule is not None:
++                    speed = max(self.min_speed, min(
++                        self.temp_speed_table[matching_rule][4], 1.0))
++            else:
++                for rule in self.temp_speed_table:
++                    temp_threshold, target_temp_threshold, satisfied_heater_threshold, heater_count_threshold, rule_speed = rule
++                    satisfied_heaters = 0
++                    heater_count = 0
++                    for heater in self.heaters:
++                        current_temp, target_temp = heater.get_temp(eventtime)
++                        if target_temp > 0:
++                            heater_count += 1
++                        if current_temp > temp_threshold or target_temp > target_temp_threshold:
++                            satisfied_heaters += 1
++
++                    if satisfied_heaters >= satisfied_heater_threshold and heater_count >= heater_count_threshold:
++                        speed = max(self.min_speed, min(rule_speed, 1.0))
++                        break
+         else:

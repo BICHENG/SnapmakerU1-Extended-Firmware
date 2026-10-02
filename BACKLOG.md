@@ -1,6 +1,6 @@
 # Snapmaker U1 当前板块
 
-更新时间：2026-10-02 23:44（Asia/Shanghai）
+更新时间：2026-10-03 00:40（Asia/Shanghai）
 
 ## 当前板块
 
@@ -11,7 +11,7 @@
 - C 构建：已完成。fork Actions run `37019633229` 从当前提交 `3f7af47` 构建完整 `U1_extended__upgrade.bin`，大小 `252582656`，SHA256 `61916B7947CEC8EA88C440B79BFD696A4ADD03BA861BA304381710C580E03081`。
 - D 备份：已完成。最终刷机前备份位于 `reports/baseline/20261002-224938-final-pre-upgrade/`，包含配置、Tailscale 状态、运行状态和校验值；已保存 pax `2.0.0` 完整回滚固件。
 - E 升级：已完成。完整 UPFILE 经 Firmware Config `/api/upgrade/upload` 上传，root 升级服务写入并校验 `uboot_b`、`boot_b`、`system_b`，页面返回 `SUCCESS: Completed successfully`。
-- F 运行验证：进行中。Klipper、Moonraker、Firmware Config、Tailscale、Quiet、Max Speed 与 Reduced Current 共存、主风扇和腔体风扇 IMU 档位已验证；还需补 Quiet 温控点和典型打印窗口。
+- F 运行验证：进行中。Klipper、Moonraker、Firmware Config、Tailscale、Quiet、Balanced、Stock、Max Speed 与 Reduced Current 共存、主风扇和腔体风扇 IMU 档位已验证；新电源风扇 70°C 曲线和典型打印窗口仍需在新固件上验证。
 - G 报告：进行中。正在把升级时间线、恢复状态、IMU 原始数据、局限和剩余验证整理到工程报告与决策记录。
 
 当前已经跑通的升级入口是：**推送最新分支 → Actions 成功 → 校验完整 UPFILE → 刷机前备份 → Firmware Config 页面上传完整 `U1_extended__upgrade.bin` → 健康检查 → IMU/功能矩阵 → 报告。** 后续升级复用这条路径。
@@ -36,6 +36,14 @@
 2. 对 Quiet、Balanced、Stock 的温控、起转可靠性、低温体验和腔体保护做同口径比较。
 3. 运行一个短、安全的典型打印窗口，记录运动、温度、风扇和 IMU。
 4. 完成工程报告，保留原始数据、方法、限制、结论和回滚入口。
+
+### 电源风扇判断
+
+- 原厂 `[heater_fan power_fan]` 没有独立电源板温度传感器；它只接收四个喷嘴 heater 的 `current_temp`、`target_temp` 和目标数量。
+- 原厂表 `9999,45,1,1,0.6` 的含义是：任一喷嘴目标温度严格大于 45°C 就开到 60%；实际喷嘴温度升到 45°C 不会触发它。它没有实际加热功率输入，也没有温度回差。
+- 当前 `temp_speed_table` 五列语法不能读取 heater `power`。heater `power` 是归一化 PWM 输出，不是校准后的电源瓦数；把它直接当电源板热状态会制造错误的安全感。
+- 当前选择：电源风扇沿用现有 `temp_speed_table`，改成任一喷嘴实际温度 70°C 起转，65°C 以下停转，速度从 0.10/0.12 向高温递增；新增 5°C 回差只对纯实际温度表生效。
+- 现场基线：Stock 45°C 喷嘴风扇约 6100 RPM、50°C 电源风扇 0.60；Quiet 70°C 喷嘴 0.10、约 2047 RPM；Balanced 90°C 喷嘴 0.10、约 2031 RPM；四个喷嘴均未联动启动。
 
 ## 已完成且有证据
 
