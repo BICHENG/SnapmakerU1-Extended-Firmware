@@ -1,0 +1,10 @@
+run=37039986048
+repo=BICHENG/SnapmakerU1-Extended-Firmware
+headSha=00dcebee3e9584dcf3c29da697f2ee4c2ec46260
+workflow=Build
+artifact=extended-build/U1_extended__upgrade.bin
+size=252582656
+sha256=CD8056BB617D706C7B63F335ACBBD22112D47AD7138F21D024DB1D64CECF1AE7
+artifact_zip_size=229063560
+artifact_zip_sha256=C2C23A37D857AB66909D0AFDDE8B860862C58840AF422BEA8BD1C5CEE0A1140F
+upfile_source=firmware/pax-fan-curves-actions-37039986048-upgrade.bin

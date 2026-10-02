@@ -8,12 +8,12 @@
 
 - A 基础现场：已完成。工作区、分支、pax `develop` 基线、打印机地址、SSH、Tailscale 状态和多份保护性备份已建立。
 - B overlay：已完成。Fan Curves、Max Speed/TMC Reduced Current 共存、Klipper table 兼容补丁已经进入分支。
-- C 构建：已完成。fork Actions run `37019633229` 从当前提交 `3f7af47` 构建完整 `U1_extended__upgrade.bin`，大小 `252582656`，SHA256 `61916B7947CEC8EA88C440B79BFD696A4ADD03BA861BA304381710C580E03081`。
+- C 构建：上一版已完成。fork Actions run `37039986048` 从提交 `00dcebe` 构建完整 `U1_extended__upgrade.bin`，大小 `252582656`，SHA256 `CD8056BB617D706C7B63F335ACBBD22112D47AD7138F21D024DB1D64CECF1AE7`；本次电源风扇低速预转改动等待新的 Actions 产物。
 - D 备份：已完成。最终刷机前备份位于 `reports/baseline/20261002-224938-final-pre-upgrade/`，包含配置、Tailscale 状态、运行状态和校验值；已保存 pax `2.0.0` 完整回滚固件。
 - E 升级：已完成。完整 UPFILE 经 Firmware Config `/api/upgrade/upload` 上传，root 升级服务写入并校验 `uboot_b`、`boot_b`、`system_b`，页面返回 `SUCCESS: Completed successfully`。
 - F 运行验证：进行中。Klipper、Moonraker、Firmware Config、Tailscale、Quiet、Balanced、Stock、Max Speed 与 Reduced Current 共存、主风扇和腔体风扇 IMU 档位已验证；新电源风扇 70°C 曲线和典型打印窗口仍需在新固件上验证。
 - G 报告：进行中。正在把升级时间线、恢复状态、IMU 原始数据、局限和剩余验证整理到工程报告与决策记录。
-- 最新构建门：进行中。Actions run `37038484518` 仍在 `10_fan_temp_speed_hysteresis.patch` 的严格匹配阶段失败；已改成单 hunk 并把状态初始化收回回调，本地 `09 → 10` 与 `--fuzz=0` 已通过，尚未重新刷机。
+- 最新构建门：待通过。上一版 run `37039986048` 已成功生成完整 UPFILE；本次加入 `target_temp_threshold` / `target_temp_speed` 后，必须以新提交对应的 Actions UPFILE 为准，随后再执行刷机前备份、Firmware Config 上传和现场验证。
 
 当前已经跑通的升级入口是：**推送最新分支 → Actions 成功 → 校验完整 UPFILE → 刷机前备份 → Firmware Config 页面上传完整 `U1_extended__upgrade.bin` → 健康检查 → IMU/功能矩阵 → 报告。** 后续升级复用这条路径。
 
@@ -43,7 +43,7 @@
 - `37035716572` 的真正失败点是 `10_fan_temp_speed_hysteresis.patch` 两个 hunk 在官方严格 `--fuzz=0` 下无法匹配；前面的 PyYAML 下载提示不是失败原因。
 - 根因是 `10` 以 `09` 之前的行结构生成，尤其把回调中的空行当成删除内容；本地宽松 patch 会掩盖这个问题，Actions 才暴露出来。
 - `37038484518` 证明两个 hunk 的行位移仍会被官方严格工具拒绝；已删除初始化 hunk，改为回调内 `getattr`，保留一个针对 `09` 后回调的精确 hunk。
-- 当前补丁已用原始源码按相同 `09 → 10` 顺序与 `--fuzz=0` 通过本地检查；下一步只重新跑官方 Actions，不直接刷机。
+- `37039986048` 已成功构建主固件和 AFC 固件；主 UPFILE 已下载、解包、校验 SHA256，下一步执行已有的刷机前备份和 Firmware Config 上传路径。
 
 ### 电源风扇判断
 
@@ -51,6 +51,8 @@
 - 原厂表 `9999,45,1,1,0.6` 的含义是：任一喷嘴目标温度严格大于 45°C 就开到 60%；实际喷嘴温度升到 45°C 不会触发它。它没有实际加热功率输入，也没有温度回差。
 - 当前 `temp_speed_table` 五列语法不能读取 heater `power`。heater `power` 是归一化 PWM 输出，不是校准后的电源瓦数；把它直接当电源板热状态会制造错误的安全感。
 - 当前选择：电源风扇沿用现有 `temp_speed_table`，改成任一喷嘴实际温度 70°C 起转，65°C 以下停转，速度从 0.10/0.12 向高温递增；新增 5°C 回差只对纯实际温度表生效。
+- 新增的低速预转：任一喷嘴目标温度达到 70°C 时，电源风扇只提前运行 Quiet `0.10` / Balanced `0.12`；实际最高喷嘴温度仍负责后续档位，目标清零后按 70/65°C 回差退出。
+- 这条预转只解决高温预热期间电源板完全没有气流的时间窗，不把目标温度当作电源板温度，也不宣称拥有电源板级热保护。
 - 现场基线：Stock 45°C 喷嘴风扇约 6100 RPM、50°C 电源风扇 0.60；Quiet 70°C 喷嘴 0.10、约 2047 RPM；Balanced 90°C 喷嘴 0.10、约 2031 RPM；四个喷嘴均未联动启动。
 
 ## 已完成且有证据
