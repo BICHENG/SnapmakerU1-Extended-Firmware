@@ -1,20 +1,20 @@
 # Snapmaker U1 当前板块
 
-更新时间：2026-10-02 22:20（Asia/Shanghai）
+更新时间：2026-10-02 23:44（Asia/Shanghai）
 
 ## 当前板块
 
-当前工程位于 **D→E 交界：最新 upstream 已更新，等待 Actions 产出最终可刷镜像**。
+当前工程位于 **F→G：固件已通过 Firmware Config 上传并升级成功，正在完成运行验证与工程报告**。
 
 - A 基础现场：已完成。工作区、分支、pax `develop` 基线、打印机地址、SSH、Tailscale 状态和多份保护性备份已建立。
 - B overlay：已完成。Fan Curves、Max Speed/TMC Reduced Current 共存、Klipper table 兼容补丁已经进入分支。
-- C 构建：旧 Actions `36907433167` 已完成，但对应旧基线；本轮本机编译已停止，不能把旧产物当成当前分支成品。当前分支已经重放到最新 `origin/develop`，必须重新触发 Actions。
-- D 备份：已完成。配置、服务、启动信息和 Tailscale 状态有归档；刷机前仍需以最终产物再做一次短校验。
-- E 升级：未完成。当前打印机仍保持 pax12 `2.0.0`，最终 Actions 产物尚未完成升级前全量验收。
-- F 运行验证：部分完成。已验证待机 G-code 入口、Quiet 温度曲线、部分风扇档位和 IMU 代理；升级后矩阵尚未重跑。
-- G 报告：进行中。工程报告和决策记录已有，最终版本需要补升级前后状态、Max Speed/TMC、Firmware Config 和最终 IMU 对比。
+- C 构建：已完成。fork Actions run `37019633229` 从当前提交 `3f7af47` 构建完整 `U1_extended__upgrade.bin`，大小 `252582656`，SHA256 `61916B7947CEC8EA88C440B79BFD696A4ADD03BA861BA304381710C580E03081`。
+- D 备份：已完成。最终刷机前备份位于 `reports/baseline/20261002-224938-final-pre-upgrade/`，包含配置、Tailscale 状态、运行状态和校验值；已保存 pax `2.0.0` 完整回滚固件。
+- E 升级：已完成。完整 UPFILE 经 Firmware Config `/api/upgrade/upload` 上传，root 升级服务写入并校验 `uboot_b`、`boot_b`、`system_b`，页面返回 `SUCCESS: Completed successfully`。
+- F 运行验证：进行中。Klipper、Moonraker、Firmware Config、Tailscale、Quiet、Max Speed 与 Reduced Current 共存、主风扇和腔体风扇 IMU 档位已验证；还需补 Quiet 温控点和典型打印窗口。
+- G 报告：进行中。正在把升级时间线、恢复状态、IMU 原始数据、局限和剩余验证整理到工程报告与决策记录。
 
-当前唯一正确入口是：**推送最新分支 → Actions 成功 → 校验完整 UPFILE → 刷机前备份 → 升级 → 健康检查 → IMU/功能矩阵 → 报告。** 每一步的输出都写入本文件或 `reports/`，没有结果就不进入下一步。
+当前已经跑通的升级入口是：**推送最新分支 → Actions 成功 → 校验完整 UPFILE → 刷机前备份 → Firmware Config 页面上传完整 `U1_extended__upgrade.bin` → 健康检查 → IMU/功能矩阵 → 报告。** 后续升级复用这条路径。
 
 ## 2026-10-02 纠偏记录
 
@@ -24,26 +24,26 @@
 
 绕路根因：此前把“本机编译验证”和“最终可刷成品”混为一条路径，又没有在 backlog 顶部持续记录 upstream 基线、产物来源和下一道门槛，导致重复处理本地依赖。后续只接受当前分支对应的 Actions 成品；本机编译仅在 Actions 无法运行时作为源码诊断，不作为刷机来源。
 
+### 升级路径记录
+
+1. **弯路：SSH 用户直接运行 `systemUpgrade.sh`。** `lava` 无权打开 `/dev/block/by-name/uboot_b`，也无权执行 reboot/sysrq；升级未写入。日志：`reports/build/upgrade-37019633229-console.log`。
+2. **弯路：给 Firmware Config 上传 inner `update.img`。** 页面升级入口要求完整 UPFILE，返回 `The input upgrade file is invalid`，随后自动恢复 Klipper/Moonraker；系统槽未写入。日志：`reports/build/upgrade-37019633229-firmware-config-api.log`。
+3. **正确动作：给 Firmware Config 上传完整 `U1_extended__upgrade.bin`。** `/firmware-config/api/upgrade/upload` 由 root 服务解包并执行完整升级，三个 B 槽分区写入和 MD5 校验通过，页面返回成功。日志：`reports/build/upgrade-37019633229-page-upload.log`。
+
 ### 现在正在做
 
-1. 将重放后的功能分支推送到 `BICHENG/SnapmakerU1-Extended-Firmware`。
-2. 触发并等待官方 `Build` workflow，产物必须对应当前分支提交。
-3. 下载新产物，校验完整 UPFILE、`UPFILE_VERSION`、overlay 文件、Klipper 补丁和 SHA256。
-
-### 进入下一步的条件
-
-- Actions 成功，产物来自当前分支提交，不接受旧 run `36907433167`。
-- 成品是完整 `U1_extended__upgrade.bin`/UPFILE，能列出 rootfs 与 upgrade 入口。
-- 成品内存在 Fan Curves 设置文件、Quiet/Balanced 模板、TMC 互斥检查修复和 `S99vpn`。
-- 刷机前重新保存打印机状态、配置、Tailscale 状态和当前可用 `2.0.0` 回滚镜像。
+1. 单喷嘴验证 Quiet 在 45/50/70/90°C 附近的实际速度与 RPM，其他三个喷嘴目标保持 0，结束后执行 `TURN_OFF_HEATERS`。
+2. 对 Quiet、Balanced、Stock 的温控、起转可靠性、低温体验和腔体保护做同口径比较。
+3. 运行一个短、安全的典型打印窗口，记录运动、温度、风扇和 IMU。
+4. 完成工程报告，保留原始数据、方法、限制、结论和回滚入口。
 
 ## 已完成且有证据
 
 | 项目 | 状态 | 证据 |
 |---|---|---|
 | 分支基于 pax 最新 `develop` | VERIFIED | `git log`、`reports/upstream-20261001.md` |
-| Firmware Config `Tweaks → Fan Curves → Quiet/Balanced/Stock` | VERIFIED（静态） | `overlays/.../21_settings_tweaks_fan_curves.yaml` |
-| Quiet 曲线 50°C 以下关闭、70°C 进入 10% | VERIFIED（现场临时配置） | `reports/imu/20261002-004313/quiet-curve-thermal-test.jsonl` |
+| Firmware Config `Tweaks → Fan Curves → Quiet/Balanced/Stock` | VERIFIED（运行） | `reports/build/settings-final-37019633229.json`、`reports/build/firmware-config-quiet-37019633229.log` |
+| Quiet 曲线 50°C 以下关闭、70°C 进入 10% | VERIFIED（配置与升级前现场） | `reports/build/configfile-after-upgrade-37019633229.json`、`reports/imu/20261002-004313/quiet-curve-thermal-test.jsonl` |
 | 主风扇待机命令 | VERIFIED | `M106 S64` 返回 `fan.speed=0.25098` |
 | 腔体风扇待机命令 | VERIFIED | `M106 P2 S64` 返回 `cavity_fan.speed=0.25098`、约 591 RPM |
 | `M106 P0` 的含义 | VERIFIED | 当前 `fan.py` 仅支持无 `P`、`P2`、`P3` |
@@ -51,8 +51,12 @@
 | 四个 nozzle fan 的温控覆盖行为 | VERIFIED | `SET_HEATER_FAN` 在下一次 callback 后回到 0 |
 | 45°C 暴力起转根因 | VERIFIED | 原配置 `external_temp_guard_range=-15,45`、guard speed `1.0` |
 | `temp_speed_table` 与原 `stepped_temp_table` 冲突 | VERIFIED | `09_fan_temp_speed_table_override.patch` |
-| GitHub Actions 固件 | VERIFIED | run `36907433167`、`work/github-actions-36907433167/U1_extended__upgrade.bin` |
-| Tailscale 未被现场测试清除 | VERIFIED | 备份中的 `tailscale-state.tgz`、现场节点仍为 `100.70.57.39` |
+| GitHub Actions 固件 | VERIFIED | run `37019633229`、`reports/build/actions-37019633229-manifest.txt` |
+| 完整 UPFILE 经 Firmware Config 升级 | VERIFIED | `reports/build/upgrade-37019633229-page-upload.log` |
+| 升级后 Klipper/Moonraker | VERIFIED | `klippy_state=ready`、`failed_components=[]`，见 `reports/build/post-upgrade-37019633229-status.txt` |
+| Max Speed 与 Reduced Current 共存 | VERIFIED | `max_velocity=600`、`max_accel=22000`、X/Y `run_current=1.0`，见 `reports/build/configfile-after-upgrade-37019633229.json` |
+| Tailscale 升级后保留 | VERIFIED | `100.70.57.39`，状态哈希仍为 `c88fde...e1e2`，见 `reports/build/post-upgrade-37019633229-status.txt` |
+| 升级后 IMU 风扇档位矩阵 | VERIFIED（单次样本） | `reports/imu/20261002-post-upgrade/imu-metrics.json`、原始 CSV 与 `SHA256SUMS` |
 
 ## Bug 与根因
 
@@ -61,13 +65,13 @@
 - 根因：四个 `heater_fan` 都有腔体 guard；腔体超出 `45°C` 后直接把风扇设为 `1.0`，优先级高于用户想要的低噪声曲线。
 - 影响：四个 nozzle fan 齐刷刷启动，待机或预热阶段噪音突增。
 - 处理：Quiet/Balanced 将 guard 上限提高到 `55°C`，速度限制到 `0.60`；基础曲线从实际 nozzle 温度决定。
-- 状态：Quiet 已现场验证；升级后仍需验证。
+- 状态：升级后的配置已确认加载；单喷嘴 45/50/70/90°C 运行点仍需补测。
 
 ### 2. `temp_speed_table` 与 `stepped_temp_table` 互斥
 
 - 根因：原 `heater_fan.py` 发现两个表同时存在就直接抛错；原配置已经带有 `stepped_temp_table`，overlay 再加入 `temp_speed_table` 必然阻止 Klipper 启动。
 - 处理：删除错误分支，保留既有 callback，并让 `temp_speed_table` 分支优先执行；未删除原表，保证 Stock 可回退。
-- 状态：静态补丁和临时现场加载已验证；最终升级后需验证日志无 `Cannot use both...`。
+- 状态：升级后 `heater_fan.py` 已包含覆盖逻辑，Klipper ready，原互斥错误未出现。
 
 ### 3. Fan Curves 文件缩进导致外部温度字段进入 table
 
@@ -87,7 +91,7 @@
 
 - 根因：Firmware Config shell 检查把两个独立设置当成互斥项。
 - 处理：只删除两处互斥检查，保留两个配置各自的写入逻辑；不改 TMC 寄存器初始化协议。
-- 状态：静态代码已改；升级后必须同时开启并查询 X/Y `run_current` 与运动限值。
+- 状态：运行验证完成。Firmware Config 显示 `max_speed=balanced`、`tmc_reduce_current=enabled`；Klipper 配置显示 X/Y `run_current=1.0`、`max_velocity=600`、`max_accel=22000`。
 
 ### 6. IMU 不能直接代表噪声
 
@@ -97,15 +101,11 @@
 
 ## 未完成顺序
 
-1. 把 Actions 产物复制到 `firmware/`，记录 SHA256、大小、来源 run 和镜像内容清单。
-2. 刷机前做最终只读保护检查：当前版本、启动槽位、Klipper/Moonraker 状态、Tailscale 状态摘要、配置包和磁盘空间。
-3. 上传同一份已校验 `update.img`，执行官方 `systemUpgrade.sh upgrade soc`。
-4. 重启后只读验收：`/etc/VERSION`、`server/info`、`failed_components=[]`、Moonraker、Fluidd/Mainsail、Firmware Config、Tailscale。
-5. 同时启用 Max Speed 与 TMC Reduced Current，查询 `tmc2240 stepper_x/y.run_current` 和 `toolhead` 限值。
-6. 在最终固件中切换 Quiet，重跑 50/70/75/100°C 曲线和四 nozzle 非联动检查。
-7. 用待机直接 G-code 重跑主风扇、腔体风扇各档 IMU；对排风明确记录 purifier 门控，不把失败写成硬件结论。
-8. 运行安全的典型打印窗口，收集运动、温度、IMU、风扇状态和异常信息。
-9. 完成报告：每条结论标 `VERIFIED`、`INCONCLUSIVE` 或 `NOT VERIFIED`，附原始文件和回滚路径。
+1. 在最终固件中补测 Quiet 的 45/50/70/90°C 单喷嘴温控点和四 nozzle 非联动。
+2. 用同一方法比较 Quiet、Balanced、Stock；曲线选择同时看起转可靠性、低温体验、热响应和腔体 guard。
+3. 为主风扇和腔体风扇各档补三次重复样本；现有单次样本保留为第一轮结果。
+4. 运行安全的典型打印窗口，收集运动、温度、IMU、风扇状态和异常信息。
+5. 完成报告：每条结论标 `VERIFIED`、`INCONCLUSIVE` 或 `NOT VERIFIED`，附原始文件和回滚路径。
 
 ## TDA、寄存器与薄薄露出
 
@@ -121,10 +121,10 @@
 - 健康门槛：Klippy ready、Moonraker connected、`failed_components=[]`、Firmware Config 可访问、Tailscale 节点在线。
 - 功能门槛：Quiet 实际温度曲线成立；Max Speed 与 Reduced Current 同时生效；四 nozzle 不因 45°C guard 一起全速。
 - 停止条件：镜像不完整、Klippy 不 ready、Tailscale 消失、MCU 错误、跳步、热失控或风扇无法关闭。
-- 回滚顺序：先在 Firmware Config 选 `Stock`；若 Klippy 无法启动，移除 `/oem/printer_data/config/extended/klipper/20_fan_curves.cfg`；若系统升级失败，使用已保存的原厂/已知可用 `update.img` 和官方升级命令恢复；不删除 `/userdata` 下的 Tailscale 状态。
+- 回滚顺序：先在 Firmware Config 选 `Stock`；若 Klippy 无法启动，移除 `/oem/printer_data/config/extended/klipper/20_fan_curves.cfg`；若系统需要恢复，仍通过 Firmware Config 页面上传已保存的完整 `firmware/U1_2.0.0.205_20260914173503_upgrade.bin`；不删除 `/userdata` 下的 Tailscale 状态。
 
 ## 结论状态
 
-- `VERIFIED`：代码入口、曲线解析修复、Firmware Config 静态入口、待机主/腔体风扇响应、G-code 映射、备份和 Actions 产物。
-- `INCONCLUSIVE`：风扇噪声的声学数值、排风独立振动效果、典型打印下的长期稳定性。
-- `NOT VERIFIED`：最终固件升级后的完整健康检查、Max Speed + TMC Reduced Current 同时运行、最终固件上的 Fan Curves GUI 切换和升级后 IMU 对比。
+- `VERIFIED`：代码入口、曲线解析修复、Firmware Config 运行入口、完整 UPFILE 升级、升级后健康检查、Max Speed + Reduced Current 共存、待机主/腔体风扇响应、G-code 映射、保护性备份和升级后 IMU 单次矩阵。
+- `INCONCLUSIVE`：风扇噪声的声学数值、主风扇的 IMU 区分度、排风独立振动效果、典型打印下的长期稳定性。
+- `NOT VERIFIED`：最终固件上的完整 Quiet 温控点、三次重复样本、Quiet/Balanced/Stock 同口径比较和典型打印窗口。

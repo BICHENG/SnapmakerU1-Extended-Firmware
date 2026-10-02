@@ -1,0 +1,675 @@
+Warning: Permanently added '100.70.57.39' (ED25519) to the list of known hosts.
+=== Upgrade Started ===
+File: /userdata/web_upgrade.bin
+Size: 252582656 bytes
+Time: 2026-10-02 15:16:28
+========================================
+
+Starting upgrade (240 MB)...
+Name                State    Build time      Version
+Main processor      N/A      poc/fan-curves-imu-20261001-latest  poc/fan-curves-imu-20261001-latest
+Main MCU            online   20260914170131  3ebf909a39
+Print head0 MCU     online   20260914170131  3ebf909a39
+Print head1 MCU     online   20260914170131  3ebf909a39
+Print head2 MCU     online   20260914170131  3ebf909a39
+Print head3 MCU     online   20260914170131  3ebf909a39
+[2026-10-02 15:16:29] [UPG] additional_operations_before_active: Additional operations before activating the soc firmware.
+[2026-10-02 15:16:29] [UPG] upgrade_all: Upgrade all start: 2026-10-02 15:16:29
+[2026-10-02 15:16:29] [UPG] upgrade_all: Main MCU model is stm32f103xe
+[2026-10-02 15:16:29] [UPG] additional_operations_before_upgrade_all: Additional operations before upgrade all.
+Stopping moonraker...
+Stopping klipper...
+lava_io set successfully.
+Unpack parameter:
+Input file       : /userdata/web_upgrade.bin
+Output directory : /userdata/.tmp_upgrade/unpack
+
+Process:
+Version         : 2.0.0.2053f7af47
+Build time      : 20260914173503
+Sub files count : 4
+
+Sub file 0:
+Type : 0
+Name : update.img
+Size : 252488266
+MD5  : b5c33cef1085e215e0ec360fd82488b6
+Copy to update.img ... done.
+
+Sub file 1:
+Type : 1
+Name : at32f403a.bin
+Size : 47800
+MD5  : 95a8849d95f1eff22f5ffd9f61a76dc7
+Copy to at32f403a.bin ... done.
+
+Sub file 2:
+Type : 2
+Name : at32f415.bin
+Size : 46372
+MD5  : a77c8a08bf776734f751ec0f9244e253
+Copy to at32f415.bin ... done.
+
+Sub file 3:
+Type : 3
+Name : MCU_DESC
+Size : 26
+MD5  : a1a266748349988906e11d2d9aca2bf5
+Copy to MCU_DESC ... done.
+[2026-10-02 15:16:35] [UPG] upgrade_all: Unpack duration: 6s
+[2026-10-02 15:16:35] [UPG] upgrade_all: Shutdown klipper process.
+Stopping klipper...
+start-stop-daemon: warning: killing process 13272: No such process
+lava_io set successfully.
+[2026-10-02 15:16:39] [UPG] upgrade_all: Prepare to upgrade MCU0.
+[2026-10-02 15:16:39] [UPG] upgrade_main_mcu: Main MCU power off.
+[2026-10-02 15:16:40] [UPG] upgrade_main_mcu: Main MCU enter DFU mode and power on.
+[2026-10-02 15:16:43] [UPG] upgrade_main_mcu: Detected AT32F403A MCU (VID:PID = 2e3c:df11)
+[2026-10-02 15:16:43] [UPG] upgrade_main_mcu: Flash firmware to MCU by DFU tool.
+dfu-util 0.11
+
+Copyright 2005-2009 Weston Schmidt, Harald Welte and OpenMoko Inc.
+Copyright 2010-2021 Tormod Volden and Stefan Schmidt
+This program is Free Software and has ABSOLUTELY NO WARRANTY
+Please report bugs to http://sourceforge.net/p/dfu-util/tickets/
+
+dfu-util: Warning: Invalid DFU suffix signature
+dfu-util: A valid DFU suffix will be required in a future dfu-util release
+Opening DFU capable USB device...
+Device ID 2e3c:df11
+Device DFU version 011a
+Claiming USB DFU Interface...
+Setting Alternate Interface #0 ...
+Determining device status...
+DFU state(10) = dfuERROR, status(10) = Device's firmware is corrupt. It cannot return to run-time (non-DFU) operations
+Clearing status
+Determining device status...
+DFU state(10) = dfuERROR, status(14) = Something went wrong, but the device does not know what it was
+Clearing status
+Determining device status...
+DFU state(2) = dfuIDLE, status(0) = No error condition is present
+DFU mode device DFU version 011a
+Device returned transfer size 2048
+DfuSe interface name: "Internal Flash  "
+Downloading element to address = 0x08000000, size = 47800
+
+Erase   	[                         ]   0%            0 bytes
+Erase   	[=                        ]   4%         2048 bytes
+Erase   	[==                       ]   8%         4096 bytes
+Erase   	[===                      ]  12%         6144 bytes
+Erase   	[====                     ]  17%         8192 bytes
+Erase   	[=====                    ]  21%        10240 bytes
+Erase   	[======                   ]  25%        12288 bytes
+Erase   	[=======                  ]  29%        14336 bytes
+Erase   	[========                 ]  34%        16384 bytes
+Erase   	[=========                ]  38%        18432 bytes
+Erase   	[==========               ]  42%        20480 bytes
+Erase   	[===========              ]  47%        22528 bytes
+Erase   	[============             ]  51%        24576 bytes
+Erase   	[=============            ]  55%        26624 bytes
+Erase   	[==============           ]  59%        28672 bytes
+Erase   	[================         ]  64%        30720 bytes
+Erase   	[=================        ]  68%        32768 bytes
+Erase   	[==================       ]  72%        34816 bytes
+Erase   	[===================      ]  77%        36864 bytes
+Erase   	[====================     ]  81%        38912 bytes
+Erase   	[=====================    ]  85%        40960 bytes
+Erase   	[======================   ]  89%        43008 bytes
+Erase   	[=======================  ]  94%        45056 bytes
+Erase   	[======================== ]  98%        47104 bytes
+Erase   	[=========================] 100%        47800 bytes
+Erase    done.
+
+Download	[                         ]   0%            0 bytes
+Download	[=                        ]   4%         2048 bytes
+Download	[==                       ]   8%         4096 bytes
+Download	[===                      ]  12%         6144 bytes
+Download	[====                     ]  17%         8192 bytes
+Download	[=====                    ]  21%        10240 bytes
+Download	[======                   ]  25%        12288 bytes
+Download	[=======                  ]  29%        14336 bytes
+Download	[========                 ]  34%        16384 bytes
+Download	[=========                ]  38%        18432 bytes
+Download	[==========               ]  42%        20480 bytes
+Download	[===========              ]  47%        22528 bytes
+Download	[============             ]  51%        24576 bytes
+Download	[=============            ]  55%        26624 bytes
+Download	[==============           ]  59%        28672 bytes
+Download	[================         ]  64%        30720 bytes
+Download	[=================        ]  68%        32768 bytes
+Download	[==================       ]  72%        34816 bytes
+Download	[===================      ]  77%        36864 bytes
+Download	[====================     ]  81%        38912 bytes
+Download	[=====================    ]  85%        40960 bytes
+Download	[======================   ]  89%        43008 bytes
+Download	[=======================  ]  94%        45056 bytes
+Download	[======================== ]  98%        47104 bytes
+Download	[=========================] 100%        47800 bytes
+Download done.
+File downloaded successfully
+Submitting leave request...
+Transitioning to dfuMANIFEST state
+[2026-10-02 15:16:46] [UPG] upgrade_main_mcu: Main MCU power off and enter normal mode.
+[2026-10-02 15:16:47] [UPG] upgrade_main_mcu: Main MCU power on.
+[2026-10-02 15:16:47] [UPG] upgrade_main_mcu: Done.
+[2026-10-02 15:16:48] [UPG] upgrade_all: The MCU0 upgrade was successful.
+[2026-10-02 15:16:48] [UPG] upgrade_all: Prepare to upgrade head0.
+[2026-10-02 15:16:48] [UPG] upgrade_head_mcu: Print head MCU power off.
+[2026-10-02 15:16:48] [UPG] upgrade_head_mcu: Print head MCU head0 enter DFU mode.
+[2026-10-02 15:16:50] [UPG] upgrade_head_mcu: Print head MCU power on.
+[2026-10-02 15:16:52] [UPG] upgrade_head_mcu: Flash firmware to MCU head0 by DFU tool.
+dfu-util 0.11
+
+Copyright 2005-2009 Weston Schmidt, Harald Welte and OpenMoko Inc.
+Copyright 2010-2021 Tormod Volden and Stefan Schmidt
+This program is Free Software and has ABSOLUTELY NO WARRANTY
+Please report bugs to http://sourceforge.net/p/dfu-util/tickets/
+
+dfu-util: Warning: Invalid DFU suffix signature
+dfu-util: A valid DFU suffix will be required in a future dfu-util release
+Opening DFU capable USB device...
+Device ID 2e3c:df11
+Device DFU version 011a
+Claiming USB DFU Interface...
+Setting Alternate Interface #0 ...
+Determining device status...
+DFU state(2) = dfuIDLE, status(0) = No error condition is present
+DFU mode device DFU version 011a
+Device returned transfer size 2048
+DfuSe interface name: "Internal Flash  "
+Downloading element to address = 0x08000000, size = 46372
+
+Erase   	[                         ]   0%            0 bytes
+Erase   	[=                        ]   4%         2048 bytes
+Erase   	[==                       ]   8%         4096 bytes
+Erase   	[===                      ]  13%         6144 bytes
+Erase   	[====                     ]  17%         8192 bytes
+Erase   	[=====                    ]  22%        10240 bytes
+Erase   	[======                   ]  26%        12288 bytes
+Erase   	[=======                  ]  30%        14336 bytes
+Erase   	[========                 ]  35%        16384 bytes
+Erase   	[=========                ]  39%        18432 bytes
+Erase   	[===========              ]  44%        20480 bytes
+Erase   	[============             ]  48%        22528 bytes
+Erase   	[=============            ]  52%        24576 bytes
+Erase   	[==============           ]  57%        26624 bytes
+Erase   	[===============          ]  61%        28672 bytes
+Erase   	[================         ]  66%        30720 bytes
+Erase   	[=================        ]  70%        32768 bytes
+Erase   	[==================       ]  75%        34816 bytes
+Erase   	[===================      ]  79%        36864 bytes
+Erase   	[====================     ]  83%        38912 bytes
+Erase   	[======================   ]  88%        40960 bytes
+Erase   	[=======================  ]  92%        43008 bytes
+Erase   	[======================== ]  97%        45056 bytes
+Erase   	[=========================] 100%        46372 bytes
+Erase    done.
+
+Download	[                         ]   0%            0 bytes
+Download	[=                        ]   4%         2048 bytes
+Download	[==                       ]   8%         4096 bytes
+Download	[===                      ]  13%         6144 bytes
+Download	[====                     ]  17%         8192 bytes
+Download	[=====                    ]  22%        10240 bytes
+Download	[======                   ]  26%        12288 bytes
+Download	[=======                  ]  30%        14336 bytes
+Download	[========                 ]  35%        16384 bytes
+Download	[=========                ]  39%        18432 bytes
+Download	[===========              ]  44%        20480 bytes
+Download	[============             ]  48%        22528 bytes
+Download	[=============            ]  52%        24576 bytes
+Download	[==============           ]  57%        26624 bytes
+Download	[===============          ]  61%        28672 bytes
+Download	[================         ]  66%        30720 bytes
+Download	[=================        ]  70%        32768 bytes
+Download	[==================       ]  75%        34816 bytes
+Download	[===================      ]  79%        36864 bytes
+Download	[====================     ]  83%        38912 bytes
+Download	[======================   ]  88%        40960 bytes
+Download	[=======================  ]  92%        43008 bytes
+Download	[======================== ]  97%        45056 bytes
+Download	[=========================] 100%        46372 bytes
+Download done.
+File downloaded successfully
+Submitting leave request...
+dfu-util: Error during download get_status
+[2026-10-02 15:16:56] [UPG] upgrade_head_mcu: Print head MCU power off.
+[2026-10-02 15:16:56] [UPG] upgrade_head_mcu: Print head MCU head0 enter normal mode.
+[2026-10-02 15:16:57] [UPG] upgrade_head_mcu: Print head MCU power on
+[2026-10-02 15:16:57] [UPG] upgrade_head_mcu: head0 Done.
+[2026-10-02 15:16:59] [UPG] upgrade_all: The Print head head0 upgrade was successful.
+[2026-10-02 15:16:59] [UPG] upgrade_all: Prepare to upgrade head1.
+[2026-10-02 15:16:59] [UPG] upgrade_head_mcu: Print head MCU power off.
+[2026-10-02 15:16:59] [UPG] upgrade_head_mcu: Print head MCU head1 enter DFU mode.
+[2026-10-02 15:17:01] [UPG] upgrade_head_mcu: Print head MCU power on.
+[2026-10-02 15:17:03] [UPG] upgrade_head_mcu: Flash firmware to MCU head1 by DFU tool.
+dfu-util 0.11
+
+Copyright 2005-2009 Weston Schmidt, Harald Welte and OpenMoko Inc.
+Copyright 2010-2021 Tormod Volden and Stefan Schmidt
+This program is Free Software and has ABSOLUTELY NO WARRANTY
+Please report bugs to http://sourceforge.net/p/dfu-util/tickets/
+
+dfu-util: Warning: Invalid DFU suffix signature
+dfu-util: A valid DFU suffix will be required in a future dfu-util release
+Opening DFU capable USB device...
+Device ID 2e3c:df11
+Device DFU version 011a
+Claiming USB DFU Interface...
+Setting Alternate Interface #0 ...
+Determining device status...
+DFU state(2) = dfuIDLE, status(0) = No error condition is present
+DFU mode device DFU version 011a
+Device returned transfer size 2048
+DfuSe interface name: "Internal Flash  "
+Downloading element to address = 0x08000000, size = 46372
+
+Erase   	[                         ]   0%            0 bytes
+Erase   	[=                        ]   4%         2048 bytes
+Erase   	[==                       ]   8%         4096 bytes
+Erase   	[===                      ]  13%         6144 bytes
+Erase   	[====                     ]  17%         8192 bytes
+Erase   	[=====                    ]  22%        10240 bytes
+Erase   	[======                   ]  26%        12288 bytes
+Erase   	[=======                  ]  30%        14336 bytes
+Erase   	[========                 ]  35%        16384 bytes
+Erase   	[=========                ]  39%        18432 bytes
+Erase   	[===========              ]  44%        20480 bytes
+Erase   	[============             ]  48%        22528 bytes
+Erase   	[=============            ]  52%        24576 bytes
+Erase   	[==============           ]  57%        26624 bytes
+Erase   	[===============          ]  61%        28672 bytes
+Erase   	[================         ]  66%        30720 bytes
+Erase   	[=================        ]  70%        32768 bytes
+Erase   	[==================       ]  75%        34816 bytes
+Erase   	[===================      ]  79%        36864 bytes
+Erase   	[====================     ]  83%        38912 bytes
+Erase   	[======================   ]  88%        40960 bytes
+Erase   	[=======================  ]  92%        43008 bytes
+Erase   	[======================== ]  97%        45056 bytes
+Erase   	[=========================] 100%        46372 bytes
+Erase    done.
+
+Download	[                         ]   0%            0 bytes
+Download	[=                        ]   4%         2048 bytes
+Download	[==                       ]   8%         4096 bytes
+Download	[===                      ]  13%         6144 bytes
+Download	[====                     ]  17%         8192 bytes
+Download	[=====                    ]  22%        10240 bytes
+Download	[======                   ]  26%        12288 bytes
+Download	[=======                  ]  30%        14336 bytes
+Download	[========                 ]  35%        16384 bytes
+Download	[=========                ]  39%        18432 bytes
+Download	[===========              ]  44%        20480 bytes
+Download	[============             ]  48%        22528 bytes
+Download	[=============            ]  52%        24576 bytes
+Download	[==============           ]  57%        26624 bytes
+Download	[===============          ]  61%        28672 bytes
+Download	[================         ]  66%        30720 bytes
+Download	[=================        ]  70%        32768 bytes
+Download	[==================       ]  75%        34816 bytes
+Download	[===================      ]  79%        36864 bytes
+Download	[====================     ]  83%        38912 bytes
+Download	[======================   ]  88%        40960 bytes
+Download	[=======================  ]  92%        43008 bytes
+Download	[======================== ]  97%        45056 bytes
+Download	[=========================] 100%        46372 bytes
+Download done.
+File downloaded successfully
+Submitting leave request...
+dfu-util: Error during download get_status
+[2026-10-02 15:17:06] [UPG] upgrade_head_mcu: Print head MCU power off.
+[2026-10-02 15:17:06] [UPG] upgrade_head_mcu: Print head MCU head1 enter normal mode.
+[2026-10-02 15:17:07] [UPG] upgrade_head_mcu: Print head MCU power on
+[2026-10-02 15:17:07] [UPG] upgrade_head_mcu: head1 Done.
+[2026-10-02 15:17:09] [UPG] upgrade_all: The Print head head1 upgrade was successful.
+[2026-10-02 15:17:09] [UPG] upgrade_all: Prepare to upgrade head2.
+[2026-10-02 15:17:09] [UPG] upgrade_head_mcu: Print head MCU power off.
+[2026-10-02 15:17:09] [UPG] upgrade_head_mcu: Print head MCU head2 enter DFU mode.
+[2026-10-02 15:17:11] [UPG] upgrade_head_mcu: Print head MCU power on.
+[2026-10-02 15:17:14] [UPG] upgrade_head_mcu: Flash firmware to MCU head2 by DFU tool.
+dfu-util 0.11
+
+Copyright 2005-2009 Weston Schmidt, Harald Welte and OpenMoko Inc.
+Copyright 2010-2021 Tormod Volden and Stefan Schmidt
+This program is Free Software and has ABSOLUTELY NO WARRANTY
+Please report bugs to http://sourceforge.net/p/dfu-util/tickets/
+
+dfu-util: Warning: Invalid DFU suffix signature
+dfu-util: A valid DFU suffix will be required in a future dfu-util release
+Opening DFU capable USB device...
+Device ID 2e3c:df11
+Device DFU version 011a
+Claiming USB DFU Interface...
+Setting Alternate Interface #0 ...
+Determining device status...
+DFU state(2) = dfuIDLE, status(0) = No error condition is present
+DFU mode device DFU version 011a
+Device returned transfer size 2048
+DfuSe interface name: "Internal Flash  "
+Downloading element to address = 0x08000000, size = 46372
+
+Erase   	[                         ]   0%            0 bytes
+Erase   	[=                        ]   4%         2048 bytes
+Erase   	[==                       ]   8%         4096 bytes
+Erase   	[===                      ]  13%         6144 bytes
+Erase   	[====                     ]  17%         8192 bytes
+Erase   	[=====                    ]  22%        10240 bytes
+Erase   	[======                   ]  26%        12288 bytes
+Erase   	[=======                  ]  30%        14336 bytes
+Erase   	[========                 ]  35%        16384 bytes
+Erase   	[=========                ]  39%        18432 bytes
+Erase   	[===========              ]  44%        20480 bytes
+Erase   	[============             ]  48%        22528 bytes
+Erase   	[=============            ]  52%        24576 bytes
+Erase   	[==============           ]  57%        26624 bytes
+Erase   	[===============          ]  61%        28672 bytes
+Erase   	[================         ]  66%        30720 bytes
+Erase   	[=================        ]  70%        32768 bytes
+Erase   	[==================       ]  75%        34816 bytes
+Erase   	[===================      ]  79%        36864 bytes
+Erase   	[====================     ]  83%        38912 bytes
+Erase   	[======================   ]  88%        40960 bytes
+Erase   	[=======================  ]  92%        43008 bytes
+Erase   	[======================== ]  97%        45056 bytes
+Erase   	[=========================] 100%        46372 bytes
+Erase    done.
+
+Download	[                         ]   0%            0 bytes
+Download	[=                        ]   4%         2048 bytes
+Download	[==                       ]   8%         4096 bytes
+Download	[===                      ]  13%         6144 bytes
+Download	[====                     ]  17%         8192 bytes
+Download	[=====                    ]  22%        10240 bytes
+Download	[======                   ]  26%        12288 bytes
+Download	[=======                  ]  30%        14336 bytes
+Download	[========                 ]  35%        16384 bytes
+Download	[=========                ]  39%        18432 bytes
+Download	[===========              ]  44%        20480 bytes
+Download	[============             ]  48%        22528 bytes
+Download	[=============            ]  52%        24576 bytes
+Download	[==============           ]  57%        26624 bytes
+Download	[===============          ]  61%        28672 bytes
+Download	[================         ]  66%        30720 bytes
+Download	[=================        ]  70%        32768 bytes
+Download	[==================       ]  75%        34816 bytes
+Download	[===================      ]  79%        36864 bytes
+Download	[====================     ]  83%        38912 bytes
+Download	[======================   ]  88%        40960 bytes
+Download	[=======================  ]  92%        43008 bytes
+Download	[======================== ]  97%        45056 bytes
+Download	[=========================] 100%        46372 bytes
+Download done.
+File downloaded successfully
+Submitting leave request...
+dfu-util: Error during download get_status
+[2026-10-02 15:17:17] [UPG] upgrade_head_mcu: Print head MCU power off.
+[2026-10-02 15:17:17] [UPG] upgrade_head_mcu: Print head MCU head2 enter normal mode.
+[2026-10-02 15:17:18] [UPG] upgrade_head_mcu: Print head MCU power on
+[2026-10-02 15:17:18] [UPG] upgrade_head_mcu: head2 Done.
+[2026-10-02 15:17:20] [UPG] upgrade_all: The Print head head2 upgrade was successful.
+[2026-10-02 15:17:20] [UPG] upgrade_all: Prepare to upgrade head3.
+[2026-10-02 15:17:20] [UPG] upgrade_head_mcu: Print head MCU power off.
+[2026-10-02 15:17:20] [UPG] upgrade_head_mcu: Print head MCU head3 enter DFU mode.
+[2026-10-02 15:17:22] [UPG] upgrade_head_mcu: Print head MCU power on.
+[2026-10-02 15:17:24] [UPG] upgrade_head_mcu: Flash firmware to MCU head3 by DFU tool.
+dfu-util 0.11
+
+Copyright 2005-2009 Weston Schmidt, Harald Welte and OpenMoko Inc.
+Copyright 2010-2021 Tormod Volden and Stefan Schmidt
+This program is Free Software and has ABSOLUTELY NO WARRANTY
+Please report bugs to http://sourceforge.net/p/dfu-util/tickets/
+
+dfu-util: Warning: Invalid DFU suffix signature
+dfu-util: A valid DFU suffix will be required in a future dfu-util release
+Opening DFU capable USB device...
+Device ID 2e3c:df11
+Device DFU version 011a
+Claiming USB DFU Interface...
+Setting Alternate Interface #0 ...
+Determining device status...
+DFU state(2) = dfuIDLE, status(0) = No error condition is present
+DFU mode device DFU version 011a
+Device returned transfer size 2048
+DfuSe interface name: "Internal Flash  "
+Downloading element to address = 0x08000000, size = 46372
+
+Erase   	[                         ]   0%            0 bytes
+Erase   	[=                        ]   4%         2048 bytes
+Erase   	[==                       ]   8%         4096 bytes
+Erase   	[===                      ]  13%         6144 bytes
+Erase   	[====                     ]  17%         8192 bytes
+Erase   	[=====                    ]  22%        10240 bytes
+Erase   	[======                   ]  26%        12288 bytes
+Erase   	[=======                  ]  30%        14336 bytes
+Erase   	[========                 ]  35%        16384 bytes
+Erase   	[=========                ]  39%        18432 bytes
+Erase   	[===========              ]  44%        20480 bytes
+Erase   	[============             ]  48%        22528 bytes
+Erase   	[=============            ]  52%        24576 bytes
+Erase   	[==============           ]  57%        26624 bytes
+Erase   	[===============          ]  61%        28672 bytes
+Erase   	[================         ]  66%        30720 bytes
+Erase   	[=================        ]  70%        32768 bytes
+Erase   	[==================       ]  75%        34816 bytes
+Erase   	[===================      ]  79%        36864 bytes
+Erase   	[====================     ]  83%        38912 bytes
+Erase   	[======================   ]  88%        40960 bytes
+Erase   	[=======================  ]  92%        43008 bytes
+Erase   	[======================== ]  97%        45056 bytes
+Erase   	[=========================] 100%        46372 bytes
+Erase    done.
+
+Download	[                         ]   0%            0 bytes
+Download	[=                        ]   4%         2048 bytes
+Download	[==                       ]   8%         4096 bytes
+Download	[===                      ]  13%         6144 bytes
+Download	[====                     ]  17%         8192 bytes
+Download	[=====                    ]  22%        10240 bytes
+Download	[======                   ]  26%        12288 bytes
+Download	[=======                  ]  30%        14336 bytes
+Download	[========                 ]  35%        16384 bytes
+Download	[=========                ]  39%        18432 bytes
+Download	[===========              ]  44%        20480 bytes
+Download	[============             ]  48%        22528 bytes
+Download	[=============            ]  52%        24576 bytes
+Download	[==============           ]  57%        26624 bytes
+Download	[===============          ]  61%        28672 bytes
+Download	[================         ]  66%        30720 bytes
+Download	[=================        ]  70%        32768 bytes
+Download	[==================       ]  75%        34816 bytes
+Download	[===================      ]  79%        36864 bytes
+Download	[====================     ]  83%        38912 bytes
+Download	[======================   ]  88%        40960 bytes
+Download	[=======================  ]  92%        43008 bytes
+Download	[======================== ]  97%        45056 bytes
+Download	[=========================] 100%        46372 bytes
+Download done.
+File downloaded successfully
+Submitting leave request...
+dfu-util: Error during download get_status
+[2026-10-02 15:17:27] [UPG] upgrade_head_mcu: Print head MCU power off.
+[2026-10-02 15:17:27] [UPG] upgrade_head_mcu: Print head MCU head3 enter normal mode.
+[2026-10-02 15:17:28] [UPG] upgrade_head_mcu: Print head MCU power on
+[2026-10-02 15:17:28] [UPG] upgrade_head_mcu: head3 Done.
+[2026-10-02 15:17:30] [UPG] upgrade_all: The Print head head3 upgrade was successful.
+[2026-10-02 15:17:30] [UPG] upgrade_all: Prepare to upgrade SOC.
+[2026-10-02 15:17:31] [UPG] upgrade_soc: Current slot is A, upgrade B and reboot to active.
+LOG_INFO: *** update_engine: V1.0.1-g<unknown> ***.
+LOG_INFO: *** will upgrade firmware from normal system ***
+LOG_INFO: main-285: is ota update
+LOG_INFO: Current Mode is 'A' system.
+LOG_INFO: start RK_ota_url url [/userdata/.tmp_upgrade/unpack/update.img] save path [/userdata/.tmp_upgrade/unpack/update.img].
+LOG_INFO: save image to /userdata/.tmp_upgrade/unpack/update.img.
+LOG_INFO: url = /userdata/.tmp_upgrade/unpack/update.img.
+LOG_INFO: [MiscUpdate:90] save path: /userdata/.tmp_upgrade/unpack/update.img
+LOG_INFO: In A system, now upgrade B system.
+LOG_INFO: [RK_ota_set_partition:106] num [16]
+LOG_INFO: need update parameter.
+LOG_INFO: need update uboot_b.
+LOG_INFO: Current device is not MTD
+LOG_INFO: need update boot_b.
+LOG_INFO: Current device is not MTD
+LOG_INFO: need update system_b.
+LOG_INFO: Current device is not MTD
+LOG_INFO: start RK_ota_start.
+LOG_INFO: rk m_status = 1.
+LOG_INFO: where the file is local.
+LOG_INFO: [RK_ota_set_partition:106] num [16]
+LOG_DEBUG: uiTag = 57464b52.
+LOG_DEBUG: usSize = 66.
+LOG_DEBUG: dwVersion = 1000000.
+LOG_DEBUG: btMajor = 1, btMinor = 0, usSmall = 00.
+LOG_DEBUG: dwBootOffset = 66.
+LOG_DEBUG: dwBootSize = 729c0.
+LOG_DEBUG: dwFWOffset = 72a26.
+LOG_DEBUG: dwFWSize = f058004.
+LOG_DEBUG: tag = 1178684242
+LOG_DEBUG: size = 252018688
+LOG_DEBUG: machine_model =  RK3562
+LOG_DEBUG: manufacturer =  RK3562
+LOG_DEBUG: version = 16777216
+LOG_DEBUG: item = 12.
+LOG_INFO: ================================================
+LOG_DEBUG: name = package-file
+LOG_DEBUG: file = package-file
+LOG_DEBUG: offset = 471590
+LOG_DEBUG: flash_offset = -1
+LOG_DEBUG: usespace = 1
+LOG_DEBUG: size = 251
+LOG_INFO: ================================================
+LOG_DEBUG: name = parameter
+LOG_DEBUG: file = parameter.txt
+LOG_DEBUG: offset = 473638
+LOG_DEBUG: flash_offset = 0
+LOG_DEBUG: usespace = 1
+LOG_DEBUG: size = 541
+LOG_INFO: ================================================
+LOG_DEBUG: name = bootloader
+LOG_DEBUG: file = MiniLoaderAll.bin
+LOG_DEBUG: offset = 102
+LOG_DEBUG: flash_offset = -1
+LOG_DEBUG: usespace = 230
+LOG_DEBUG: size = 469440
+LOG_INFO: ================================================
+LOG_DEBUG: name = uboot_a
+LOG_DEBUG: file = uboot.img
+LOG_DEBUG: offset = 946726
+LOG_DEBUG: flash_offset = 16384
+LOG_DEBUG: usespace = 2048
+LOG_DEBUG: size = 4194304
+LOG_INFO: ================================================
+LOG_DEBUG: name = uboot_b
+LOG_DEBUG: file = uboot.img
+LOG_DEBUG: offset = 946726
+LOG_DEBUG: flash_offset = 24576
+LOG_DEBUG: usespace = 2048
+LOG_DEBUG: size = 4194304
+LOG_INFO: ================================================
+LOG_DEBUG: name = misc
+LOG_DEBUG: file = misc.img
+LOG_DEBUG: offset = 5141030
+LOG_DEBUG: flash_offset = 32768
+LOG_DEBUG: usespace = 24
+LOG_DEBUG: size = 49152
+LOG_INFO: ================================================
+LOG_DEBUG: name = boot_a
+LOG_DEBUG: file = boot.img
+LOG_DEBUG: offset = 5190182
+LOG_DEBUG: flash_offset = 40960
+LOG_DEBUG: usespace = 8527
+LOG_DEBUG: size = 17462784
+LOG_INFO: ================================================
+LOG_DEBUG: name = boot_b
+LOG_DEBUG: file = boot.img
+LOG_DEBUG: offset = 5190182
+LOG_DEBUG: flash_offset = 106496
+LOG_DEBUG: usespace = 8527
+LOG_DEBUG: size = 17462784
+LOG_INFO: ================================================
+LOG_DEBUG: name = system_a
+LOG_DEBUG: file = rootfs.img
+LOG_DEBUG: offset = 22653478
+LOG_DEBUG: flash_offset = 172032
+LOG_DEBUG: usespace = 104032
+LOG_DEBUG: size = 213057536
+LOG_INFO: ================================================
+LOG_DEBUG: name = system_b
+LOG_DEBUG: file = rootfs.img
+LOG_DEBUG: offset = 22653478
+LOG_DEBUG: flash_offset = 786432
+LOG_DEBUG: usespace = 104032
+LOG_DEBUG: size = 213057536
+LOG_INFO: ================================================
+LOG_DEBUG: name = oem
+LOG_DEBUG: file = oem.img
+LOG_DEBUG: offset = 235711014
+LOG_DEBUG: flash_offset = 1400832
+LOG_DEBUG: usespace = 4096
+LOG_DEBUG: size = 8388608
+LOG_INFO: ================================================
+LOG_DEBUG: name = userdata
+LOG_DEBUG: file = userdata.img
+LOG_DEBUG: offset = 244099622
+LOG_DEBUG: flash_offset = 3497984
+LOG_DEBUG: usespace = 4096
+LOG_DEBUG: size = 8388608
+LOG_INFO: new md5:6cc311807f2a05f4cc92d27eb64b1d4f
+LOG_INFO: MD5Check is ok of /userdata/.tmp_upgrade/unpack/update.img
+LOG_INFO: analyticImage ok.
+LOG_INFO: found rkimage_hdr.item[1].name = parameter.
+LOG_INFO: found rkimage_hdr.item[4].name = uboot_b.
+LOG_INFO: found rkimage_hdr.item[7].name = boot_b.
+LOG_INFO: found rkimage_hdr.item[9].name = system_b.
+LOG_INFO: Current device is not MTD
+LOG_INFO: now write parameter to /dev/block/by-name/gpt.
+LOG_INFO: ingore misc.
+LOG_INFO: now write uboot_b to /dev/block/by-name/uboot_b.
+LOG_INFO: update_cmd.flash_offset = 0.
+LOG_INFO: flash_normal:200 start.
+LOG_INFO: Current device is not MTD
+LOG_INFO: flash_normal:222, diff check for uboot_b
+LOG_WARN: Not a diff image, ret = 80
+LOG_INFO: block_write src /userdata/.tmp_upgrade/unpack/update.img dest /dev/block/by-name/uboot_b.
+LOG_INFO: Current device is not MTD
+LOG_INFO: new md5:a8a8631a47c0dc3919c98b2b4a5a949a
+LOG_INFO: MD5Check is ok of /dev/block/by-name/uboot_b
+LOG_INFO: new md5:a8a8631a47c0dc3919c98b2b4a5a949a
+LOG_INFO: MD5Check is ok of /userdata/.tmp_upgrade/unpack/update.img
+LOG_INFO: check /dev/block/by-name/uboot_b ok.
+LOG_INFO: now write boot_b to /dev/block/by-name/boot_b.
+LOG_INFO: update_cmd.flash_offset = 0.
+LOG_INFO: flash_normal:200 start.
+LOG_INFO: Current device is not MTD
+LOG_INFO: flash_normal:222, diff check for boot_b
+LOG_WARN: Not a diff image, ret = 80
+LOG_INFO: block_write src /userdata/.tmp_upgrade/unpack/update.img dest /dev/block/by-name/boot_b.
+LOG_INFO: Current device is not MTD
+LOG_INFO: new md5:5787bfd89a2a37e13eb67429f5d0151a
+LOG_INFO: MD5Check is ok of /dev/block/by-name/boot_b
+LOG_INFO: new md5:5787bfd89a2a37e13eb67429f5d0151a
+LOG_INFO: MD5Check is ok of /userdata/.tmp_upgrade/unpack/update.img
+LOG_INFO: check /dev/block/by-name/boot_b ok.
+LOG_INFO: now write system_b to /dev/block/by-name/system_b.
+LOG_INFO: update_cmd.flash_offset = 0.
+LOG_INFO: flash_normal:200 start.
+LOG_INFO: Current device is not MTD
+LOG_INFO: flash_normal:222, diff check for system_b
+LOG_WARN: Not a diff image, ret = 80
+LOG_INFO: block_write src /userdata/.tmp_upgrade/unpack/update.img dest /dev/block/by-name/system_b.
+LOG_INFO: Current device is not MTD
+LOG_INFO: new md5:7d55bd880ba15a02c60ef7c00bade6f7
+LOG_INFO: MD5Check is ok of /dev/block/by-name/system_b
+LOG_INFO: new md5:7d55bd880ba15a02c60ef7c00bade6f7
+LOG_INFO: MD5Check is ok of /userdata/.tmp_upgrade/unpack/update.img
+LOG_INFO: check /dev/block/by-name/system_b ok.
+LOG_INFO: RK_ota_start is ok!LOG_INFO: rk ota success.
+LOG_INFO: Current Mode is 'A' system.
+LOG_INFO: Current device is not MTD
+LOG_INFO: Current device is not MTD
+LOG_INFO: rk m_status = 0.
+[2026-10-02 15:17:40] [UPG] additional_operations_before_active: Additional operations before activating the soc firmware.
+[2026-10-02 15:17:41] [UPG] upgrade_soc: upgrade soc finish, prepare to reboot.
+
+========================================
+SUCCESS: Completed successfully.

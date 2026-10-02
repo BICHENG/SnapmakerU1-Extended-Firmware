@@ -1,0 +1,1 @@
+{"result": {"eventtime": 1462.575221655, "status": {"print_stats": {"filename": "", "total_duration": 0.0, "print_duration": 0.0, "filament_used": 0.0, "state": "standby", "exception": {}, "message": "", "info": {"total_layer": null, "current_layer": null}}, "fan": {"speed": 0.0, "rpm": 0.0}, "fan_generic cavity_fan": {"speed": 1.0, "rpm": 3165.0}}}}

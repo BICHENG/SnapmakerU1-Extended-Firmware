@@ -1,0 +1,699 @@
+VERSION
+2.0.0
+CMDLINE
+storagemedia=emmc androidboot.storagemedia=emmc androidboot.mode=normal  androidboot.verifiedbootstate=orange android_slotsufix=_b vertype=rel earlycon=uart8250,mmio32 ro rootwait delayacct rootfstype=squashfs androidboot.fwver=ddr-v1.07-6e9ae14bbb,bl31-v1.21,bl32-v1.07,uboot-3ed3e17641-09/14/2026 root=PARTUUID=c53b0000-0000-4b29-8000-75f6000048cb
+TAILSCALE
+1.92.5
+  tailscale commit: 1c215f6e5acba0b11f9c62a999aac23ecb76f3a8
+  long version: 1.92.5-t1c215f6e5-g9b792287b
+  other commit: 9b792287b577cb8cf0fc330146ea9dcbddcee71a
+  go version: go1.25.5
+100.70.57.39
+c88fde2b9bd93e0f0c54184ed194e588ec330670832ef8321823d7c9c197e1e2  /home/lava/printer_data/tailscale/tailscaled.state
+SERVER
+{"result": {"klippy_connected": true, "klippy_state": "ready", "components": ["secrets", "template", "klippy_connection", "jsonrpc", "internal_transport", "application", "websockets", "database", "dbus_manager", "file_manager", "authorization", "klippy_apis", "shell_command", "machine", "data_store", "proc_stats", "job_state", "job_queue", "history", "http_client", "httpx_client", "announcements", "webcam", "extensions", "zeroconf", "exception_manager", "client_manager", "mqtt", "timelapse", "snapmakercloud", "octoprint_compat", "repeater"], "failed_components": [], "registered_directories": ["config", "logs", "gcodes", "timelapse", "camera"], "warnings": [], "websocket_count": 1, "moonraker_version": "2.0.0", "missing_klippy_requirements": [], "api_version": [1, 4, 0], "api_version_string": "1.4.0"}}SETTINGS
+{
+  "web": {
+    "label": "Web",
+    "items": [
+      {
+        "id": "web-frontend",
+        "label": "Frontend",
+        "description": "Choose between Fluidd and Mainsail as the web interface.",
+        "help_url": null,
+        "current": "fluidd",
+        "hidden": false,
+        "options": {
+          "mainsail": {
+            "label": "Mainsail"
+          },
+          "fluidd": {
+            "label": "Fluidd"
+          }
+        }
+      },
+      {
+        "id": "firmware-config",
+        "label": "Firmware Config",
+        "description": "Enable or disable this web configuration interface.",
+        "help_url": null,
+        "current": "true",
+        "hidden": false,
+        "options": {
+          "true": {
+            "label": "Enabled"
+          },
+          "false": {
+            "label": "Disabled",
+            "confirm": "Disabling will remove access to this page. Re-enabling requires editing extended2.cfg manually."
+          }
+        }
+      },
+      {
+        "id": "remote-screen",
+        "label": "Remote Screen",
+        "description": "Stream the printer touchscreen to the browser.",
+        "help_url": null,
+        "current": "true",
+        "hidden": false,
+        "options": {
+          "true": {
+            "label": "Enabled"
+          },
+          "false": {
+            "label": "Disabled"
+          }
+        }
+      }
+    ]
+  },
+  "camera": {
+    "label": "Camera",
+    "items": [
+      {
+        "id": "camera-internal",
+        "label": "Internal Camera",
+        "description": "Select the driver for the built-in MIPI camera.",
+        "help_url": null,
+        "current": "paxx12",
+        "hidden": false,
+        "options": {
+          "paxx12": {
+            "label": "Paxx12"
+          },
+          "snapmaker": {
+            "label": "Snapmaker"
+          },
+          "none": {
+            "label": "Disabled"
+          }
+        }
+      },
+      {
+        "id": "camera-internal-resolution",
+        "label": "Internal Camera Resolution",
+        "description": "Resolution and framerate for the built-in MIPI camera. Resolution is always 1080p; only framerate can be lowered.",
+        "help_url": null,
+        "current": "1080p30",
+        "hidden": false,
+        "options": {
+          "1080p30": {
+            "label": "1920x1080 @ 30fps"
+          },
+          "1080p25": {
+            "label": "1920x1080 @ 25fps"
+          },
+          "1080p15": {
+            "label": "1920x1080 @ 15fps"
+          },
+          "1080p5": {
+            "label": "1920x1080 @ 5fps"
+          }
+        }
+      },
+      {
+        "id": "camera-usb",
+        "label": "USB Camera",
+        "description": "Enable streaming from an attached USB camera.",
+        "help_url": null,
+        "current": "none",
+        "hidden": false,
+        "options": {
+          "paxx12": {
+            "label": "Paxx12"
+          },
+          "none": {
+            "label": "Disabled"
+          }
+        }
+      },
+      {
+        "id": "camera-rtsp",
+        "label": "RTSP Stream (paxx12 only)",
+        "description": "Enable RTSP stream output for the internal camera (paxx12 driver only).",
+        "help_url": null,
+        "current": "false",
+        "hidden": false,
+        "options": {
+          "true": {
+            "label": "Enabled"
+          },
+          "false": {
+            "label": "Disabled"
+          }
+        }
+      }
+    ]
+  },
+  "remote_access": {
+    "label": "Remote Access",
+    "items": [
+      {
+        "id": "ssh",
+        "label": "SSH Access",
+        "description": "Enable remote shell access to the printer over SSH.",
+        "help_url": null,
+        "current": "true",
+        "hidden": false,
+        "options": {
+          "true": {
+            "label": "Enabled"
+          },
+          "false": {
+            "label": "Disabled"
+          }
+        }
+      },
+      {
+        "id": "authorization",
+        "label": "Web Authentication (Experimental)",
+        "description": "Password-protect access to Fluidd and Firmware Config via Moonraker authentication.",
+        "help_url": null,
+        "current": "disabled",
+        "hidden": false,
+        "options": {
+          "enabled": {
+            "label": "Enabled",
+            "confirm": "Enable authentication? A new admin user with random password will be created. You will need to log in to access Fluidd and Firmware Config. Note: This is experimental and only works with Fluidd. Mainsail does not support this feature."
+          },
+          "disabled": {
+            "label": "Disabled",
+            "confirm": "Disable authentication? Anyone on your network will be able to access the printer."
+          }
+        }
+      },
+      {
+        "id": "vpn",
+        "label": "VPN Provider (Experimental)",
+        "description": "Connect the printer to a VPN for secure remote access from anywhere.",
+        "help_url": null,
+        "current": "tailscale",
+        "hidden": false,
+        "options": {
+          "none": {
+            "label": "None"
+          },
+          "tailscale": {
+            "label": "Tailscale"
+          }
+        }
+      },
+      {
+        "id": "cloud",
+        "label": "Cloud Access (Experimental)",
+        "description": "Enable alternative cloud access from outside your network.",
+        "help_url": "https://snapmakeru1-extended-firmware.pages.dev/cloud",
+        "current": "none",
+        "hidden": false,
+        "options": {
+          "none": {
+            "label": "None"
+          },
+          "octoeverywhere": {
+            "label": "OctoEverywhere"
+          }
+        }
+      }
+    ]
+  },
+  "snapmaker_components": {
+    "label": "Snapmaker Components",
+    "items": [
+      {
+        "id": "rfid",
+        "label": "Filament Detection",
+        "description": "Set how filament is detected.",
+        "help_url": "https://snapmakeru1-extended-firmware.pages.dev/rfid_support#alternative-detection-systems",
+        "current": "snapmaker",
+        "hidden": false,
+        "options": {
+          "external": {
+            "label": "External"
+          },
+          "snapmaker": {
+            "label": "Snapmaker"
+          },
+          "openrfid": {
+            "label": "OpenRFID",
+            "confirm": "Please read the relevant documentation for this feature. Bambu Lab and Creality spools are not enabled by default."
+          },
+          "openrfid-generic": {
+            "label": "OpenRFID (force generic vendor)",
+            "confirm": "Please read the relevant documentation for this feature. Bambu Lab and Creality spools are not enabled by default."
+          }
+        }
+      },
+      {
+        "id": "firmware-upgrade-channel",
+        "label": "Firmware Upgrade",
+        "description": "Enable or disable the paxx12 firmware upgrade feature. Requires usage of Snapmaker Cloud.",
+        "help_url": "https://snapmakeru1-extended-firmware.pages.dev/firmware_upgrade",
+        "current": "develop",
+        "hidden": false,
+        "options": {
+          "none": {
+            "label": "Disabled",
+            "confirm": "Changing the firmware upgrade channel requires a reboot. Reboot now?"
+          },
+          "stable": {
+            "label": "Stable (recommended)",
+            "confirm": "Changing the firmware upgrade channel requires a reboot. Reboot now?"
+          },
+          "testing": {
+            "label": "Testing (pre-releases)",
+            "confirm": "Changing the firmware upgrade channel requires a reboot. Reboot now?"
+          },
+          "develop": {
+            "label": "Develop (bleeding edge)",
+            "confirm": "Changing the firmware upgrade channel requires a reboot. Reboot now?"
+          }
+        }
+      },
+      {
+        "id": "afc",
+        "label": "AFC Lite via Fluidd/Mainsail",
+        "description": "Multi-lane filament management with CHANGE_TOOL and LANE_UNLOAD macros.",
+        "help_url": "http://snapmakeru1-extended-firmware.pages.dev/afc-lite",
+        "current": "disabled",
+        "hidden": false,
+        "options": {
+          "enabled": {
+            "label": "Enabled",
+            "confirm": "Enable AFC Lite component? This adds support for multi-lane filament management with CHANGE_TOOL and LANE_UNLOAD macros. See documentation for details."
+          },
+          "disabled": {
+            "label": "Disabled"
+          }
+        }
+      },
+      {
+        "id": "spoolman",
+        "label": "Spoolman Integration",
+        "description": "Track filament usage and metadata with Spoolman spool management.",
+        "help_url": "http://snapmakeru1-extended-firmware.pages.dev/spoolman",
+        "current": "disabled",
+        "hidden": false,
+        "options": {
+          "enabled": {
+            "label": "Enabled",
+            "confirm": "Enable Spoolman integration? Enter the Spoolman server URL below.\n\nSpoolman tracks filament usage and lets you manage spool metadata from your web frontend.",
+            "inputs": [
+              {
+                "name": "SPOOLMAN_URL",
+                "label": "Spoolman URL",
+                "placeholder": "http://192.168.1.100:7912",
+                "regex": "^https?://.+"
+              }
+            ]
+          },
+          "force_generic": {
+            "label": "Enabled (Force Generic Vendor)",
+            "confirm": "Enable Spoolman integration with Force Generic Vendor? Enter the Spoolman server URL below.\n\nNon-Snapmaker filament vendors will be exposed to the U1 as Generic while Spoolman metadata and tracking remain unchanged.",
+            "inputs": [
+              {
+                "name": "SPOOLMAN_URL",
+                "label": "Spoolman URL",
+                "placeholder": "http://192.168.1.100:7912",
+                "regex": "^https?://.+"
+              }
+            ]
+          },
+          "disabled": {
+            "label": "Disabled"
+          }
+        }
+      },
+      {
+        "id": "chamber_heater",
+        "label": "PandaBreath / DragonBreath Chamber Heater",
+        "description": "BIQU Panda Breath chamber heater and air filter integration, or DragonBreath open firmware on the same board.",
+        "help_url": "https://snapmakeru1-extended-firmware.pages.dev/panda_breath",
+        "current": "disabled",
+        "hidden": false,
+        "options": {
+          "disabled": {
+            "label": "Disabled"
+          },
+          "auto": {
+            "label": "Panda Breath",
+            "confirm": "WARNING: Panda Breath significantly raises sustained enclosure temperatures, accelerating wear on electronics, motors, and other components beyond their rated conditions. Any damage attributable to elevated thermal stress is unlikely to be covered under warranty. Additional motherboard cooling is required before use \u2014 see the documentation for details.\n\nBefore enabling Panda Breath auto mode, complete all of the following steps:\n\n1. Install additional active cooling on the motherboard (see documentation).\n2. Ensure the Panda Breath device is running firmware v1.0.3.\n3. Configure a static DHCP lease for this printer on your router \u2014 the printer IP is embedded into the Panda Breath device and must not change after a reboot.\n4. Configure a static DHCP lease for the Panda Breath device on your router \u2014 Klipper will connect to it by IP address on every print.\n5. Power-cycle the Panda Breath device and wait at least 5 seconds before proceeding.\n6. Enter the Panda Breath IP address in the field below.\n\nAuto mode heats the chamber with Klipper first, then hands off hold and cool-down behaviour to Panda native auto mode.\n\n(If you have flashed your Panda Breath with DragonBreath open firmware instead, use the DragonBreath option below.)\n",
+            "inputs": [
+              {
+                "name": "ACKNOWLEDGED",
+                "label": "Type \"I UNDERSTAND\" to confirm you have read the documentation and accept the warranty and longevity risks",
+                "placeholder": "I UNDERSTAND",
+                "regex": "^I UNDERSTAND$"
+              },
+              {
+                "name": "PANDA_BREATH_IP",
+                "label": "Panda Breath IP Address",
+                "placeholder": "192.168.1.100",
+                "regex": "^((25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])$"
+              }
+            ]
+          },
+          "manual": {
+            "label": "Panda Breath (Manual mode)",
+            "confirm": "WARNING: Panda Breath significantly raises sustained enclosure temperatures, accelerating wear on electronics, motors, and other components beyond their rated conditions. Any damage attributable to elevated thermal stress is unlikely to be covered under warranty. Additional motherboard cooling is required before use \u2014 see the documentation for details.\n\nBefore enabling Panda Breath manual mode, complete all of the following steps:\n\n1. Install additional active cooling on the motherboard (see documentation).\n2. Ensure the Panda Breath device is running firmware v1.0.3.\n3. Configure a static DHCP lease for this printer on your router \u2014 the printer IP is embedded into the Panda Breath device and must not change after a reboot.\n4. Configure a static DHCP lease for the Panda Breath device on your router \u2014 Klipper will connect to it by IP address on every print.\n5. Power-cycle the Panda Breath device and wait at least 5 seconds before proceeding.\n6. Enter the Panda Breath IP address in the field below.\n\nManual mode is a legacy fallback that may be less safe if the device or network connectivity is lost during a print.\n",
+            "hidden": true,
+            "inputs": [
+              {
+                "name": "ACKNOWLEDGED",
+                "label": "Type \"I UNDERSTAND\" to confirm you have read the documentation and accept the warranty and longevity risks",
+                "placeholder": "I UNDERSTAND",
+                "regex": "^I UNDERSTAND$"
+              },
+              {
+                "name": "PANDA_BREATH_IP",
+                "label": "Panda Breath IP Address",
+                "placeholder": "192.168.1.100",
+                "regex": "^((25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])$"
+              }
+            ]
+          },
+          "dragonbreath": {
+            "label": "DragonBreath (Recommended)",
+            "confirm": "WARNING: A chamber heater raises sustained enclosure temperatures, accelerating wear on electronics and motors beyond their rated conditions \u2014 likely NOT warranty-covered. Additional motherboard cooling is required (see docs).\n\nDragonBreath is community open firmware for a MAINS-POWERED heater, flashed onto the same Panda Breath board. NO WARRANTY \u2014 a fault could cause overheating, fire, or damage. Use at your own risk; never run it unattended.\n\nBefore enabling:\n1. Add active cooling to the motherboard (see docs).\n2. Flash DragonBreath firmware onto the Panda Breath board and provision its Wi-Fi (see https://github.com/plastikman/DragonBreath).\n3. Give the DragonBreath device a static DHCP lease \u2014 Klipper connects by IP.\n4. Enter its IP below.\n\n(If your Panda Breath is still running stock firmware, use the Panda Auto option above instead.)\n\nAdvanced: to use a device control token (NVS ctl_token), add a \"token:\" line to the DragonBreath config after enabling (see docs).\n",
+            "inputs": [
+              {
+                "name": "ACKNOWLEDGED",
+                "label": "Type \"I UNDERSTAND\" to confirm you have read the documentation and accept the warranty, safety, and longevity risks",
+                "placeholder": "I UNDERSTAND",
+                "regex": "^I UNDERSTAND$"
+              },
+              {
+                "name": "DRAGONBREATH_IP",
+                "label": "DragonBreath Device IP Address",
+                "placeholder": "192.168.1.100",
+                "regex": "^((25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])$"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": "gui",
+        "label": "Touchscreen GUI (Experimental)",
+        "description": "Select the interface shown on the printer's built-in touchscreen.",
+        "help_url": "https://snapmakeru1-extended-firmware.pages.dev/helixscreen",
+        "current": "snapmaker",
+        "hidden": false,
+        "options": {
+          "snapmaker": {
+            "label": "Snapmaker",
+            "confirm": "Switch back to the stock Snapmaker touchscreen UI?\n\nThe downloaded HelixScreen files are removed, so switching back to HelixScreen later downloads them again.\n\nThe printer reboots to apply the change."
+          },
+          "helixscreen": {
+            "label": "HelixScreen",
+            "confirm": "Replace the stock Snapmaker touchscreen UI with HelixScreen?\n\nHelixScreen is a third-party Klipper touchscreen interface and is downloaded on demand (~46 MB). It manages WiFi itself, but reads and writes the same saved-network file as the stock UI, so an already-configured network carries over automatically.\n\nThe printer reboots to apply the change."
+          }
+        }
+      }
+    ]
+  },
+  "print_preferences": {
+    "label": "Print Preferences",
+    "items": [
+      {
+        "id": "bed_leveling_force",
+        "label": "Force Bed Mesh Calibration",
+        "description": "Forces bed mesh calibration before each print.",
+        "help_url": "http://snapmakeru1-extended-firmware.pages.dev/tweaks#force-auto-bed-leveling",
+        "current": "disabled",
+        "hidden": false,
+        "options": {
+          "force": {
+            "label": "Force Full Mesh",
+            "confirm": "Force full bed mesh calibration before every print?"
+          },
+          "adaptive": {
+            "label": "Force Adaptive Mesh",
+            "confirm": "Force adaptive bed mesh calibration before every print? Falls back to full mesh when exclude_object is not active. Make sure to enable 'Exclude Object' in your slicer so Klipper receives object boundary data \u2014 without it, adaptive mesh always falls back to a full mesh."
+          },
+          "disabled": {
+            "label": "Disabled"
+          }
+        }
+      },
+      {
+        "id": "object_processing",
+        "label": "Object Processing for Adaptive Mesh",
+        "description": "Enables Moonraker object processing for adaptive mesh. Prefer enabling exclude object in your slicer instead.",
+        "help_url": "http://snapmakeru1-extended-firmware.pages.dev/tweaks#object-processing-for-adaptive-mesh",
+        "current": "disabled",
+        "hidden": false,
+        "options": {
+          "enabled": {
+            "label": "Enabled",
+            "confirm": "Enable Moonraker object processing? Note: Enabling 'Exclude Object' in your slicer settings is preferred over this option. This can cause long processing times for large gcode files (> 100MB), delays when uploading files, and extended time stuck at 100% in Snapmaker Orca. Only enable if your slicer doesn't support exclude object."
+          },
+          "disabled": {
+            "label": "Disabled"
+          }
+        }
+      },
+      {
+        "id": "timelapse_force",
+        "label": "Force Timelapse",
+        "description": "Forces timelapse regardless if configured in the Snapmaker app. Your slicer must call TIMELAPSE_START, TIMELAPSE_TAKE_FRAME, and TIMELAPSE_STOP.",
+        "help_url": "http://snapmakeru1-extended-firmware.pages.dev/tweaks#force-timelapse",
+        "current": "disabled",
+        "hidden": false,
+        "options": {
+          "enabled": {
+            "label": "Enabled",
+            "confirm": "Allow TIMELAPSE_START to bypass the Snapmaker timelapse preference? Your slicer must call TIMELAPSE_START, TIMELAPSE_TAKE_FRAME, and TIMELAPSE_STOP."
+          },
+          "disabled": {
+            "label": "Disabled"
+          }
+        }
+      }
+    ]
+  },
+  "tweaks": {
+    "label": "Tweaks",
+    "items": [
+      {
+        "id": "fan_curves",
+        "label": "Fan Curves",
+        "description": "Select quieter nonlinear cooling curves for the power and nozzle fans. Curves use actual nozzle temperature and keep the cavity over-temperature guard.",
+        "help_url": "http://snapmakeru1-extended-firmware.pages.dev/tweaks#fan-curves",
+        "current": "quiet",
+        "hidden": false,
+        "options": {
+          "quiet": {
+            "label": "Quiet",
+            "confirm": "Apply the Quiet fan curves?\nFans stay off below 50\u00b0C and ramp nonlinearly from the actual nozzle temperature. The cavity guard is raised to 55\u00b0C and limited to 60%."
+          },
+          "balanced": {
+            "label": "Balanced",
+            "confirm": "Apply the Balanced fan curves?\nFans stay off below 60\u00b0C and ramp earlier than Quiet. The cavity guard is raised to 55\u00b0C and limited to 60%."
+          },
+          "stock": {
+            "label": "Stock",
+            "confirm": "Restore the original Snapmaker fan curves?"
+          }
+        }
+      },
+      {
+        "id": "max_speed",
+        "label": "Max Speed",
+        "description": "Experimental. Raises the XY motion limits and speeds up tool changes. Increases wear on your printer and can cause print problems such as Z skipping. Balanced is the recommended starting point, and a calibrated printer is required.",
+        "help_url": "http://snapmakeru1-extended-firmware.pages.dev/tweaks#max-speed",
+        "current": "balanced",
+        "hidden": false,
+        "options": {
+          "balanced": {
+            "label": "Balanced",
+            "confirm": "WARNING: EXPERIMENTAL. Raises XY velocity to 600 mm/s (stock 500), tool changes to 550 mm/s and dock grab to 30 mm/s.\nThis runs the printer past its rated limits. It increases wear on your printer and can cause print problems such as Z skipping, layer shifts, and ringing.\nOnly enable on a fully calibrated printer with tool changes already reliable at stock speeds. Set this back to Disabled if prints degrade."
+          },
+          "aggressive": {
+            "label": "Aggressive",
+            "confirm": "WARNING: EXPERIMENTAL \u2014 highest tier. Raises XY velocity to 750 mm/s (stock 500), tool changes to 700 mm/s and dock grab to 50 mm/s.\nThis runs the printer well past its rated limits. It increases wear on your printer and can cause print problems such as Z skipping, layer shifts, and ringing.\nOnly enable on a fully calibrated printer with tool changes already reliable at stock speeds. Drop back if prints degrade."
+          },
+          "disabled": {
+            "label": "Disabled"
+          }
+        }
+      },
+      {
+        "id": "tmc_autotune",
+        "label": "TMC AutoTune",
+        "description": "Optimizes TMC2240 driver settings for quieter operation and better performance.",
+        "help_url": "http://snapmakeru1-extended-firmware.pages.dev/tweaks#tmc-autotune",
+        "current": "enabled",
+        "hidden": false,
+        "options": {
+          "enabled": {
+            "label": "Enabled",
+            "confirm": "Enable TMC AutoTune? This optimizes TMC2240 driver settings for quieter operation and better performance. Monitor motor temperatures, print quality, and skipped steps during first use."
+          },
+          "disabled": {
+            "label": "Disabled"
+          }
+        }
+      },
+      {
+        "id": "tmc_reduce_current",
+        "label": "TMC Reduced Current",
+        "description": "Lowers X/Y motor current from 1.2A to 1.0A for quieter operation and less heat.",
+        "help_url": "http://snapmakeru1-extended-firmware.pages.dev/tweaks#tmc-reduced-current",
+        "current": "enabled",
+        "hidden": false,
+        "options": {
+          "enabled": {
+            "label": "Enabled",
+            "confirm": "Enable TMC Reduced Current? This lowers X/Y motor current from 1.2A to 1.0A for quieter operation and less heat. Monitor motor temperatures and print quality after enabling."
+          },
+          "disabled": {
+            "label": "Disabled"
+          }
+        }
+      }
+    ]
+  },
+  "troubleshooting": {
+    "label": "Troubleshooting",
+    "items": [
+      {
+        "id": "toolhead1",
+        "label": "Toolhead 1",
+        "description": "Temporary thermistor, heating, and MCU bypass for Toolhead 1.",
+        "help_url": "http://snapmakeru1-extended-firmware.pages.dev/faulty_toolhead",
+        "current": "enabled",
+        "hidden": false,
+        "options": {
+          "enabled": {
+            "label": "Normal"
+          },
+          "bypass_thermistor": {
+            "label": "Bypass Thermistor",
+            "confirm": "Apply the faulty toolhead bypass to Toolhead 1? This disables normal temperature fault handling for Toolhead 1 so the printer can keep using the other toolheads. Do not heat or print with the faulty toolhead while this bypass is enabled."
+          },
+          "bypass_mcu": {
+            "label": "Bypass MCU (Disconnected)",
+            "confirm": "Apply the MCU bypass to Toolhead 1? Use this only if Toolhead 1's board is dead or its cable is disconnected. This makes Toolhead 1's stepper and heater fully inert - it cannot move, extrude, or heat at all - but lets the printer boot and keep using the other toolheads."
+          }
+        }
+      },
+      {
+        "id": "toolhead2",
+        "label": "Toolhead 2",
+        "description": "Temporary thermistor, heating, and MCU bypass for Toolhead 2.",
+        "help_url": "http://snapmakeru1-extended-firmware.pages.dev/faulty_toolhead",
+        "current": "enabled",
+        "hidden": false,
+        "options": {
+          "enabled": {
+            "label": "Normal"
+          },
+          "bypass_thermistor": {
+            "label": "Bypass Thermistor",
+            "confirm": "Apply the faulty toolhead bypass to Toolhead 2? This disables normal temperature fault handling for Toolhead 2 so the printer can keep using the other toolheads. Do not heat or print with the faulty toolhead while this bypass is enabled."
+          },
+          "bypass_mcu": {
+            "label": "Bypass MCU (Disconnected)",
+            "confirm": "Apply the MCU bypass to Toolhead 2? Use this only if Toolhead 2's board is dead or its cable is disconnected. This makes Toolhead 2's stepper and heater fully inert - it cannot move, extrude, or heat at all - but lets the printer boot and keep using the other toolheads."
+          }
+        }
+      },
+      {
+        "id": "toolhead3",
+        "label": "Toolhead 3",
+        "description": "Temporary thermistor, heating, and MCU bypass for Toolhead 3.",
+        "help_url": "http://snapmakeru1-extended-firmware.pages.dev/faulty_toolhead",
+        "current": "enabled",
+        "hidden": false,
+        "options": {
+          "enabled": {
+            "label": "Normal"
+          },
+          "bypass_thermistor": {
+            "label": "Bypass Thermistor",
+            "confirm": "Apply the faulty toolhead bypass to Toolhead 3? This disables normal temperature fault handling for Toolhead 3 so the printer can keep using the other toolheads. Do not heat or print with the faulty toolhead while this bypass is enabled."
+          },
+          "bypass_mcu": {
+            "label": "Bypass MCU (Disconnected)",
+            "confirm": "Apply the MCU bypass to Toolhead 3? Use this only if Toolhead 3's board is dead or its cable is disconnected. This makes Toolhead 3's stepper and heater fully inert - it cannot move, extrude, or heat at all - but lets the printer boot and keep using the other toolheads."
+          }
+        }
+      },
+      {
+        "id": "toolhead4",
+        "label": "Toolhead 4",
+        "description": "Temporary thermistor, heating, and MCU bypass for Toolhead 4.",
+        "help_url": "http://snapmakeru1-extended-firmware.pages.dev/faulty_toolhead",
+        "current": "enabled",
+        "hidden": false,
+        "options": {
+          "enabled": {
+            "label": "Normal"
+          },
+          "bypass_thermistor": {
+            "label": "Bypass Thermistor",
+            "confirm": "Apply the faulty toolhead bypass to Toolhead 4? This disables normal temperature fault handling for Toolhead 4 so the printer can keep using the other toolheads. Do not heat or print with the faulty toolhead while this bypass is enabled."
+          },
+          "bypass_mcu": {
+            "label": "Bypass MCU (Disconnected)",
+            "confirm": "Apply the MCU bypass to Toolhead 4? Use this only if Toolhead 4's board is dead or its cable is disconnected. This makes Toolhead 4's stepper and heater fully inert - it cannot move, extrude, or heat at all - but lets the printer boot and keep using the other toolheads."
+          }
+        }
+      }
+    ]
+  },
+  "monitoring_debugging": {
+    "label": "Monitoring & Debugging",
+    "items": [
+      {
+        "id": "klipper-metrics",
+        "label": "Klipper Metrics Exporter",
+        "description": "Export Klipper metrics for scraping by Prometheus.",
+        "help_url": null,
+        "current": "false",
+        "hidden": false,
+        "options": {
+          "true": {
+            "label": "Enabled"
+          },
+          "false": {
+            "label": "Disabled"
+          }
+        }
+      }
+    ]
+  }
+}KLIPPER_CHECK
+23:        self.temp_speed_table = config.getlists('temp_speed_table', None, seps=(',', '\n'), count=5, parser=float)
+28:        self.stepped_temp_table = config.getlists('stepped_temp_table', None, seps=(',', '\n'), count=2, parser=float)
+29:        if self.stepped_temp_table is not None:
+30:            for j in range(1, len(self.stepped_temp_table)):
+31:                current_temp = self.stepped_temp_table[j][0]
+32:                prev_temp = self.stepped_temp_table[j-1][0]
+39:        self.external_temp_guard_range = None
+40:        self.external_temp_guard_fan_speed = None
+45:            self.external_temp_guard_range = config.getlists('external_temp_guard_range', seps=(',', '\n'), count=2, parser=float)
+46:            self.external_temp_guard_fan_speed = config.getfloat('external_temp_guard_fan_speed', 1.0, minval=0., maxval=1.)
+48:            if self.external_temp_guard_range[0][0] >= self.external_temp_guard_range[0][1]:
+49:                raise config.error("external_temp_guard_range: min temperature must be less than max temperature")
+85:            if self.stepped_temp_table is None:
+92:        if not self.stepped_temp_table:
+94:        if len(self.stepped_temp_table) == 1:
+95:            temp_threshold, speed_value = self.stepped_temp_table[0]
+99:        min_temp, max_temp = self.stepped_temp_table[0][0], self.stepped_temp_table[-1][0]
+104:            self.current_stepped_index = len(self.stepped_temp_table) - 1
+105:            speed = self.stepped_temp_table[-1][1]
+108:        for i, (threshold, _) in enumerate(self.stepped_temp_table):
+116:            current_temp_threshold = self.stepped_temp_table[self.current_stepped_index][0]
+120:            speed = self.stepped_temp_table[self.current_stepped_index][1]
+126:        if self.temp_speed_table is not None:
+127:            for rule in self.temp_speed_table:
+142:            if self.stepped_temp_table is not None:
+162:            min_temp, max_temp = self.external_temp_guard_range[0]
+166:                    speed = self.external_temp_guard_fan_speed
+173:                    speed = self.external_temp_guard_fan_speed
+LOG_CHECK
+DISK
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/mmcblk0p9   27G  1.2G   25G   5% /userdata
+/dev/mmcblk0p8 1016M  237M  763M  24% /oem

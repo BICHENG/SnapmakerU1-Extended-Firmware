@@ -166,3 +166,20 @@ ACCELEROMETER_MEASURE CHIP=e0_lis2dw NAME=<trial_id>
 通用风扇：SET_FAN_SPEED FAN=cavity_fan SPEED=0.5
 喷嘴温控：由 heater_fan callback 控制，不用 SET_HEATER_FAN 作为持续激励
 ```
+
+### 2026-10-01 待机现场命令对照
+
+打印机处于 `print_stats.state=standby`、`idle_timeout.state=Idle`、四个喷嘴约 28°C、腔体约 30°C 时，直接向 Moonraker 发送命令，结果如下：
+
+| 命令 | 返回状态 | 说明 |
+|---|---:|---|
+| `M106 S64` | 主 `fan.speed=0.25098` | 主风扇约 25.1%，入口有效 |
+| `M106 P2 S64` | `cavity_fan.speed=0.25098`，约 591 RPM | 腔体风扇入口有效 |
+| `M106 P3 S64` | `exhaust_fan.speed=0` | `purifier.power_detected=false` 时被门控 |
+| `SET_HEATER_FAN FAN=e0_nozzle_fan SPEED=0.1` | 约 3 秒后仍为 `0` | 下一次温控 callback 重新计算并覆盖手动值 |
+| `SET_PURIFIER_MODE MODE=3 ...` | `purifier.mode` 仍为 `0` | 待机检测到电源未开启，模式请求被忽略 |
+
+同一台机器的切片文件在 `machine_start_gcode` 中使用 `SET_PURIFIER_MODE`，随后在清洁和校准阶段使用 `M106 S255`、`M106 P2 S0`，打印过程中再由切片反复写入 `M106 S...` 和 `M106 P2 S...`。这些命令存在于 G-code 文件里，但只有文件开始执行或通过 Moonraker 发送时才会改变风扇；待机状态不会自动重放打印文件中的命令。
+
+原始返回保存在 `reports/imu/20261002-004313/standby-live-gcode-test-20261001.txt` 和 `reports/imu/20261002-004313/standby-purifier-gcode-test-20261001.txt`。因此当前现象是“待机没有自动风扇激励”，不是主风扇或腔体风扇无法响应；后续 IMU 测试应使用 `M106 S...`、`M106 P2 S...` 或 `SET_FAN_SPEED FAN=cavity_fan ...`，不要把喷嘴 `heater_fan` 当作待机测试入口。
+

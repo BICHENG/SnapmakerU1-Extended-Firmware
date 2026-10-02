@@ -1,4 +1,9 @@
 /firmware/
+/work/
+/reports/build/native-*/update.img
+/reports/baseline/**
+!/reports/baseline/README.md
+/reports/imu/**/*.tgz
 tmp/
 *.o
 *.so

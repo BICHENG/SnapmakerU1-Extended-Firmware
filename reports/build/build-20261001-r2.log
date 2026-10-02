@@ -1,0 +1,123 @@
+make -C tools/rk2918_tools
+make[1]: Entering directory '/mnt/c/Users/Administrator/Desktop/00.POC/00.Snapmaker-Firmware/tools/rk2918_tools'
+gcc -g -O3 -DUSE_OPENSSL -Wall    afptool.c  -lssl -lcrypto -o afptool
+afptool.c: In function ‘action_parse_key’:
+afptool.c:279:17: warning: ‘__builtin_strncpy’ specified bound 56 equals destination size [-Wstringop-truncation]
+  279 |                 strncpy(package_image.manufacturer, value,
+      |                 ^
+afptool.c:273:17: warning: ‘__builtin_strncpy’ specified bound 30 equals destination size [-Wstringop-truncation]
+  273 |                 strncpy(package_image.machine_id, value,
+      |                 ^
+afptool.c:267:17: warning: ‘__builtin_strncpy’ specified bound 34 equals destination size [-Wstringop-truncation]
+  267 |                 strncpy(package_image.machine_model, value,
+      |                 ^
+gcc -g -O3 -DUSE_OPENSSL -Wall    img_unpack.c  -lssl -lcrypto -o img_unpack
+img_unpack.c: In function ‘check_md5sum’:
+img_unpack.c:50:9: warning: ‘MD5_Init’ is deprecated: Since OpenSSL 3.0 [-Wdeprecated-declarations]
+   50 |         MD5_Init(&md5_ctx);
+      |         ^~~~~~~~
+In file included from md5.h:6,
+                 from img_unpack.c:7:
+/usr/include/openssl/md5.h:49:27: note: declared here
+   49 | OSSL_DEPRECATEDIN_3_0 int MD5_Init(MD5_CTX *c);
+      |                           ^~~~~~~~
+img_unpack.c:56:17: warning: ‘MD5_Update’ is deprecated: Since OpenSSL 3.0 [-Wdeprecated-declarations]
+   56 |                 MD5_Update(&md5_ctx, buf, readlen);
+      |                 ^~~~~~~~~~
+/usr/include/openssl/md5.h:50:27: note: declared here
+   50 | OSSL_DEPRECATEDIN_3_0 int MD5_Update(MD5_CTX *c, const void *data, size_t len);
+      |                           ^~~~~~~~~~
+img_unpack.c:59:9: warning: ‘MD5_Final’ is deprecated: Since OpenSSL 3.0 [-Wdeprecated-declarations]
+   59 |         MD5_Final(md5sum, &md5_ctx);
+      |         ^~~~~~~~~
+/usr/include/openssl/md5.h:51:27: note: declared here
+   51 | OSSL_DEPRECATEDIN_3_0 int MD5_Final(unsigned char *md, MD5_CTX *c);
+      |                           ^~~~~~~~~
+gcc -g -O3 -DUSE_OPENSSL -Wall    img_maker.c  -lssl -lcrypto -o img_maker
+img_maker.c: In function ‘append_md5sum’:
+img_maker.c:103:9: warning: ‘MD5_Init’ is deprecated: Since OpenSSL 3.0 [-Wdeprecated-declarations]
+  103 |         MD5_Init(&md5_ctx);
+      |         ^~~~~~~~
+In file included from md5.h:6,
+                 from img_maker.c:8:
+/usr/include/openssl/md5.h:49:27: note: declared here
+   49 | OSSL_DEPRECATEDIN_3_0 int MD5_Init(MD5_CTX *c);
+      |                           ^~~~~~~~
+img_maker.c:111:25: warning: ‘MD5_Update’ is deprecated: Since OpenSSL 3.0 [-Wdeprecated-declarations]
+  111 |                         MD5_Update(&md5_ctx, buffer, len);
+      |                         ^~~~~~~~~~
+/usr/include/openssl/md5.h:50:27: note: declared here
+   50 | OSSL_DEPRECATEDIN_3_0 int MD5_Update(MD5_CTX *c, const void *data, size_t len);
+      |                           ^~~~~~~~~~
+img_maker.c:118:9: warning: ‘MD5_Final’ is deprecated: Since OpenSSL 3.0 [-Wdeprecated-declarations]
+  118 |         MD5_Final(buffer, &md5_ctx);
+      |         ^~~~~~~~~
+/usr/include/openssl/md5.h:51:27: note: declared here
+   51 | OSSL_DEPRECATEDIN_3_0 int MD5_Final(unsigned char *md, MD5_CTX *c);
+      |                           ^~~~~~~~~
+img_maker.c: In function ‘pack_rom’:
+img_maker.c:228:12: warning: ‘fp’ may be used uninitialized [-Wmaybe-uninitialized]
+  228 |         if (fp)
+      |            ^
+img_maker.c:160:15: note: ‘fp’ was declared here
+  160 |         FILE *fp = fopen(outfile, "wb+");
+      |               ^~
+gcc -g -O3 -DUSE_OPENSSL -Wall    mkkrnlimg.c  -lssl -lcrypto -o mkkrnlimg
+make[1]: Leaving directory '/mnt/c/Users/Administrator/Desktop/00.POC/00.Snapmaker-Firmware/tools/rk2918_tools'
+make -C tools/upfile
+make[1]: Entering directory '/mnt/c/Users/Administrator/Desktop/00.POC/00.Snapmaker-Firmware/tools/upfile'
+cc -o upfile upfile.c -lcrypto
+In file included from upfile.c:14:
+helpers.h: In function ‘calculate_md5’:
+helpers.h:161:3: warning: ‘MD5_Init’ is deprecated: Since OpenSSL 3.0 [-Wdeprecated-declarations]
+  161 |   MD5_Init(&ctx);
+      |   ^~~~~~~~
+In file included from upfile.c:12:
+/usr/include/openssl/md5.h:49:27: note: declared here
+   49 | OSSL_DEPRECATEDIN_3_0 int MD5_Init(MD5_CTX *c);
+      |                           ^~~~~~~~
+helpers.h:162:3: warning: ‘MD5_Update’ is deprecated: Since OpenSSL 3.0 [-Wdeprecated-declarations]
+  162 |   MD5_Update(&ctx, datap, len);
+      |   ^~~~~~~~~~
+/usr/include/openssl/md5.h:50:27: note: declared here
+   50 | OSSL_DEPRECATEDIN_3_0 int MD5_Update(MD5_CTX *c, const void *data, size_t len);
+      |                           ^~~~~~~~~~
+helpers.h:163:3: warning: ‘MD5_Final’ is deprecated: Since OpenSSL 3.0 [-Wdeprecated-declarations]
+  163 |   MD5_Final(md5, &ctx);
+      |   ^~~~~~~~~
+/usr/include/openssl/md5.h:51:27: note: declared here
+   51 | OSSL_DEPRECATEDIN_3_0 int MD5_Final(unsigned char *md, MD5_CTX *c);
+      |                           ^~~~~~~~~
+upfile.c: In function ‘info’:
+upfile.c:76:58: warning: taking address of packed member of ‘struct <anonymous>’ may result in an unaligned pointer value [-Waddress-of-packed-member]
+   76 |   if (!validate_checksum(&header, sizeof(UPFILE_HEADER), &header.checksum)) {
+      |                                                          ^~~~~~~~~~~~~~~~
+upfile.c:84:24: warning: field width specifier ‘*’ expects argument of type ‘int’, but argument 2 has type ‘long unsigned int’ [-Wformat=]
+   84 |   printf("  Version:\t%*s\n", sizeof(header.version), header.version);
+      |                       ~^~     ~~~~~~~~~~~~~~~~~~~~~~
+      |                        |      |
+      |                        int    long unsigned int
+upfile.c:85:27: warning: field width specifier ‘*’ expects argument of type ‘int’, but argument 2 has type ‘long unsigned int’ [-Wformat=]
+   85 |   printf("  Build Date:\t%*s\n", sizeof(header.build_date), header.build_date);
+      |                          ~^~     ~~~~~~~~~~~~~~~~~~~~~~~~~
+      |                           |      |
+      |                           int    long unsigned int
+upfile.c:111:58: warning: taking address of packed member of ‘struct <anonymous>’ may result in an unaligned pointer value [-Waddress-of-packed-member]
+  111 |     if (!validate_checksum(&entry, sizeof(UPFILE_ENTRY), &entry.checksum)) {
+      |                                                          ^~~~~~~~~~~~~~~
+upfile.c: In function ‘pack’:
+upfile.c:292:33: warning: format ‘%zu’ expects argument of type ‘size_t’, but argument 2 has type ‘int’ [-Wformat=]
+  292 |   printf("Packing UPFILE with %zu files\n", UPFILE_FILE_COUNT);
+      |                               ~~^
+      |                                 |
+      |                                 long unsigned int
+      |                               %u
+make[1]: Leaving directory '/mnt/c/Users/Administrator/Desktop/00.POC/00.Snapmaker-Firmware/tools/upfile'
+make -C tools/resource_tool
+make[1]: Entering directory '/mnt/c/Users/Administrator/Desktop/00.POC/00.Snapmaker-Firmware/tools/resource_tool'
+gcc -o resource_tool resource_tool.c
+make[1]: Leaving directory '/mnt/c/Users/Administrator/Desktop/00.POC/00.Snapmaker-Firmware/tools/resource_tool'
+./scripts/create_firmware.sh firmware/U1_2.0.0.205_20260914173503_upgrade.bin tmp/firmware firmware/firmware_extended.bin overlays/common/01-store-version/ overlays/common/02-enable-ssh/ overlays/common/03-disable-wlan-power-save/ overlays/common/04-nginx-fluidd.d/ overlays/common/05-persist-dhcp/ overlays/common/06-restore-eth0-mac/ overlays/firmware-extended/01-system-utils/ overlays/firmware-extended/02-firmware-config/ overlays/firmware-extended/03-extended-runtime/ overlays/firmware-extended/10-patch-kernel-modules/ overlays/firmware-extended/11-patch-klipper/ overlays/firmware-extended/12-patch-moonraker/ overlays/firmware-extended/13-patch-rfid/ overlays/firmware-extended/30-feature-ssh/ overlays/firmware-extended/31-feature-afc-lite/ overlays/firmware-extended/32-feature-klipper-tweaks/ overlays/firmware-extended/33-feature-timelapse-stub/ overlays/firmware-extended/34-feature-faulty-toolhead/ overlays/firmware-extended/35-feature-klipper-hooks/ overlays/firmware-extended/36-feature-print-preferences/ overlays/firmware-extended/37-feature-chamber-heater/ overlays/firmware-extended/38-feature-spoollink/ overlays/firmware-extended/40-feature-upgrade-firmware/ overlays/firmware-extended/41-feature-generic-purifier/ overlays/firmware-extended/41-feature-toolhead-mcu-simulator/ overlays/firmware-extended/60-app-camera/ overlays/firmware-extended/61-app-remote-screen/ overlays/firmware-extended/62-app-fluidd/ overlays/firmware-extended/63-app-mainsail/ overlays/firmware-extended/64-app-openrfid/ overlays/firmware-extended/65-app-cloud/ overlays/firmware-extended/66-app-vpn/ overlays/firmware-extended/67-app-monitoring/ overlays/firmware-extended/68-app-filament-ui/ overlays/firmware-extended/69-app-helixscreen/ 
+/usr/bin/env: ‘bash\r’: No such file or directory
+/usr/bin/env: use -[v]S to pass options in shebang lines
+make: *** [Makefile:38: firmware/firmware_extended.bin] Error 127
