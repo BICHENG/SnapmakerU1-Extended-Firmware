@@ -99,14 +99,29 @@ is short, so a slightly slower dock approach is expected, not a regression.
 - Start with `Balanced` and a small test print, and watch the first tool changes
 - Disable if you see dock alignment problems or layer shifts
 
-**Note:** This tweak cannot be combined with
-[TMC Reduced Current](#tmc-reduced-current) — running the X/Y motors at 1.0A with
-these raised speed limits is untested. Firmware Config refuses that combination
-and tells you which tweak to disable first. [TMC AutoTune](#tmc-autotune) can be
-used alongside Max Speed; the two no longer change any setting in common.
+**Note:** This tweak can be combined with
+[TMC Reduced Current](#tmc-reduced-current). The combination runs X/Y motors at
+1.0A with raised speed limits, so monitor for skipped steps, layer shifts, and
+motor temperature during the first prints. [TMC AutoTune](#tmc-autotune) can
+also be used alongside Max Speed; the two do not change any setting in common.
 
 **Configuration:**
 This feature can **only** be configured via Firmware Configuration web interface. Manual configuration is not supported.
+
+## Fan Curves
+
+Selects nonlinear fan curves for the power fan and all four nozzle fans.
+
+**Options:**
+
+- `Quiet` - all normal temperature-table duties stay at or below 60%; it pre-spins the power fan at 10% when a nozzle target reaches 70°C, then follows the lowest normal power-fan curve. Nozzle fans begin their normal table at 50°C with a zero-duty entry and rise gently. The power fan `heavy load` rule reaches 100% only when at least two nozzle targets strictly exceed 200°C. Nozzle fans keep the 55°C / 60% cavity guard.
+- `Balanced` - all normal temperature-table duties stay at or below 60%; it pre-spins the power fan at 12% at a 70°C target and commands more power-fan duty through the middle temperatures. Nozzle fans begin at 60°C instead of 50°C, then climb faster in the middle and high range. It uses the same two-nozzle, over-200°C power-fan `heavy load` rule and cavity guard.
+- `Lazy` - all normal temperature-table duties stay at or below 60%; active temperature control starts at 220°C, then rises from low speed. The cavity safety guard remains active, while the power fan keeps the two-nozzle, over-200°C `heavy load` rule; this is an experimental low-noise option rather than a heat-safe default.
+- `Stock` - removes the override and restores the curves from the base printer configuration.
+
+The nozzle fan curves ignore nozzle target temperature for their normal table selection, so a 250°C target does not immediately select the 250°C nozzle-fan speed. Quiet, Balanced, and Lazy use target temperatures only for the power-fan pre-spin or the power-fan `heavy load` decision; every normal table entry stays at or below 60%. The power-fan heavy-load rule reaches 100% only when at least two nozzle targets are strictly above 200°C: `200°C` does not trigger it, while two `201°C` targets do. Lazy moves the normal start threshold to 220°C. The cavity safety guard remains independent of these normal curves and is capped at 60%.
+
+The setting is available under **Settings → Tweaks → Fan Curves**. Applying an option writes one file to `/oem/printer_data/config/extended/klipper/20_fan_curves.cfg` and restarts Klipper.
 
 ## Object Processing for Adaptive Mesh
 

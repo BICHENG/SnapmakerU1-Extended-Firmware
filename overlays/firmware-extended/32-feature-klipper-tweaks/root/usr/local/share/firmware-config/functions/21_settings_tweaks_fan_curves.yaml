@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-PackageHomePage: https://github.com/paxx12-snapmaker-u1/SnapmakerU1-Extended-Firmware
+# SPDX-FileCopyrightText: Copyright (c) 2026 @paxx12
+
+settings:
+  tweaks:
+    items:
+      fan_curves:
+        label: Fan Curves
+        description: Select quieter nonlinear cooling curves for the power and nozzle fans. All custom modes keep normal temperature-table duty at or below 60%; Lazy keeps temperature-controlled fans off below 220°C. The power fan alone can enter the shared heavy-load rule, and nozzle fans retain the cavity safety guard.
+        help_url: http://snapmakeru1-extended-firmware.pages.dev/tweaks#fan-curves
+        get_cmd:
+          - bash
+          - -c
+          - |
+            CFG=/oem/printer_data/config/extended/klipper/20_fan_curves.cfg
+            if grep -q '^# fan-curves: quiet$' "$CFG" 2>/dev/null; then
+              echo "quiet"
+            elif grep -q '^# fan-curves: balanced$' "$CFG" 2>/dev/null; then
+              echo "balanced"
+            elif grep -q '^# fan-curves: lazy$' "$CFG" 2>/dev/null; then
+              echo "lazy"
+            else
+              echo "stock"
+            fi
+        options:
+          quiet:
+            label: Quiet
+            confirm: |-
+              Apply the Quiet fan curves?
+              All normal temperature-table fan duty stays at or below 60%. The power fan pre-spins at 10% for a 70°C target and follows the quietest normal curve; nozzle fans start at 50°C with a zero-duty entry. The power-fan heavy-load rule reaches 100% only when at least two nozzle targets strictly exceed 200°C. Nozzle fans keep the 55°C cavity guard.
+            cmd:
+              - bash
+              - -xc
+              - |
+                mkdir -p /oem/printer_data/config/extended/klipper &&
+                cp -v /usr/local/share/firmware-config/tweaks/klipper/fan_curves_quiet.cfg /oem/printer_data/config/extended/klipper/20_fan_curves.cfg &&
+                echo "Quiet fan curves enabled. Restarting Klipper..." &&
+                /etc/init.d/S60klipper restart
+          balanced:
+            label: Balanced
+            confirm: |-
+              Apply the Balanced fan curves?
+              All normal temperature-table fan duty stays at or below 60%. The power fan pre-spins at 12% for a 70°C target and runs a stronger middle-temperature curve; nozzle fans start at 60°C and ramp faster after starting. The power-fan heavy-load rule reaches 100% only when at least two nozzle targets strictly exceed 200°C. Nozzle fans keep the 55°C cavity guard.
+            cmd:
+              - bash
+              - -xc
+              - |
+                mkdir -p /oem/printer_data/config/extended/klipper &&
+                cp -v /usr/local/share/firmware-config/tweaks/klipper/fan_curves_balanced.cfg /oem/printer_data/config/extended/klipper/20_fan_curves.cfg &&
+                echo "Balanced fan curves enabled. Restarting Klipper..." &&
+                /etc/init.d/S60klipper restart
+          lazy:
+            label: Lazy
+            confirm: |-
+              Apply the Lazy fan curves?
+              All normal temperature-table fan duty stays at or below 60%; active temperature control starts at 220°C and then ramps from low speed. The nozzle-fan cavity safety guard and the power-fan two-nozzle 200°C heavy-load rule remain active.
+            cmd:
+              - bash
+              - -xc
+              - |
+                mkdir -p /oem/printer_data/config/extended/klipper &&
+                cp -v /usr/local/share/firmware-config/tweaks/klipper/fan_curves_lazy.cfg /oem/printer_data/config/extended/klipper/20_fan_curves.cfg &&
+                echo "Lazy fan curves enabled. Restarting Klipper..." &&
+                /etc/init.d/S60klipper restart
+          stock:
+            label: Stock
+            confirm: Restore the original Snapmaker fan curves?
+            cmd:
+              - bash
+              - -xc
+              - |
+                rm -vf /oem/printer_data/config/extended/klipper/20_fan_curves.cfg &&
+                echo "Stock fan curves restored. Restarting Klipper..." &&
+                /etc/init.d/S60klipper restart
+        default: stock

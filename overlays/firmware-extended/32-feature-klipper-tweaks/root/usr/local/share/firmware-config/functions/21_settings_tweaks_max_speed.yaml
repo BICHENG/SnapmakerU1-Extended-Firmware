@@ -36,11 +36,6 @@ settings:
               - bash
               - -xc
               - |
-                if test -f /oem/printer_data/config/extended/klipper/tmc_current.cfg; then
-                  echo "ERROR: TMC Reduced Current is enabled and lowers the X/Y motor current."
-                  echo "Disable TMC Reduced Current first, then enable Max Speed."
-                  exit 1
-                fi
                 cp -v /usr/local/share/firmware-config/tweaks/klipper/max_speed_balanced.cfg /oem/printer_data/config/extended/klipper/10_max_speed.cfg &&
                 echo "Max Speed (Balanced) enabled. Restarting Klipper..." &&
                 /etc/init.d/S60klipper restart
@@ -54,11 +49,6 @@ settings:
               - bash
               - -xc
               - |
-                if test -f /oem/printer_data/config/extended/klipper/tmc_current.cfg; then
-                  echo "ERROR: TMC Reduced Current is enabled and lowers the X/Y motor current."
-                  echo "Disable TMC Reduced Current first, then enable Max Speed."
-                  exit 1
-                fi
                 cp -v /usr/local/share/firmware-config/tweaks/klipper/max_speed_aggressive.cfg /oem/printer_data/config/extended/klipper/10_max_speed.cfg &&
                 echo "Max Speed (Aggressive) enabled. Restarting Klipper..." &&
                 /etc/init.d/S60klipper restart

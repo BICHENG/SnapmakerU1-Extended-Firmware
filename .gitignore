@@ -9,3 +9,10 @@ tools/rk2918_tools/img_unpack
 tools/rk2918_tools/mkkrnlimg
 _site/
 __pycache__/
+
+# Local engineering records and generated firmware evidence
+/reports/
+/work/
+/BACKLOG.md
+/PLAN.md
+/docs/epics/
