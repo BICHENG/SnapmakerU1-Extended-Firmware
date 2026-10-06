@@ -1,0 +1,100 @@
+--- a/klippy/extras/heater_fan.py
++++ b/klippy/extras/heater_fan.py
+@@ -20,14 +20,22 @@ class PrinterHeaterFan:
+         self.fan_speed = config.getfloat("fan_speed", 1., minval=0., maxval=1.)
+         self.min_speed = config.getfloat("min_speed", 0., minval=0., maxval=1.)
+         self.probe_speed = config.getfloat("probe_speed", self.fan_speed, minval=0., maxval=1.)
++        self.target_temp_threshold = config.getfloat(
++            'target_temp_threshold', 9999., minval=0.)
++        self.target_temp_speed = config.getfloat(
++            'target_temp_speed', 0., minval=0., maxval=1.)
++        self.heavy_load_target_temp_threshold = config.getfloat(
++            'heavy_load_target_temp_threshold', 9999., minval=0.)
++        self.heavy_load_target_temp_heater_count = config.getint(
++            'heavy_load_target_temp_heater_count', 0, minval=0)
++        self.heavy_load_target_temp_speed = config.getfloat(
++            'heavy_load_target_temp_speed', 0., minval=0., maxval=1.)
+         self.temp_speed_table = config.getlists('temp_speed_table', None, seps=(',', '\n'), count=5, parser=float)
+         self.original_fan_speed = None
+         self.last_speed = 0.
+         self.fan_timer = None
+         # Stepped fan table
+         self.stepped_temp_table = config.getlists('stepped_temp_table', None, seps=(',', '\n'), count=2, parser=float)
+-        if self.stepped_temp_table is not None and self.temp_speed_table is not None:
+-            raise config.error("Cannot use both 'stepped_temp_table' and 'temp_speed_table' at the same time")
+         if self.stepped_temp_table is not None:
+             for j in range(1, len(self.stepped_temp_table)):
+                 current_temp = self.stepped_temp_table[j][0]
+@@ -126,20 +134,58 @@ class PrinterHeaterFan:
+     def callback(self, eventtime):
+         speed = 0.
+         if self.temp_speed_table is not None:
+-            for rule in self.temp_speed_table:
+-                temp_threshold, target_temp_threshold, satisfied_heater_threshold, heater_count_threshold, rule_speed = rule
+-                satisfied_heaters = 0
+-                heater_count = 0
+-                for heater in self.heaters:
+-                    current_temp, target_temp = heater.get_temp(eventtime)
+-                    if target_temp > 0:
+-                        heater_count += 1
+-                    if current_temp > temp_threshold or target_temp > target_temp_threshold:
+-                        satisfied_heaters += 1
+-
+-                if satisfied_heaters >= satisfied_heater_threshold and heater_count >= heater_count_threshold:
+-                    speed = max(self.min_speed, min(rule_speed, 1.0))
+-                    break
++            previous_temp_speed_rule = getattr(self, 'temp_speed_rule', None)
++            actual_temperature_table = all(
++                target_temp_threshold >= 9999
++                and satisfied_heater_threshold == 1
++                and heater_count_threshold == 0
++                for _, target_temp_threshold, satisfied_heater_threshold,
++                heater_count_threshold, _ in self.temp_speed_table)
++            if actual_temperature_table and self.temp_hysteresis > 0:
++                maximum_current_temp = max(
++                    heater.get_temp(eventtime)[0] for heater in self.heaters)
++                matching_rule = None
++                for rule_index, rule in enumerate(self.temp_speed_table):
++                    if maximum_current_temp >= rule[0]:
++                        matching_rule = rule_index
++                        break
++                if previous_temp_speed_rule is not None:
++                    held_rule = self.temp_speed_table[previous_temp_speed_rule]
++                    if (matching_rule is None or matching_rule > previous_temp_speed_rule) and \
++                            maximum_current_temp >= held_rule[0] - self.temp_hysteresis:
++                        matching_rule = previous_temp_speed_rule
++                self.temp_speed_rule = matching_rule
++                if matching_rule is not None:
++                    speed = max(self.min_speed, min(
++                        self.temp_speed_table[matching_rule][4], 1.0))
++                if self.heavy_load_target_temp_speed > 0 and \
++                        self.heavy_load_target_temp_heater_count > 0:
++                    heavy_load_heater_count = sum(
++                        heater.get_temp(eventtime)[1] >
++                        self.heavy_load_target_temp_threshold
++                        for heater in self.heaters)
++                    if heavy_load_heater_count >= self.heavy_load_target_temp_heater_count:
++                        speed = max(speed, self.heavy_load_target_temp_speed)
++                if matching_rule is None and self.target_temp_speed > 0:
++                    for heater in self.heaters:
++                        _, target_temp = heater.get_temp(eventtime)
++                        if target_temp >= self.target_temp_threshold:
++                            speed = max(speed, self.target_temp_speed)
++                            break
++            else:
++                for rule in self.temp_speed_table:
++                    temp_threshold, target_temp_threshold, satisfied_heater_threshold, heater_count_threshold, rule_speed = rule
++                    satisfied_heaters = 0
++                    heater_count = 0
++                    for heater in self.heaters:
++                        current_temp, target_temp = heater.get_temp(eventtime)
++                        if target_temp > 0:
++                            heater_count += 1
++                        if current_temp > temp_threshold or target_temp > target_temp_threshold:
++                            satisfied_heaters += 1
++                    if satisfied_heaters >= satisfied_heater_threshold and heater_count >= heater_count_threshold:
++                        speed = max(self.min_speed, min(rule_speed, 1.0))
++                        break
+         else:
+             if self.stepped_temp_table is not None:
+                 max_effective_temp = 0
