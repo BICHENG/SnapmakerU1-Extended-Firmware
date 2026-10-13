@@ -99,14 +99,28 @@ is short, so a slightly slower dock approach is expected, not a regression.
 - Start with `Balanced` and a small test print, and watch the first tool changes
 - Disable if you see dock alignment problems or layer shifts
 
-**Note:** This tweak cannot be combined with
-[TMC Reduced Current](#tmc-reduced-current) — running the X/Y motors at 1.0A with
-these raised speed limits is untested. Firmware Config refuses that combination
-and tells you which tweak to disable first. [TMC AutoTune](#tmc-autotune) can be
-used alongside Max Speed; the two no longer change any setting in common.
+**Note:** This tweak can be combined with
+[TMC Reduced Current](#tmc-reduced-current). The combination runs X/Y motors at
+1.0A with raised speed limits, so monitor for skipped steps, layer shifts, and
+motor temperature during the first prints. [TMC AutoTune](#tmc-autotune) can
+also be used alongside Max Speed; the two do not change any setting in common.
 
 **Configuration:**
 This feature can **only** be configured via Firmware Configuration web interface. Manual configuration is not supported.
+
+## Fan Curves
+
+Selects nonlinear fan curves for the power fan and all four nozzle fans.
+
+**Options:**
+
+- `Quiet` - the production-tested profile. The power fan starts at 20% when a nozzle target or actual temperature reaches 70°C, then rises nonlinearly to 60%. Nozzle fans begin their normal table at 50°C with a zero-duty entry and rise gently. The power fan `heavy load` rule reaches 100% only when at least two nozzle targets strictly exceed 200°C.
+- `Quiet (Experimental)` - ordinary temperature control starts at 220°C and rises from 20% to 60%. It is intended for low-noise experiments, not as the production default.
+- `Stock` - removes the override and restores the curves from the base printer configuration.
+
+The nozzle fan curves use actual nozzle temperatures for normal table selection, so a 250°C target does not immediately select the 250°C nozzle-fan speed. Each custom `heater_fan` section declares `fan_curve_mode: actual`, which selects actual-temperature table control with hysteresis and leaves the original table behavior unchanged for every other section. The custom profiles use target temperatures only for the power-fan pre-spin or the power-fan `heavy load` decision; ordinary table entries stay at or below 60%. The power-fan heavy-load rule reaches 100% only when at least two nozzle targets are strictly above 200°C: `200°C` does not trigger it, while two `201°C` targets do.
+
+The setting is available under **Settings → Tweaks → Fan Curves**. Applying an option writes one file to `/oem/printer_data/config/extended/klipper/20_fan_curves.cfg` and restarts Klipper.
 
 ## Object Processing for Adaptive Mesh
 
@@ -157,6 +171,7 @@ These tweaks work by adding or removing configuration files from `/oem/printer_d
 - `klipper/tmc_autotune.cfg` - TMC AutoTune parameters
 - `klipper/tmc_current.cfg` - Reduced current settings
 - `klipper/10_max_speed.cfg` - Max Speed motion limits and tool change speeds (either tier installs to this one file)
+- `klipper/20_fan_curves.cfg` - Selected power and nozzle fan curves
 - `moonraker/object_processing.cfg` - Moonraker object processing settings
 
 These files are automatically included by the main printer configuration if present. Manual editing of these files is not recommended as they will be overwritten by the Firmware Configuration interface.
