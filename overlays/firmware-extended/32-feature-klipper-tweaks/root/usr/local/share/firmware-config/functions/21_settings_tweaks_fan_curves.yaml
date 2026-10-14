@@ -18,6 +18,7 @@ settings:
             case "$marker" in
               quiet|balanced) echo "quiet" ;;
               quiet-experimental|lazy) echo "quiet_experimental" ;;
+              custom) echo "custom" ;;
               *) echo "stock" ;;
             esac
         options:
@@ -30,10 +31,7 @@ settings:
               - bash
               - -xc
               - |
-                mkdir -p /oem/printer_data/config/extended/klipper &&
-                cp -v /usr/local/share/firmware-config/tweaks/klipper/fan_curves_quiet.cfg /oem/printer_data/config/extended/klipper/20_fan_curves.cfg &&
-                echo "Quiet fan curves enabled. Restarting Klipper..." &&
-                /etc/init.d/S60klipper restart
+                python3 /usr/local/bin/fan_curves.py apply quiet
           quiet_experimental:
             label: Very Quiet (Experimental)
             confirm: |-
@@ -43,10 +41,15 @@ settings:
               - bash
               - -xc
               - |
-                mkdir -p /oem/printer_data/config/extended/klipper &&
-                cp -v /usr/local/share/firmware-config/tweaks/klipper/fan_curves_quiet_experimental.cfg /oem/printer_data/config/extended/klipper/20_fan_curves.cfg &&
-                echo "Very Quiet (Experimental) fan curves enabled. Restarting Klipper..." &&
-                /etc/init.d/S60klipper restart
+                python3 /usr/local/bin/fan_curves.py apply very_quiet
+          custom:
+            label: Custom
+            confirm: Apply the saved Custom fan curves?
+            cmd:
+              - bash
+              - -xc
+              - |
+                python3 /usr/local/bin/fan_curves.py apply custom
           stock:
             label: Stock
             confirm: Restore the original Snapmaker fan curves?
@@ -54,7 +57,5 @@ settings:
               - bash
               - -xc
               - |
-                rm -vf /oem/printer_data/config/extended/klipper/20_fan_curves.cfg &&
-                echo "Stock fan curves restored. Restarting Klipper..." &&
-                /etc/init.d/S60klipper restart
+                python3 /usr/local/bin/fan_curves.py apply stock
         default: stock
