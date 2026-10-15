@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-PackageHomePage: https://github.com/paxx12-snapmaker-u1/SnapmakerU1-Extended-Firmware
+# SPDX-FileCopyrightText: Copyright (c) 2026 @paxx12
+
+settings:
+  tweaks:
+    items:
+      fan_curves:
+        label: Fan Curves
+        description: Select nonlinear cooling curves for the power and nozzle fans. Quiet is the production-tested profile; Very Quiet (Experimental) delays ordinary nozzle cooling until 220°C. Stock restores the original Snapmaker curves.
+        help_url: http://snapmakeru1-extended-firmware.pages.dev/tweaks#fan-curves
+        get_cmd:
+          - bash
+          - -c
+          - |
+            CFG=/oem/printer_data/config/extended/klipper/20_fan_curves.cfg
+            marker=$(sed -n 's/^# fan-curves: //p' "$CFG" 2>/dev/null | head -n1)
+            case "$marker" in
+              quiet|balanced) echo "quiet" ;;
+              quiet-experimental|lazy) echo "quiet_experimental" ;;
+              custom) echo "custom" ;;
+              *) echo "stock" ;;
+            esac
+        options:
+          quiet:
+            label: Quiet
+            confirm: |-
+              Apply the Quiet fan curves?
+              Quiet is the production-tested profile. The power fan starts at 20% from a 70°C target or actual temperature and rises nonlinearly to 60%; nozzle fans start at 50°C with a zero-duty entry. The power-fan heavy-load rule reaches 100% only when at least two nozzle targets strictly exceed 200°C.
+            cmd:
+              - bash
+              - -xc
+              - |
+                python3 /usr/local/bin/fan_curves.py apply quiet
+          quiet_experimental:
+            label: Very Quiet (Experimental)
+            confirm: |-
+              Apply Very Quiet (Experimental)?
+              Ordinary nozzle-fan temperature control starts at 220°C. The power fan starts at 20% and rises to 60%; two nozzle targets strictly above 200°C still force the power fan to 100%. Use Quiet for normal production.
+            cmd:
+              - bash
+              - -xc
+              - |
+                python3 /usr/local/bin/fan_curves.py apply very_quiet
+          custom:
+            label: Custom
+            confirm: Apply the saved Custom fan curves?
+            cmd:
+              - bash
+              - -xc
+              - |
+                python3 /usr/local/bin/fan_curves.py apply custom
+          stock:
+            label: Stock
+            confirm: Restore the original Snapmaker fan curves?
+            cmd:
+              - bash
+              - -xc
+              - |
+                python3 /usr/local/bin/fan_curves.py apply stock
+        default: stock
