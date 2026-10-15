@@ -23,6 +23,8 @@ HTTPS：     0.0.0.0:9443
 
 `init.d/S99ext-mic` 是 BusyBox init 脚本模板。它只负责启动 root runner、启停和状态检查；runner 等待 `/userdata` 和局域网地址就绪，创建录音目录、修正 `lava` 权限并准备证书，然后以 `lava` 用户启动独立的 Python listener。Python 子进程退出后 runner 会自动重启。PID 文件是 `/run/ext-mic-supervisor.pid`，子进程 PID 文件是 `/run/ext-mic-child.pid`；停止时会等待并终止残留 child，避免旧进程继续占用 9443。日志和录音仍保存在 `/userdata/ext-mic/`。`generate-cert.sh [目录] [主机名] [IP]` 以临时双文件生成证书，断电留下半成品时会清理后重建。传入打印机局域网 IP 后，手机可以直接访问局域网 HTTPS。首次使用时，iPhone 需要接受或安装这张证书。
 
+Firmware Config 的 Services 页面提供 `Start Ext Mic`、`Stop Ext Mic` 和 `Restart Ext Mic` 三个固定入口。入口只调用 `/etc/init.d/S99ext-mic`，不携带采样参数，也不创建手机 session；session、phase 和实验动作仍由本服务 API 与打印机控制器负责。
+
 常驻服务固定使用 TLS 监听局域网 `0.0.0.0:9443`。本地开发需要直接运行 `ext-mic.py --insecure-http`，不会改变固件服务入口。
 
 在线把文件覆盖到运行中的 `/etc/init.d` 只适合立即验证；BusyBox `rcS` 会在 upper overlay 挂载前展开 `S??*` 文件列表，新增的 S99 不会自动进入下一次已经开始的启动流程。要验证整机重启自动启动，必须把这个目录作为固件 overlay 重打进 squashfs，再刷入设备。
