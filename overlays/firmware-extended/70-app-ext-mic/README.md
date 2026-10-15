@@ -39,7 +39,7 @@ Firmware Config 的 Services 页面提供 `Start Ext Mic`、`Stop Ext Mic` 和 `
 - `noiseSuppression=false`
 - `autoGainControl=false`
 
-页面保留“开始采集”和“停止”两个控制。开始时会请求全屏（浏览器允许时），创建一次 session，使用 `AudioWorklet` 将约 250 ms 的浮点样本转成 `s16le`，按序号上传。WebRTC 没有进入测量链；页面也不会发任意 G-code。页面每 5 秒检查服务状态和页面版本；页面版本变化时刷新，服务重启由当前 session 状态驱动重新连接。断链时请求会超时，页面自动重试。手机切到后台时页面可能被系统暂停，回到前台后会恢复或重新开始。单块上传失败后页面断开采集节点，不会继续制造 gap。
+页面保留“开始采集”和“停止”两个控制。开始时会请求全屏（浏览器允许时），创建一次长寿命的手机传输 session，使用 `AudioWorklet` 将约 250 ms 的浮点样本转成 `s16le`，按序号上传。WebRTC 没有进入测量链；页面也不会发任意 G-code。页面每 5 秒检查服务状态和页面版本；页面版本变化时刷新，服务重启由当前 session 状态驱动重新连接。打印机控制器结束一个实验 run 时只写 `IDLE_AFTER` 和 run metadata，不停止手机传输 session。断链、服务重启或 session 被外部结束时，页面会释放旧音频节点并自动建立新的 session。手机切到后台时页面可能被系统暂停，回到前台后会恢复或重新开始。单块上传失败后页面断开采集节点，不会继续制造 gap。
 
 ## HTTP API
 
@@ -136,7 +136,7 @@ python3 -m py_compile ext-mic.py
 
 ## 后续接入边界
 
-打印机侧控制器可以把本服务当作 `MicSource`：创建 session、在轨迹阶段写 phase、结束时 stop。当前 `/v1/run` 只把四种命名动作记录为 `status=RECORDED_ONLY`，没有连接 Moonraker，也不会让打印机运动；真正的 printer adapter 在另一进程负责安全检查、轨迹、phase 和回滚。以后固定 MEMS 节点只需替换 PCM provider；session、phase 和分析器格式不变。
+打印机侧控制器可以把本服务当作 `MicSource`：读取 active session、在轨迹阶段写 phase、记录 run metadata。一个 run 结束时不调用 active stop；手机传输 session 随打印机服务生命周期继续存在。当前 `/v1/run` 只把四种命名动作记录为 `status=RECORDED_ONLY`，没有连接 Moonraker，也不会让打印机运动；真正的 printer adapter 在另一进程负责安全检查、轨迹、phase 和回滚。只有手机离开、服务停止或明确执行 session stop 时才封存传输 session。以后固定 MEMS 节点只需替换 PCM provider；session、phase 和分析器格式不变。
 
 
 \n

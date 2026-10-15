@@ -199,7 +199,7 @@
     sendPromise = (async () => { while (sendQueue.length && !transportFailed) await sendChunk(sendQueue.shift()); })().catch(error => { if (!stopping) failTransport(error); else { transportFailed = true; sendQueue.length = 0; } }).finally(() => { sendPromise = null; if (sendQueue.length && !transportFailed) drainQueue(); });
     return sendPromise;
   }
-  function shouldRetry(error) { return error?.message === 'network' || error?.status === 401 || error?.status === 404; }
+  function shouldRetry(error) { return error?.message === 'network' || error?.status === 401 || error?.status === 404 || error?.status === 409; }
   function failTransport(error) {
     if (transportFailed) return;
     transportFailed = true; accepting = false; sendQueue.length = 0; disconnectAudio(); setButtons(false); showConnection('已断开'); showStatus(friendlyError(error));
