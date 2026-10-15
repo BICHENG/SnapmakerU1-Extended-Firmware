@@ -3,8 +3,8 @@
 # SPDX-PackageHomePage: https://github.com/paxx12-snapmaker-u1/SnapmakerU1-Extended-Firmware
 # SPDX-FileCopyrightText: Copyright (c) 2026 @paxx12
 
-GIT_URL=https://github.com/paxx12/v4l2-mpp.git
-GIT_SHA=131e5da933411ce47aef2c89be67c3c767432a02
+GIT_URL=https://github.com/BICHENG/v4l2-mpp.git
+GIT_SHA=c690af70545944d4d9cf7eb5e972575f76d6d33c
 
 if [[ -z "$CREATE_FIRMWARE" ]]; then
   echo "Error: This script should be run within the create_firmware.sh environment."
