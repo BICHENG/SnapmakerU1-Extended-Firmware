@@ -25,19 +25,16 @@
     .graphs { width: 100%; height: 100%; min-height: 0; display: flex; padding: 0; }
     .panel { flex: 1 1 auto; min-height: 0; display: flex; padding: 0; border: 0; background: transparent; }
     canvas { display: block; width: 100%; height: 100%; min-height: 0; flex: 1 1 auto; margin: 0; border: 0; border-radius: 0; background: var(--plot); }
-    .actions { position: absolute; z-index: 2; left: max(.75rem, env(safe-area-inset-left)); right: max(.75rem, env(safe-area-inset-right)); bottom: max(.75rem, env(safe-area-inset-bottom)); display: flex; gap: .65rem; }
-    .actions button { flex: 1; }
   </style>
 </head>
 <body>
   <header><div class="status-stack"><div id="connection" role="status" aria-live="polite">未连接</div><div id="status" role="status" aria-live="polite">等待开始</div></div></header>
-  <div class="actions"><button id="start" type="button">开始采集</button><button id="stop" class="secondary" type="button" disabled>停止</button></div>
   <main class="graphs"><section class="panel"><canvas id="spectrum" aria-label="实时声谱图"></canvas></section></main>
 <script>
 (() => {
   'use strict';
   const TARGET_RATE = 48000, CHUNK_SECONDS = 0.25, MAX_QUEUE = 4, SPECTRUM_MIN_HZ = 20, SPECTRUM_MAX_HZ = 20000, SPECTRUM_MIN_DB = -100, SPECTRUM_MAX_DB = -20;
-  const startButton = document.getElementById('start'), stopButton = document.getElementById('stop'), connectionElement = document.getElementById('connection'), statusElement = document.getElementById('status');
+  const connectionElement = document.getElementById('connection'), statusElement = document.getElementById('status');
   const spectrumCanvas = document.getElementById('spectrum');
   const spectrumContext = spectrumCanvas.getContext('2d');
   let stream = null, audioContext = null, sourceNode = null, analyserNode = null, captureNode = null, silentGain = null, wakeLock = null;
@@ -47,8 +44,7 @@
   const AUTO_START_KEY = 'ext-mic-auto-start';
   function readAutoStart() { try { return localStorage.getItem(AUTO_START_KEY) === '1'; } catch (_) { return false; } }
   function rememberAutoStart() { try { localStorage.setItem(AUTO_START_KEY, '1'); } catch (_) {} }
-  function forgetAutoStart() { try { localStorage.removeItem(AUTO_START_KEY); } catch (_) {} }
-  let serviceInstance = '', phoneRevision = '', fullscreenOwned = false, starting = false, pendingStart = false, exitHandled = false, autoStartEnabled = readAutoStart();
+  let serviceInstance = '', phoneRevision = '', fullscreenOwned = false, starting = false, pendingStart = false, exitHandled = false, autoStartEnabled = true;
 
   function enterCaptureFullscreen() {
     if (document.fullscreenElement || document.webkitFullscreenElement) return;
@@ -83,11 +79,9 @@
     accepting = false;
     transportFailed = true;
     exitHandled = true;
-    const closingSession = session;
     session = null;
     sendQueue.length = 0;
     disconnectAudio();
-    if (closingSession) void closeRemote(closingSession);
   }
   function schedulePageReload() {
     if (reloadPending) return;
@@ -125,12 +119,11 @@
     if (error?.name === 'NotFoundError') return '没有找到麦克风';
     if (error?.name === 'NotReadableError') return '麦克风当前不可用';
     if (error?.name === 'AbortError') return '采集被中断，请重试';
-    if (error?.status === 401 || error?.status === 404) return '会话已失效，请重新开始';
-    if (error?.status === 409) return '当前已有一次采集，请先停止它';
+    if (error?.status === 401 || error?.status === 404 || error?.status === 409) return '正在重新连接';
     if (error?.message === 'network') return '连接中断，请重试';
     return error?.message || '采集失败，请重试';
   }
-  function setButtons(active) { startButton.disabled = active; stopButton.disabled = !active; }
+  function setButtons(_) {}
   async function fetchTimed(url, options = {}, timeoutMs = 5000) {
     const controller = new AbortController();
     const timer = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -149,13 +142,6 @@
     return value;
   }
   function authHeaders(currentSession) { return { 'Authorization': `Bearer ${currentSession.token}` }; }
-  async function closeRemote(currentSession) {
-    if (!currentSession) return false;
-    try {
-      const response = await fetchTimed(currentSession.stop_url, { method: 'POST', headers: authHeaders(currentSession), keepalive: true }, 2000);
-      return response.ok || response.status === 404;
-    } catch (_) { return false; }
-  }
   const DSP_SETTING_NAMES = ['echoCancellation', 'noiseSuppression', 'autoGainControl'];
   function readCaptureSettings(track, trackSettings, sampleRate) {
     let capabilities = {}, capabilitiesAvailable = false;
@@ -203,8 +189,7 @@
   function failTransport(error) {
     if (transportFailed) return;
     transportFailed = true; accepting = false; sendQueue.length = 0; disconnectAudio(); setButtons(false); showConnection('已断开'); showStatus(friendlyError(error));
-    const closingSession = session; session = null;
-    if (closingSession) void closeRemote(closingSession);
+    session = null;
     if (autoStartEnabled && !reloadPending && shouldRetry(error)) scheduleCaptureRetry();
   }
   function scheduleCaptureRetry(delayMs = 3000) {
@@ -309,22 +294,6 @@
     receiveTimer = setTimeout(() => { void monitorReceive(currentSession); }, 500);
   }
   function disconnectAudio() { accepting = false; releaseCaptureFullscreen(); stopReceiveMonitor(); if (animationFrame) cancelAnimationFrame(animationFrame); animationFrame = 0; rendering = false; if (captureNode) { captureNode.port.onmessage = null; captureNode.port.onmessageerror = null; captureNode.port.close(); captureNode.disconnect(); } sourceNode?.disconnect(); analyserNode?.disconnect(); silentGain?.disconnect(); if (lastTrack) lastTrack.onended = null; stream?.getTracks().forEach(track => track.stop()); stream = null; sourceNode = null; analyserNode = null; captureNode = null; silentGain = null; lastTrack = null; if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; } const closing = audioContext; audioContext = null; if (closing && closing.state !== 'closed') closing.close().catch(() => {}); }
-  async function stopCapture() {
-    if (stopping) return;
-    captureGeneration++;
-    starting = false;
-    autoStartEnabled = false;
-    forgetAutoStart();
-    if (retryTimer) { clearTimeout(retryTimer); retryTimer = 0; }
-    stopping = true; accepting = false;
-    const closingSession = session; session = null;
-    const pending = sendPromise;
-    if (pending) await pending.catch(() => {});
-    disconnectAudio();
-    const stoppedRemotely = await closeRemote(closingSession);
-    sendQueue.length = 0; sequence = 0; stopping = false; transportFailed = false; setButtons(false);
-    showConnection('已断开'); showStatus(!closingSession || stoppedRemotely ? '已停止' : '网络中断，请重试停止');
-  }
   async function startCapture() {
     if ((session && !transportFailed) || audioContext || stopping || sendPromise) return;
     if (starting) { pendingStart = true; return; }
@@ -352,7 +321,6 @@
       session = await createSession(trackSettings, captureSettings, sampleRate);
       if (run !== captureGeneration) {
         const abandonedSession = session; session = null;
-        if (abandonedSession) await closeRemote(abandonedSession);
         disconnectAudio(); return;
       }
       sequence = 0;
@@ -377,7 +345,6 @@
       if (run !== captureGeneration) return;
       const abandonedSession = session; session = null;
       disconnectAudio();
-      if (abandonedSession) await closeRemote(abandonedSession);
       setButtons(false); showConnection('已断开'); showStatus(friendlyError(error));
       if (autoStartEnabled && shouldRetry(error)) scheduleCaptureRetry();
     } finally {
@@ -400,16 +367,15 @@
       if (lastTrack && lastTrack.readyState !== 'live') failTransport(new Error('采集被中断，请重试'));
     } catch (error) { failTransport(error); }
   }
-  startButton.addEventListener('click', () => { autoStartEnabled = true; pendingStart = false; void startCapture(); }); stopButton.addEventListener('click', () => { pendingStart = false; void stopCapture(); }); document.addEventListener('visibilitychange', onVisibilityChange);
+  document.addEventListener('click', () => { autoStartEnabled = true; pendingStart = false; if (!session && !audioContext && !starting) void startCapture(); }, { passive: true }); document.addEventListener('visibilitychange', onVisibilityChange);
   function stopOnExit() {
     if (exitHandled) return;
     exitHandled = true;
     captureGeneration++;
     starting = false;
-    autoStartEnabled = false;
+    autoStartEnabled = true;
     accepting = false;
-    const closingSession = session; session = null;
-    if (closingSession) void closeRemote(closingSession);
+    session = null;
     sendQueue.length = 0;
     disconnectAudio();
   }
@@ -420,7 +386,7 @@
   if (window.ResizeObserver) new ResizeObserver(() => { drawSpectrum(); }).observe(spectrumCanvas);
   drawSpectrum();
   void pollServiceVersion();
-  if (autoStartEnabled) window.setTimeout(() => { if (!document.hidden) void startCapture(); }, 0);
+  window.setTimeout(() => { if (!document.hidden) void startCapture(); }, 0);
 })();
 </script>
 </body>

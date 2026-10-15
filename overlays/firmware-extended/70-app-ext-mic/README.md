@@ -78,11 +78,10 @@ X-Channels: 1
 
 服务只接受 `44100` 或 `48000` Hz、单声道 PCM。它检查 `sample_count × channels × 2` 与请求体长度相等。采样率和通道数在首块确定，后续改变会拒绝。序号跳过会记录 gap；重复或迟到序号拒绝。每块写入后原子更新 `status.json`，突然断电不会留下半个 JSON 文件。
 
-查询状态和结束 session：
+查询传输状态：
 
 ```http
 GET  /v1/mic/<id>/status
-POST /v1/mic/<id>/stop
 ```
 
 打印机端写 phase：
@@ -107,7 +106,7 @@ Content-Type: application/json
 {"session_id":"<id>","action":"circle_probe","params":{"radius_mm":60,"speed_mm_s":80}}
 ```
 
-只接受 `idle`、`circle_probe`、`line_x`、`line_y`。服务只记录白名单请求并返回 `run_id`、`status=RECORDED_ONLY`；当前版本不连接 Moonraker，也不执行运动。真正的打印机控制器负责检查安全状态、发 G-code、写 phase 和在完成后恢复 stock。这一层保证手机永远没有任意 G-code 入口。printer adapter 使用 X-Printer-Controller: local 访问 /v1/mic/active/status、/v1/mic/active/run、/v1/mic/active/phase 和 /v1/mic/active/stop，操作当前手机 session，不接管麦克风，也不创建新 session。
+只接受 `idle`、`circle_probe`、`line_x`、`line_y`。服务只记录白名单请求并返回 `run_id`、`status=RECORDED_ONLY`；当前版本不连接 Moonraker，也不执行运动。真正的打印机控制器负责检查安全状态、发 G-code、写 phase 和在完成后恢复 stock。这一层保证手机永远没有任意 G-code 入口。printer adapter 使用 `X-Printer-Controller: local` 访问 `/v1/mic/active/status`、`/v1/mic/active/run` 和 `/v1/mic/active/phase`，只记录当前手机传输，不接管麦克风，也不创建或停止传输 session。
 
 ## 目录和质量字段
 
@@ -121,7 +120,7 @@ Content-Type: application/json
   chunks.jsonl     # 每个已接受 PCM 块的序号、偏移和接收时间
   phases.json      # 打印机时间 marker
   runs.json        # 白名单动作请求
-  manifest.json    # stop 后的完整清单
+  manifest.json    # 服务重启或传输超时后的完整清单
 ```
 
 `status.json` 和响应中的质量字段包括 `status`（`WAITING`、`OK`、`LOW_CONFIDENCE` 或 `INVALID`）、`settings_incomplete`、累计 `rms_dbfs`、`clip_ratio`、`packet_loss`、采样率、通道数、块数、字节数、gap 数和 `gap_ranges`。`chunks.jsonl` 为 FFT 按块跳过缺口提供样本与字节偏移。浏览器实际 DSP 开关缺失、打开或实际采样率/声道不合要求时，会明确标 `settings_incomplete=true` 和 `LOW_CONFIDENCE`。它们是同机相对测量指标，不是未经声学校准的 `dBA`。
@@ -132,11 +131,11 @@ Content-Type: application/json
 python3 -m py_compile ext-mic.py
 ```
 
-自检会启动本地服务，覆盖 healthz、session、错误 token、PCM 字节校验、非法采样率/声道、跳号、重复序号、phase、动作白名单、状态查询、stop 后追加和 manifest。它不会连接真实打印机，也不会移动平台。
+自检会启动本地服务，覆盖 healthz、session、错误 token、PCM 字节校验、非法采样率/声道、跳号、重复序号、phase、动作白名单、状态查询、manifest 和服务重启封存。它不会连接真实打印机，也不会移动平台。
 
 ## 后续接入边界
 
-打印机侧控制器可以把本服务当作 `MicSource`：读取 active session、在轨迹阶段写 phase、记录 run metadata。一个 run 结束时不调用 active stop；手机传输 session 随打印机服务生命周期继续存在。当前 `/v1/run` 只把四种命名动作记录为 `status=RECORDED_ONLY`，没有连接 Moonraker，也不会让打印机运动；真正的 printer adapter 在另一进程负责安全检查、轨迹、phase 和回滚。只有手机离开、服务停止或明确执行 session stop 时才封存传输 session。以后固定 MEMS 节点只需替换 PCM provider；session、phase 和分析器格式不变。
+打印机侧控制器可以把本服务当作 `MicSource`：读取 active session、在轨迹阶段写 phase、记录 run metadata。一个 run 结束时只写 `IDLE_AFTER`，手机传输继续存在。打印机重启时，服务封存旧的传输 epoch，页面自动重新连接并建立新的 epoch；这属于服务恢复，不是用户开始或停止采集。当前 `/v1/run` 只把四种命名动作记录为 `status=RECORDED_ONLY`，没有连接 Moonraker，也不会让打印机运动；真正的 printer adapter 在另一进程负责安全检查、轨迹、phase 和回滚。以后固定 MEMS 节点只需替换 PCM provider；传输 epoch、phase 和分析器格式不变。
 
 
 \n

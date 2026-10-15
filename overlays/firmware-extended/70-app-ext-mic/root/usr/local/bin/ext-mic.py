@@ -680,18 +680,11 @@ class RequestHandler(BaseHTTPRequestHandler):
                     "status_url": f"/v1/mic/{session.session_id}/status",
                     "chunk_url": f"/v1/mic/{session.session_id}/chunk",
                     "phase_url": f"/v1/mic/{session.session_id}/phase",
-                    "stop_url": f"/v1/mic/{session.session_id}/stop",
                 })
                 return
-            if path in ("/v1/mic/active/phase", "/v1/mic/active/run", "/v1/mic/active/stop"):
+            if path in ("/v1/mic/active/phase", "/v1/mic/active/run"):
                 session = self._active_controller_session()
                 operation = path.rsplit("/", 1)[-1]
-                if operation == "stop":
-                    length = self.headers.get("Content-Length")
-                    if length not in (None, "0"):
-                        raise ServiceError(400, "stop does not accept a request body")
-                    self._send(200, session.stop())
-                    return
                 body = self._json()
                 if operation == "phase":
                     allowed = {"phase_id", "metadata"}
@@ -715,7 +708,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                     raise ServiceError(400, "action is required")
                 self._send(200, session.add_run(action, body.get("params", {})))
                 return
-            match = re.fullmatch(r"/v1/mic/([0-9a-f]{12,32})/(chunk|phase|stop)", path)
+            match = re.fullmatch(r"/v1/mic/([0-9a-f]{12,32})/(chunk|phase)", path)
             if match:
                 session = self._session(match.group(1))
                 operation = match.group(2)
@@ -736,12 +729,6 @@ class RequestHandler(BaseHTTPRequestHandler):
                     if len(json.dumps(metadata, ensure_ascii=False)) > 16 * 1024:
                         raise ServiceError(413, "phase metadata is too large")
                     self._send(200, session.add_phase(phase_id, metadata))
-                else:
-                    # Stop has no body; reject a body to avoid ambiguous retries.
-                    length = self.headers.get("Content-Length")
-                    if length not in (None, "0"):
-                        raise ServiceError(400, "stop does not accept a request body")
-                    self._send(200, session.stop())
                 return
             if path == "/v1/run":
                 body = self._json()
