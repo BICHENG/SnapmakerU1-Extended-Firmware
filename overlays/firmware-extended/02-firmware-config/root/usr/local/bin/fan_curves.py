@@ -135,6 +135,7 @@ def _atomic_bytes(path, data):
     os.makedirs(directory, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix='.fan-curves-', dir=directory)
     try:
+        os.chmod(temporary, 0o644)
         with os.fdopen(fd, 'wb') as stream:
             stream.write(data)
             stream.flush()
