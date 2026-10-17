@@ -130,13 +130,17 @@
 +    def calculate_curve_fan_speed(self, temp):
 +        points = self.fan_curve['points']
 +        if temp < points[0][0]:
-+            self.current_curve_index = -1
-+            return 0.0
-+        target_index = len(points) - 1
-+        for index, (threshold, _) in enumerate(points):
-+            if temp < threshold:
-+                target_index = index - 1
-+                break
++            if (self.current_curve_index < 0 or
++                    temp < points[0][0] - self.fan_curve['hysteresis']):
++                self.current_curve_index = -1
++                return 0.0
++            target_index = 0
++        else:
++            target_index = len(points) - 1
++            for index, (threshold, _) in enumerate(points):
++                if temp < threshold:
++                    target_index = index - 1
++                    break
 +        if target_index < self.current_curve_index:
 +            current_threshold = points[self.current_curve_index][0]
 +            if temp >= current_threshold - self.fan_curve['hysteresis']:
