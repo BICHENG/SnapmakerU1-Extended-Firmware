@@ -34,6 +34,30 @@ Enable in the [firmware-config](firmware_config.md) web interface under
 URL including scheme and port (e.g. `http://192.168.1.100:7912`). Set the same
 toggle to **Disabled** to turn it off.
 
+## Creating a Spool
+
+The **Create** tab of the **Spoolman** dialog makes a new spool from the
+detected tag and assigns it. It is enabled on a channel with no spool assigned
+whose tag carries a UID, vendor, material, and six-digit colour — on a channel
+that already has one, assign a spool instead. The form uses the same palettes
+as **User**, with diameter, density, and temperatures under **Advanced**.
+
+![Create tab, seeded from the detected tag](screenshots/filament-manager-spoolman-create-spool.png)
+
+UID ownership is rechecked on submit: if the tag turns out to belong to a spool
+already, that spool is assigned instead of a duplicate being created.
+
+## Assigning a Spool
+
+The **Assign** tab, which the card's **Spoolman** button opens on, lists each
+spool's stored card UIDs. The spool already assigned to that extruder comes
+first, then those carrying the same filament as the detected tag — same
+vendor, material, variant, colour — under **Suggested spools**. Use it to store
+a spool's second tag, and for tags with no usable metadata. Hovering the card's
+Spoolman badge lists the spool's stored UIDs.
+
+![Assign tab, with the suggested spool listed first](screenshots/filament-manager-spoolman-suggested-spools.png)
+
 ## Apps
 
 Community apps that support SpoolLink, so scanning a tag resolves its spool
@@ -127,6 +151,8 @@ available whenever Spoolman is enabled, with or without AFC-Lite.
 ## Limitations
 
 - Spoolman must be reachable from the printer over HTTP.
+- Creation and RFID assignment require Spoolman's current v1 API.
+- UID ownership checks use the same 1000-spool candidate limit as SpoolLink.
 - Variant defaults to `Basic` for Snapmaker-branded filaments when not
   set in Spoolman; empty for all other vendors.
 
