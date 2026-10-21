@@ -46,7 +46,6 @@
         .row-help:hover { text-decoration: none; opacity: 0.8; }
         .row select { align-self: flex-start; background: var(--card); border: 1px solid #555; border-radius: 6px; padding: 8px 12px; color: var(--text); font-size: 13px; cursor: pointer; min-width: 150px; max-width: 150px; }
         .row select:focus { outline: none; border-color: var(--accent); }
-        .fan-curves-inline-button { margin-left: 8px; white-space: nowrap; }
         .links-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
         .link-item { background: var(--item); padding: 12px 16px; border-radius: 6px; text-decoration: none; display: flex; align-items: center; gap: 10px; transition: background 0.2s; }
         .link-item:hover { background: var(--hover); }
@@ -86,8 +85,11 @@
         .notice.visible { display: block; }
         .notice a { color: #000; font-weight: 600; }
         .fan-curves-card .card-header { margin-bottom: 0; }
+        .fan-curves-current { color: var(--muted); font-size: 12px; }
         .fan-curves-summary { color: var(--muted); font-size: 12px; margin: 0 0 12px; line-height: 1.5; }
         .fan-curves-editor { border-top: 1px solid #444; margin-top: 12px; padding-top: 16px; }
+        .fan-curves-editor-title { color: var(--muted); font-size: 12px; }
+        .fan-curves-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
         .fan-curves-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
         .fan-curves-toolbar select, .fan-curves-node input { background: var(--card); border: 1px solid #555; border-radius: 6px; color: var(--text); font-size: 13px; padding: 8px 10px; }
         .fan-curves-toolbar select:focus, .fan-curves-node input:focus { outline: none; border-color: var(--accent); }
@@ -99,9 +101,22 @@
         .fan-curves-chart-wrap { background: #202020; border-radius: 6px; min-width: 0; padding: 8px; }
         .fan-curves-chart { display: block; height: auto; width: 100%; }
         .fan-curves-chart text { fill: var(--muted); font-size: 10px; }
+        .fan-curves-legend { color: var(--muted); display: flex; flex-wrap: wrap; font-size: 11px; gap: 16px; padding: 8px 4px 2px; }
+        .fan-curves-legend-item { align-items: center; display: flex; gap: 7px; }
+        .fan-curves-legend-item[hidden] { display: none; }
+        .fan-curves-swatch { border-top: 2px solid var(--accent); display: inline-block; height: 0; width: 24px; }
+        .fan-curves-swatch.stock { border-top: 1.5px dashed #6a6a6a; }
         .fan-curves-grid-line { stroke: #444; stroke-width: 1; }
         .fan-curves-axis { stroke: #777; stroke-width: 1; }
         .fan-curves-line { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+        .fan-curves-reference { fill: none; stroke: #6a6a6a; stroke-width: 1.5; stroke-dasharray: 5 4; }
+        .fan-curves-compare-wrap { min-width: 0; }
+        .fan-curves-compare { border-collapse: collapse; font-size: 12px; width: 100%; }
+        .fan-curves-compare th { color: var(--muted); font-weight: 500; padding: 4px 8px; text-align: right; }
+        .fan-curves-compare th:first-child, .fan-curves-compare td:first-child { text-align: left; }
+        .fan-curves-compare td { border-top: 1px solid #333; padding: 4px 8px; text-align: right; }
+        .fan-curves-compare tr.floored td:last-child { color: var(--warning); }
+        .fan-curves-compare-note { color: var(--muted); font-size: 11px; line-height: 1.5; margin: 10px 0 0; }
         .fan-curves-point { fill: var(--accent); stroke: #111; stroke-width: 2; cursor: grab; }
         .fan-curves-point:active { cursor: grabbing; }
         .fan-curves-node-list { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; }
@@ -112,6 +127,7 @@
         .fan-curves-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
         .fan-curves-status { color: var(--muted); font-size: 12px; margin-top: 10px; min-height: 18px; }
         .fan-curves-status.error { color: var(--error); }
+        .fan-curves-status.warning { color: var(--warning); }
         .fan-curves-status.success { color: var(--success); }
         .fan-curves-empty { color: var(--muted); font-size: 13px; padding: 12px 0; }
         @media (max-width: 640px) {
@@ -168,37 +184,51 @@
         <div class="card fan-curves-card" id="fan-curves-card">
             <div class="card-header">
                 <span class="card-title">Fan Curves</span>
-                <button class="btn btn-secondary" id="fan-curves-toggle" type="button">Edit</button>
+                <span class="fan-curves-current" id="fan-curves-current"></span>
             </div>
             <p class="fan-curves-summary" id="fan-curves-summary">Loading fan curve profiles...</p>
+            <div class="fan-curves-toolbar">
+                <label for="fan-curves-profile">Profile</label>
+                <select id="fan-curves-profile" aria-label="Fan curve profile"></select>
+                <span class="spacer"></span>
+                <button class="btn btn-secondary" id="fan-curves-copy" type="button">Copy preset to Custom</button>
+                <button class="btn btn-primary" id="fan-curves-apply" type="button">Apply</button>
+            </div>
+            <div class="fan-curves-notice" id="fan-curves-help"></div>
+            <div class="fan-curves-tabs">
+                <button class="btn btn-secondary" id="fan-curves-power-tab" type="button">Power fan</button>
+                <button class="btn btn-secondary" id="fan-curves-nozzle-tab" type="button">Nozzle fans (×4)</button>
+            </div>
+            <div class="fan-curves-layout">
+                <div class="fan-curves-chart-wrap">
+                    <svg class="fan-curves-chart" id="fan-curves-chart" viewBox="0 0 640 300" role="img" aria-label="Fan curve chart"></svg>
+                    <div class="fan-curves-legend">
+                        <span class="fan-curves-legend-item"><span class="fan-curves-swatch"></span><span id="fan-curves-legend-selected">Selected</span></span>
+                        <span class="fan-curves-legend-item" id="fan-curves-legend-stock"><span class="fan-curves-swatch stock"></span>Stock</span>
+                    </div>
+                </div>
+                <div class="fan-curves-compare-wrap">
+                    <table class="fan-curves-compare">
+                        <thead><tr><th>°C</th><th>Stock</th><th id="fan-curves-compare-selected">Selected</th></tr></thead>
+                        <tbody id="fan-curves-compare"></tbody>
+                    </table>
+                    <p class="fan-curves-compare-note" id="fan-curves-compare-note"></p>
+                </div>
+            </div>
             <div class="fan-curves-editor" id="fan-curves-editor" hidden>
                 <div class="fan-curves-toolbar">
-                    <label for="fan-curves-profile">Profile</label>
-                    <select id="fan-curves-profile" aria-label="Fan curve profile"></select>
-                    <span class="spacer"></span>
-                    <button class="btn btn-secondary" id="fan-curves-copy" type="button">Copy preset to Custom</button>
-                    <button class="btn btn-primary" id="fan-curves-apply" type="button">Apply</button>
-                </div>
-                <div class="fan-curves-notice" id="fan-curves-help"></div>
-                <div class="fan-curves-toolbar">
-                    <button class="btn btn-secondary" id="fan-curves-power-tab" type="button">Power fan</button>
-                    <button class="btn btn-secondary" id="fan-curves-nozzle-tab" type="button">Nozzle fans (×4)</button>
+                    <span class="fan-curves-editor-title">Custom nodes</span>
                     <span class="spacer"></span>
                     <button class="btn btn-secondary" id="fan-curves-add" type="button">Add node</button>
                 </div>
-                <div class="fan-curves-layout">
-                    <div class="fan-curves-chart-wrap"><svg class="fan-curves-chart" id="fan-curves-chart" viewBox="0 0 640 300" role="img" aria-label="Fan curve chart"></svg></div>
-                    <div>
-                        <div class="fan-curves-node-header"><span>Temperature °C</span><span>Duty %</span><span></span></div>
-                        <div class="fan-curves-node-list" id="fan-curves-nodes"></div>
-                    </div>
-                </div>
+                <div class="fan-curves-node-header"><span>Temperature °C</span><span>Duty %</span><span></span></div>
+                <div class="fan-curves-node-list" id="fan-curves-nodes"></div>
                 <div class="fan-curves-actions">
                     <button class="btn btn-primary" id="fan-curves-save" type="button">Save Custom</button>
                     <button class="btn btn-secondary" id="fan-curves-reset" type="button">Reset draft</button>
                 </div>
-                <div class="fan-curves-status" id="fan-curves-status" aria-live="polite"></div>
             </div>
+            <div class="fan-curves-status" id="fan-curves-status" aria-live="polite"></div>
         </div>
 
         <div class="card">
@@ -254,6 +284,13 @@
     <script>
         // Helper function to get element by ID
         const $ = id => document.getElementById(id);
+
+        // Helper function to escape text that goes into the markup
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, character => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            })[character]);
+        }
 
         // Auth functions for Moonraker/Fluidd token
         function getJWT() {
@@ -412,21 +449,23 @@
                     `<div class="group-section">
                         <div class="group-title">${group.label}</div>
                         ${group.items.filter(setting => !setting.hidden || showHidden).map(setting => {
-                            const options = Object.entries(setting.options)
-                                .filter(([optKey, optVal]) => !optVal.hidden || optKey === setting.current || showHidden)
-                                .map(([optKey, optVal]) => {
+                            const optionEntries = Object.entries(setting.options)
+                                .filter(([optKey, optVal]) => !optVal.hidden || optKey === setting.current || showHidden);
+                            // A profile the option list does not cover is still the current
+                            // one, so the dropdown has to name it instead of showing a
+                            // different profile.
+                            const listed = optionEntries.some(([optKey]) => optKey === setting.current);
+                            const currentOption = listed || !setting.current ? '' :
+                                `<option value="${escapeHtml(setting.current)}" data-label="${encodeURIComponent(setting.current)}" data-confirm="" data-inputs="null" selected>${escapeHtml(setting.current)}</option>`;
+                            const options = currentOption + optionEntries.map(([optKey, optVal]) => {
                                 return `<option value="${optKey}" data-label="${encodeURIComponent(optVal.label)}" data-confirm="${encodeURIComponent(optVal.confirm || '')}" data-inputs="${encodeURIComponent(JSON.stringify(optVal.inputs || null))}"${optKey === setting.current ? ' selected' : ''}>${optVal.label}</option>`;
                             }).join('');
-                            const fanCurvesEditor = setting.id === 'fan_curves'
-                                ? '<button class="btn btn-secondary fan-curves-inline-button" type="button" onclick="event.stopPropagation(); toggleFanCurvesEditor()">Edit curves</button>'
-                                : '';
                             return `<div class="row"${setting.help_url ? ` onclick="if(!event.target.closest('select') && !event.target.closest('button'))window.open('${setting.help_url}','_blank')"` : ''}>
                                 <div class="row-label-wrap">
                                     <span class="row-label">${setting.label}${setting.help_url ? `<a class="row-help" href="${setting.help_url}" target="_blank" onclick="event.stopPropagation()">↗</a>` : ''}</span>
                                     ${setting.description ? `<span class="row-desc">${setting.description}</span>` : ''}
                                 </div>
                                 <select data-prev-value="${setting.current}" data-help-url="${setting.help_url || ''}" onchange="updateSetting('${setting.id}', this)">${options}</select>
-                                ${fanCurvesEditor}
                             </div>`;
                         }).join('')}
                     </div>`
@@ -451,12 +490,6 @@
 
         function fanCurvesClone(value) {
             return JSON.parse(JSON.stringify(value));
-        }
-
-        function fanCurvesEscape(value) {
-            return String(value).replace(/[&<>"']/g, character => ({
-                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-            })[character]);
         }
 
         function fanCurvesProfileKey(key) {
@@ -503,6 +536,7 @@
                 current: fanCurvesProfileKey(payload.current || 'stock'),
                 profiles,
                 presets,
+                stock: fanCurvesProfile(payload.stock),
                 custom: dirty ? oldState.custom : fanCurvesClone(saved),
                 customSaved: dirty ? oldState.customSaved : fanCurvesClone(saved),
                 limits: payload.limits || {},
@@ -527,11 +561,24 @@
         }
 
         function fanCurvesMinCoolTemperature() {
-            return 50;
+            const value = Number(fanCurvesState?.limits?.min_cool_temperature);
+            return Number.isFinite(value) ? value : 50;
         }
 
         function fanCurvesMinNozzleDuty() {
-            return 0.05;
+            const value = Number(fanCurvesState?.limits?.min_nozzle_duty);
+            return Number.isFinite(value) ? value : 0.05;
+        }
+
+        // The driver holds the duty of the last node at or below the
+        // temperature, the same way the stock stepped table does.
+        function fanCurvesStep(points, temp) {
+            let duty = 0;
+            for (const [threshold, value] of points) {
+                if (temp >= threshold) duty = value;
+                else break;
+            }
+            return duty;
         }
 
         function fanCurvesSetStatus(message, type = '') {
@@ -556,7 +603,12 @@
             const toY = duty => margin.top + (1 - duty) * plotHeight;
             const fromX = x => Math.max(0, Math.min(300, ((x - margin.left) / plotWidth) * 300));
             const fromY = y => Math.max(0, Math.min(1, 1 - ((y - margin.top) / plotHeight)));
-            const points = fanCurvesGet(fanCurvesState.selected)[fanCurvesActiveCurve] || [];
+            const isStock = fanCurvesState.selected === 'stock';
+            const stockPoints = (fanCurvesState.stock || {})[fanCurvesActiveCurve] || [];
+            const points = isStock
+                ? stockPoints
+                : (fanCurvesGet(fanCurvesState.selected)[fanCurvesActiveCurve] || []);
+            const referencePoints = isStock ? [] : stockPoints;
             const grid = [0, 0.2, 0.4, 0.6, 0.8, 1].map(duty => {
                 const y = toY(duty);
                 return `<line class="fan-curves-grid-line" x1="${margin.left}" y1="${y}" x2="${width - margin.right}" y2="${y}"/><text x="${margin.left - 7}" y="${y + 3}" text-anchor="end">${duty * 100}%</text>`;
@@ -565,20 +617,76 @@
                 const x = toX(temperature);
                 return `<line class="fan-curves-grid-line" x1="${x}" y1="${margin.top}" x2="${x}" y2="${height - margin.bottom}"/><text x="${x}" y="${height - 10}" text-anchor="middle">${temperature}°C</text>`;
             }).join('');
+            const stepPath = list => {
+                let path = '';
+                list.forEach(([temperature, duty], index) => {
+                    const x = toX(temperature);
+                    const y = toY(duty);
+                    path += index === 0 ? ` M ${x} ${y}` : ` H ${x} V ${y}`;
+                });
+                return path;
+            };
+            const path = stepPath(points);
+            const referencePath = stepPath(referencePoints);
             const linePoints = points.map(([temperature, duty]) => [toX(temperature), toY(duty)]);
-            let path = '';
-            linePoints.forEach(([x, y], index) => {
-                if (index === 0) path = `M ${x} ${y}`;
-                else path += ` H ${x} V ${y}`;
-            });
-            const pointMarkup = linePoints.map(([x, y], index) =>
+            const pointMarkup = isStock ? '' : linePoints.map(([x, y], index) =>
                 `<circle class="fan-curves-point" cx="${x}" cy="${y}" r="6" data-index="${index}" tabindex="0" aria-label="Node ${index + 1}"></circle>`
             ).join('');
             const readOnly = !fanCurvesEditable() || !points.length;
-            svg.innerHTML = `${grid}${xLabels}<line class="fan-curves-axis" x1="${margin.left}" y1="${height - margin.bottom}" x2="${width - margin.right}" y2="${height - margin.bottom}"/><line class="fan-curves-axis" x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${height - margin.bottom}"/>${path ? `<path class="fan-curves-line" d="${path}"></path>${pointMarkup}` : `<text x="${width / 2}" y="${height / 2}" text-anchor="middle">Stock uses the original stepped table</text>`}`;
+            svg.innerHTML = `${grid}${xLabels}<line class="fan-curves-axis" x1="${margin.left}" y1="${height - margin.bottom}" x2="${width - margin.right}" y2="${height - margin.bottom}"/><line class="fan-curves-axis" x1="${margin.left}" y1="${margin.top}" x2="${margin.left}" y2="${height - margin.bottom}"/>${referencePath ? `<path class="fan-curves-reference" d="${referencePath}"></path>` : ''}${path ? `<path class="fan-curves-line" d="${path}"></path>${pointMarkup}` : `<text x="${width / 2}" y="${height / 2}" text-anchor="middle">This profile has no curve</text>`}`;
             if (!readOnly) {
                 svg.querySelectorAll('.fan-curves-point').forEach(point => point.addEventListener('pointerdown', event => fanCurvesStartDrag(event, Number(point.dataset.index), fromX, fromY)));
             }
+            $('fan-curves-legend-selected').textContent = fanCurvesProfileLabel(fanCurvesState.selected);
+            $('fan-curves-legend-stock').hidden = !referencePoints.length;
+        }
+
+        // The temperatures that decide how a cooling curve behaves.
+        function fanCurvesCompareTemperatures() {
+            return fanCurvesActiveCurve === 'nozzle'
+                ? [50, 70, 100, 140, 180, 220, 260]
+                : [45, 120, 160, 200, 260];
+        }
+
+        function fanCurvesHeavyLoadText() {
+            const heavy = fanCurvesState.heavyLoad || {};
+            const temperature = Number(heavy.temperature) || 260;
+            const heaterCount = Number(heavy.heater_count) || 0;
+            const hotCount = Number(heavy.hot_count) || 1;
+            const duty = Math.round((Number(heavy.duty) || 1) * 100);
+            const heaters = heaterCount > 0
+                ? `at least ${heaterCount} toolhead${heaterCount === 1 ? '' : 's'} heat up and `
+                : '';
+            return `Heavy load: the power fan reaches ${duty}% when ${heaters}${hotCount} toolhead${hotCount === 1 ? '' : 's'} target more than ${temperature}°C.`;
+        }
+
+        function fanCurvesRenderCompare() {
+            const body = $('fan-curves-compare');
+            const note = $('fan-curves-compare-note');
+            if (!body || !fanCurvesState) return;
+            const isStock = fanCurvesState.selected === 'stock';
+            const stockPoints = (fanCurvesState.stock || {})[fanCurvesActiveCurve] || [];
+            const selectedPoints = isStock
+                ? stockPoints
+                : (fanCurvesGet(fanCurvesState.selected)[fanCurvesActiveCurve] || []);
+            const floorDuty = fanCurvesActiveCurve === 'nozzle' ? fanCurvesMinNozzleDuty() : 0;
+            const floorFrom = fanCurvesMinCoolTemperature();
+            let raised = false;
+            body.innerHTML = fanCurvesCompareTemperatures().map(temperature => {
+                const stockDuty = fanCurvesStep(stockPoints, temperature);
+                const curveDuty = fanCurvesStep(selectedPoints, temperature);
+                const duty = temperature >= floorFrom ? Math.max(curveDuty, floorDuty) : curveDuty;
+                const held = duty > curveDuty;
+                if (held) raised = true;
+                return `<tr${held ? ' class="floored"' : ''}><td>${temperature}</td><td>${Math.round(stockDuty * 100)}%</td><td>${Math.round(duty * 100)}%${held ? ' ↑' : ''}</td></tr>`;
+            }).join('');
+            $('fan-curves-compare-selected').textContent = fanCurvesProfileLabel(fanCurvesState.selected);
+            const notes = [];
+            if (raised) {
+                notes.push(`↑ The driver holds a nozzle fan at ${Math.round(floorDuty * 100)}% from ${floorFrom}°C on, so a curve cannot switch the fan off while the hotend is hot.`);
+            }
+            if (fanCurvesActiveCurve === 'power') notes.push(fanCurvesHeavyLoadText());
+            note.textContent = notes.join(' ');
         }
 
         function fanCurvesStartDrag(event, index, fromX, fromY) {
@@ -621,7 +729,7 @@
                 return;
             }
             const editable = fanCurvesEditable();
-            container.innerHTML = points.map(([temperature, duty], index) => `<div class="fan-curves-node"><input id="fan-curves-temp-${index}" data-index="${index}" data-field="temperature" type="number" min="0" max="300" step="1" value="${fanCurvesEscape(temperature)}"${editable ? '' : ' disabled'}><input id="fan-curves-duty-${index}" data-index="${index}" data-field="duty" type="number" min="0" max="${Math.round(fanCurvesMaxDuty() * 100)}" step="0.1" value="${fanCurvesEscape((duty * 100).toFixed(1))}"${editable ? '' : ' disabled'}><button class="btn btn-secondary fan-curves-delete" data-index="${index}" type="button"${editable && points.length > 2 ? '' : ' disabled'}>Delete</button></div>`).join('');
+            container.innerHTML = points.map(([temperature, duty], index) => `<div class="fan-curves-node"><input id="fan-curves-temp-${index}" data-index="${index}" data-field="temperature" type="number" min="0" max="300" step="1" value="${escapeHtml(temperature)}"${editable ? '' : ' disabled'}><input id="fan-curves-duty-${index}" data-index="${index}" data-field="duty" type="number" min="0" max="${Math.round(fanCurvesMaxDuty() * 100)}" step="0.1" value="${escapeHtml((duty * 100).toFixed(1))}"${editable ? '' : ' disabled'}><button class="btn btn-secondary fan-curves-delete" data-index="${index}" type="button"${editable && points.length > 2 ? '' : ' disabled'}>Delete</button></div>`).join('');
             if (editable) {
                 container.querySelectorAll('input').forEach(input => input.addEventListener('change', fanCurvesInputChanged));
                 container.querySelectorAll('.fan-curves-delete').forEach(button => button.addEventListener('click', () => fanCurvesDelete(Number(button.dataset.index))));
@@ -655,19 +763,21 @@
             $('fan-curves-apply').disabled = profile === 'custom' && (!selectedCurves.power.length || !selectedCurves.nozzle.length);
             $('fan-curves-power-tab').className = `btn ${fanCurvesActiveCurve === 'power' ? 'btn-primary' : 'btn-secondary'}`;
             $('fan-curves-nozzle-tab').className = `btn ${fanCurvesActiveCurve === 'nozzle' ? 'btn-primary' : 'btn-secondary'}`;
-            const heavy = fanCurvesState.heavyLoad;
-            const heavyCount = Number(heavy.heater_count) || 3;
-            const heavyTemperature = Number(heavy.temperature) || 260;
             const hysteresis = fanCurvesState.hysteresis;
-            const rules = `Non-Stock profiles use ${hysteresis}°C hysteresis. Ordinary duty is limited to ${Math.round(fanCurvesMaxDuty() * 100)}%. A nozzle curve has to start at or below ${fanCurvesMinCoolTemperature()}°C and has to hold at least ${Math.round(fanCurvesMinNozzleDuty() * 100)}% duty from there on, so the heatsink fan never stops while the hotend is hot. Heavy load matches the stock rule: the power fan reaches 100% when ${heavyCount} toolheads heat up and one of them targets more than ${heavyTemperature}°C.`;
+            const rules = `Non-Stock profiles use ${hysteresis}°C hysteresis. Ordinary duty goes up to ${Math.round(fanCurvesMaxDuty() * 100)}%. The driver holds a nozzle fan at ${Math.round(fanCurvesMinNozzleDuty() * 100)}% from ${fanCurvesMinCoolTemperature()}°C on, so no curve can leave the fan off while the hotend is hot. ${fanCurvesHeavyLoadText()}`;
             $('fan-curves-help').textContent = profile === 'stock'
                 ? 'Stock uses the original target-temperature and stepped-table semantics. It is read-only here.'
                 : profile === 'custom'
                 ? `Custom is a curve of your own, so how much it cools the hotend is on your risk. ${rules}`
                 : `${fanCurvesProfileLabel(profile)} is a preset. The first power node sets both the power-fan target trigger and its duty. ${rules}`;
-            $('fan-curves-summary').textContent = `Current profile: ${fanCurvesProfileLabel(fanCurvesState.current)}. Edit opens the curve editor; presets remain available.`;
+            $('fan-curves-current').textContent = `Active: ${fanCurvesProfileLabel(fanCurvesState.current)}`;
+            $('fan-curves-summary').textContent = profile === fanCurvesState.current
+                ? `${fanCurvesProfileLabel(profile)} is active. The chart and the table show what the fans do at each temperature.`
+                : `${fanCurvesProfileLabel(profile)} is selected. ${fanCurvesProfileLabel(fanCurvesState.current)} stays active until you apply.`;
+            $('fan-curves-editor').hidden = !editable;
             fanCurvesRenderNodes();
             fanCurvesRenderChart();
+            fanCurvesRenderCompare();
         }
 
         function fanCurvesReset() {
@@ -676,13 +786,6 @@
             fanCurvesState.dirty = false;
             fanCurvesRender();
             fanCurvesSetStatus('Draft restored from the saved Custom profile.');
-        }
-
-        function toggleFanCurvesEditor() {
-            const editor = $('fan-curves-editor');
-            editor.hidden = !editor.hidden;
-            $('fan-curves-toggle').textContent = editor.hidden ? 'Edit' : 'Hide';
-            if (!editor.hidden) editor.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
         function fanCurvesCopyPreset() {
@@ -742,22 +845,6 @@
                     if (!Number.isFinite(duty) || duty < 0 || duty > fanCurvesMaxDuty()) errors.push(`${curveName} node ${index + 1} exceeds the ordinary duty limit`);
                     if (index && temperature <= points[index - 1][0]) errors.push(`${curveName} temperatures must increase strictly`);
                 });
-                if (curveName === 'nozzle' && points.length) {
-                    if (points[0][0] > fanCurvesMinCoolTemperature()) {
-                        errors.push(`nozzle curve has to start at or below ${fanCurvesMinCoolTemperature()}°C`);
-                    }
-                    let coolIndex = 0;
-                    for (let index = 0; index < points.length; index++) {
-                        if (points[index][0] > fanCurvesMinCoolTemperature()) break;
-                        coolIndex = index;
-                    }
-                    for (let index = coolIndex; index < points.length; index++) {
-                        if (points[index][1] < fanCurvesMinNozzleDuty()) {
-                            errors.push(`nozzle node ${index + 1} leaves the fan off above ${fanCurvesMinCoolTemperature()}°C`);
-                            break;
-                        }
-                    }
-                }
             });
             return errors;
         }
@@ -814,7 +901,7 @@
                 fanCurvesState = fanCurvesNormalizePayload(payload);
                 fanCurvesState.selected = fanCurvesState.current;
                 const profileSelect = $('fan-curves-profile');
-                profileSelect.innerHTML = (fanCurvesState.profiles || []).map(key => `<option value="${fanCurvesEscape(key)}">${fanCurvesEscape(fanCurvesProfileLabel(key))}</option>`).join('');
+                profileSelect.innerHTML = (fanCurvesState.profiles || []).map(key => `<option value="${escapeHtml(key)}">${escapeHtml(fanCurvesProfileLabel(key))}</option>`).join('');
                 fanCurvesRender();
             } catch (error) {
                 $('fan-curves-summary').textContent = `Fan curve editor unavailable: ${error.message}`;
@@ -824,7 +911,6 @@
         }
 
         function setupFanCurvesEditor() {
-            $('fan-curves-toggle').addEventListener('click', toggleFanCurvesEditor);
             $('fan-curves-profile').addEventListener('change', event => {
                 fanCurvesState.selected = event.target.value;
                 fanCurvesSetStatus('');

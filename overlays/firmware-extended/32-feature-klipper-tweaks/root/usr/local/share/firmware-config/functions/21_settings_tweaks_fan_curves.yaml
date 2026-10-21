@@ -29,7 +29,7 @@ settings:
             label: Custom
             confirm: |-
               Apply the saved Custom fan curves?
-              Custom is a curve of your own, so how much it cools the hotend is on your risk. A nozzle curve has to start at or below 50°C and has to hold at least 5% duty from there on, so the heatsink fan never stops while the hotend is hot.
+              Custom is a curve of your own, so how much it cools the hotend is on your risk. The driver holds a nozzle fan at 5% duty from 50°C on, so the heatsink fan never stops while the hotend is hot.
             cmd:
               - bash
               - -xc

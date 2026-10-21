@@ -27,11 +27,19 @@ MAX_TEMPERATURE = 300
 MAX_DUTY = 1.0
 DEFAULT_HYSTERESIS = 5.0
 # A nozzle fan must not be held off once the hotend is warm enough to matter.
-# The stock stepped table starts at 45C, so the first curve node has to be at
-# or below this temperature and the node that covers it has to keep the fan
-# turning.
+# The stock stepped table starts at 45C and never drops back to zero, so the
+# driver holds a nozzle fan at least at this duty from this temperature on.
+# The driver enforces it, so a curve file cannot switch the fan off there.
 MIN_COOL_TEMPERATURE = 50
 MIN_NOZZLE_DUTY = 0.05
+# The stock nozzle fan and power fan, taken from the Snapmaker U1
+# printer.cfg. The curve editor draws them next to a profile so the effect of
+# a curve can be compared with the original behaviour.
+STOCK_NOZZLE = [
+    [45, 0.3], [60, 0.35], [70, 0.4], [100, 0.45], [140, 0.5], [160, 0.6],
+    [180, 0.65], [200, 0.7], [220, 0.75], [230, 0.8], [240, 0.85], [260, 0.9],
+]
+STOCK_POWER = [[45, 0.6], [260, 0.6]]
 
 
 class FanCurveError(ValueError):
@@ -79,24 +87,6 @@ def normalize_curves(value):
                 raise FanCurveError('%s temperatures must increase strictly' % name)
             output.append([temperature, round(duty, 3)])
             previous_temperature = temperature
-        if name == 'nozzle':
-            if output[0][0] > MIN_COOL_TEMPERATURE:
-                raise FanCurveError(
-                    'nozzle curve must start at or below %dC'
-                    % MIN_COOL_TEMPERATURE)
-            # The curve holds the duty of the last node at or below the
-            # cooling temperature, so that node and every node above it have
-            # to keep the fan turning.
-            cool_index = 0
-            for index, (temperature, _) in enumerate(output):
-                if temperature > MIN_COOL_TEMPERATURE:
-                    break
-                cool_index = index
-            for index in range(cool_index, len(output)):
-                if output[index][1] < MIN_NOZZLE_DUTY:
-                    raise FanCurveError(
-                        'nozzle node %d leaves the fan off above %dC'
-                        % (index + 1, MIN_COOL_TEMPERATURE))
         normalized[name] = output
     return normalized
 
@@ -104,20 +94,25 @@ def normalize_curves(value):
 def _normalize_heavy_load(value):
     if not isinstance(value, dict):
         value = {}
-    # The stock temp_speed_table reaches 100% when at least three toolheads
-    # heat up and one of them targets more than 260C.
+    # The power fan reaches 100% when at least heater_count toolheads heat
+    # up and at least hot_count of them target more than temperature.
+    # A heater_count of 0 drops the first condition.
     temperature = _finite_number(value.get('temperature', 260), 'heavy-load temperature')
     heater_count = _finite_number(value.get('heater_count', 3), 'heavy-load heater count')
+    hot_count = _finite_number(value.get('hot_count', 1), 'heavy-load hot count')
     duty = _finite_number(value.get('duty', 1), 'heavy-load duty')
     if temperature < 0 or temperature > MAX_TEMPERATURE:
         raise FanCurveError('heavy-load temperature must be from 0 to %d' % MAX_TEMPERATURE)
-    if heater_count != int(heater_count) or heater_count < 1:
-        raise FanCurveError('heavy-load heater count must be a positive integer')
+    if heater_count != int(heater_count) or heater_count < 0:
+        raise FanCurveError('heavy-load heater count must be zero or a positive integer')
+    if hot_count != int(hot_count) or hot_count < 1:
+        raise FanCurveError('heavy-load hot count must be a positive integer')
     if duty < 0 or duty > 1:
         raise FanCurveError('heavy-load duty must be between 0 and 1')
     return {
         'temperature': temperature,
         'heater_count': int(heater_count),
+        'hot_count': int(hot_count),
         'duty': duty,
     }
 
@@ -262,11 +257,14 @@ def get_state():
         'current': current_profile(),
         'profiles': [STOCK_PROFILE] + sorted(files) + [CUSTOM_PROFILE],
         'presets': presets,
+        'stock': {'nozzle': STOCK_NOZZLE, 'power': STOCK_POWER},
         'custom': load_custom(),
         'limits': {
             'max_points': MAX_POINTS,
             'temperature': [0, MAX_TEMPERATURE],
             'duty': [0, MAX_DUTY],
+            'min_cool_temperature': MIN_COOL_TEMPERATURE,
+            'min_nozzle_duty': MIN_NOZZLE_DUTY,
         },
         'hysteresis': default['hysteresis'],
         'heavy_load': default['heavy_load'],
