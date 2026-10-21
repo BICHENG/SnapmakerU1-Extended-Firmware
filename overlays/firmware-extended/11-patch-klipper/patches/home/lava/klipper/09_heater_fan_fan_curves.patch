@@ -26,13 +26,13 @@
 +FAN_CURVE_MAX_DUTY = 1.0
 +FAN_CURVE_DEFAULT_HYSTERESIS = 5.0
 +# A nozzle fan must not be held off once the hotend is warm enough to matter.
-+# The stock stepped table starts at 45C and never drops back to zero, so the
-+# driver holds a nozzle fan at least at this duty from this temperature on.
-+# A curve is free to ask for less below it. The values below are the fallback:
-+# the curve file carries the rule the firmware-config module owns, so the
-+# driver and the editor read the same one.
-+FAN_CURVE_MIN_COOL_TEMPERATURE = 50
-+FAN_CURVE_MIN_NOZZLE_DUTY = 0.05
++# The rule comes from the stock fan table: the stock nozzle fan starts at 30%
++# duty from 45C and never runs quieter than that, so the driver holds a nozzle
++# fan at least at the stock's quietest setting from that temperature on.
++# The values below are the fallback: the curve file carries the rule the
++# firmware-config module owns, so the driver and the editor read the same one.
++FAN_CURVE_MIN_COOL_TEMPERATURE = 45
++FAN_CURVE_MIN_NOZZLE_DUTY = 0.30
 +# The Faulty Toolhead Bypass raises the heater_temp of the affected nozzle
 +# cooling fan to 999 and zeroes the last stepped_temp_table entry. A profile
 +# must not take that fan back over.

@@ -41,13 +41,14 @@ RISK_NOTICE = ('Stock keeps a lot of cooling in reserve, but a profile of your o
                'is your own risk. Different materials need different cooling, so test '
                'it before a long print. Happy printing!')
 # A nozzle fan must not be held off once the hotend is warm enough to matter.
-# The stock stepped table starts at 45C and never drops back to zero, so the
-# driver holds a nozzle fan at least at this duty from this temperature on.
-# The driver enforces it, so a curve file cannot switch the fan off there.
-# These are the values a profile file starts with; the file itself holds the
-# rule, so the driver and the editor read the same one.
-MIN_COOL_TEMPERATURE = 50
-MIN_NOZZLE_DUTY = 0.05
+# The rule comes from the stock fan table: the stock nozzle fan starts at
+# 30% duty from 45C and never runs quieter than that, so a curve that asks
+# for less is held at the stock's quietest setting. The numbers are the
+# stock's own, and they live in the profile file, so the driver and the
+# editor read the same rule. A profile of the user can hold a lower duty on
+# purpose, and that is on their own risk.
+MIN_COOL_TEMPERATURE = 45
+MIN_NOZZLE_DUTY = 0.30
 # The stock nozzle fan and power fan, taken from the Snapmaker U1
 # printer.cfg. The curve editor draws them next to a profile so the effect of
 # a curve can be compared with the original behaviour.
@@ -353,15 +354,19 @@ def rename_profile(name, new_name, curves=None):
     return new_name
 
 
-def delete_profile(name):
-    """Remove the file of a profile."""
+def delete_profile(name, restart=True):
+    """Remove the file of a profile.
+
+    A profile that is running is removed as well: the printer goes back to
+    the stock curves, so the running curve is never one whose file is gone.
+    """
     name = _profile_name(name)
     if name not in _profiles():
         raise FanCurveError('unknown fan curve profile: %s' % name)
     if current_profile() == name:
-        raise FanCurveError(
-            '%s is running. Apply another profile before you delete it.'
-            % profile_label(name))
+        # The stock curves are applied first, so the running curve always
+        # has a file behind it.
+        apply_profile(STOCK_PROFILE, restart=restart)
     os.unlink(_profile_path(name))
     return name
 
