@@ -7,7 +7,7 @@ settings:
     items:
       fan_curves:
         label: Fan Curves
-        description: Select nonlinear cooling curves for the power and nozzle fans. Quiet is the production-tested profile; Very Quiet (Experimental) delays ordinary nozzle cooling until 220°C. Stock restores the original Snapmaker curves.
+        description: Select nonlinear cooling curves for the power and nozzle fans. Quiet is the production-tested profile; Very Quiet (Experimental) runs the nozzle fans well below the stock speed. Stock restores the original Snapmaker curves.
         help_url: http://snapmakeru1-extended-firmware.pages.dev/tweaks#fan-curves
         get_cmd:
           - bash
@@ -19,7 +19,7 @@ settings:
             label: Quiet
             confirm: |-
               Apply the Quiet fan curves?
-              Quiet is the production-tested profile. Its first power node is 70°C at 20%, and all curve profiles use 5°C hysteresis. The power fan rises nonlinearly to 60%; nozzle fans start at 50°C with a zero-duty entry. The power-fan heavy-load rule reaches 100% only when at least two nozzle targets strictly exceed 200°C.
+              Quiet is the production-tested profile. Its first power node is 70°C at 20%, and all curve profiles use 5°C hysteresis. The power fan rises nonlinearly to 60%; nozzle fans start at 50°C at 5% duty and keep the heatsink cooling from there on. The power-fan heavy-load rule matches the stock behaviour: it reaches 100% when at least three toolheads heat up and one of them targets more than 260°C.
             cmd:
               - bash
               - -xc
@@ -29,7 +29,7 @@ settings:
             label: Very Quiet (Experimental)
             confirm: |-
               Apply Very Quiet (Experimental)?
-              Ordinary nozzle-fan temperature control starts at 220°C. Its first power node is 220°C at 20%, with 5°C hysteresis; the power fan rises to 60%. Two nozzle targets strictly above 200°C still force the power fan to 100%. Use Quiet for normal production.
+              The nozzle fans start at 50°C at 5% duty and stay on from there on, so the heatsink never runs without cooling. Its first power node is 50°C at 20%, with 5°C hysteresis; the power fan rises to 60%. The power-fan heavy-load rule matches the stock behaviour: it reaches 100% when at least three toolheads heat up and one of them targets more than 260°C. This profile runs well below the stock fan speed, so check the printed part for heat creep. Use Quiet for normal production.
             cmd:
               - bash
               - -xc

@@ -499,7 +499,7 @@
                 customSaved: dirty ? oldState.customSaved : fanCurvesClone(saved),
                 limits: payload.limits || {},
                 hysteresis: Number.isFinite(Number(payload.hysteresis)) ? Number(payload.hysteresis) : 5,
-                heavyLoad: payload.heavy_load || payload.heavyLoad || { heater_count: 2, temperature: 200, duty: 1 },
+                heavyLoad: payload.heavy_load || payload.heavyLoad || { heater_count: 3, temperature: 260, duty: 1 },
                 dirty
             };
         }
@@ -516,6 +516,14 @@
         function fanCurvesMaxDuty() {
             const value = Number(fanCurvesState?.limits?.duty?.[1]);
             return Number.isFinite(value) ? Math.min(value, 0.6) : 0.6;
+        }
+
+        function fanCurvesMinCoolTemperature() {
+            return 50;
+        }
+
+        function fanCurvesMinNozzleDuty() {
+            return 0.05;
         }
 
         function fanCurvesSetStatus(message, type = '') {
@@ -640,12 +648,12 @@
             $('fan-curves-power-tab').className = `btn ${fanCurvesActiveCurve === 'power' ? 'btn-primary' : 'btn-secondary'}`;
             $('fan-curves-nozzle-tab').className = `btn ${fanCurvesActiveCurve === 'nozzle' ? 'btn-primary' : 'btn-secondary'}`;
             const heavy = fanCurvesState.heavyLoad;
-            const heavyCount = Number(heavy.heater_count) || 2;
-            const heavyTemperature = Number(heavy.temperature) || 200;
+            const heavyCount = Number(heavy.heater_count) || 3;
+            const heavyTemperature = Number(heavy.temperature) || 260;
             const hysteresis = fanCurvesState.hysteresis;
             $('fan-curves-help').textContent = profile === 'stock'
                 ? 'Stock uses the original target-temperature and stepped-table semantics. It is read-only here.'
-                : `The first power node sets both the power-fan target trigger and its duty. Non-Stock profiles use ${hysteresis}°C hysteresis. Ordinary duty is limited to ${Math.round(fanCurvesMaxDuty() * 100)}%. Heavy load is fixed: ${heavyCount} nozzle targets must be above ${heavyTemperature}°C before the power fan reaches 100%.`;
+                : `The first power node sets both the power-fan target trigger and its duty. Non-Stock profiles use ${hysteresis}°C hysteresis. Ordinary duty is limited to ${Math.round(fanCurvesMaxDuty() * 100)}%. A nozzle curve has to start at or below ${fanCurvesMinCoolTemperature()}°C and has to hold at least ${Math.round(fanCurvesMinNozzleDuty() * 100)}% duty from there on, so the heatsink fan never stops while the hotend is hot. Heavy load matches the stock rule: the power fan reaches 100% when ${heavyCount} toolheads heat up and one of them targets more than ${heavyTemperature}°C.`;
             $('fan-curves-summary').textContent = `Current profile: ${fanCurvesProfileLabels[fanCurvesState.current] || fanCurvesState.current}. Edit opens the curve editor; presets remain available.`;
             fanCurvesRenderNodes();
             fanCurvesRenderChart();
@@ -723,6 +731,22 @@
                     if (!Number.isFinite(duty) || duty < 0 || duty > fanCurvesMaxDuty()) errors.push(`${curveName} node ${index + 1} exceeds the ordinary duty limit`);
                     if (index && temperature <= points[index - 1][0]) errors.push(`${curveName} temperatures must increase strictly`);
                 });
+                if (curveName === 'nozzle' && points.length) {
+                    if (points[0][0] > fanCurvesMinCoolTemperature()) {
+                        errors.push(`nozzle curve has to start at or below ${fanCurvesMinCoolTemperature()}°C`);
+                    }
+                    let coolIndex = 0;
+                    for (let index = 0; index < points.length; index++) {
+                        if (points[index][0] > fanCurvesMinCoolTemperature()) break;
+                        coolIndex = index;
+                    }
+                    for (let index = coolIndex; index < points.length; index++) {
+                        if (points[index][1] < fanCurvesMinNozzleDuty()) {
+                            errors.push(`nozzle node ${index + 1} leaves the fan off above ${fanCurvesMinCoolTemperature()}°C`);
+                            break;
+                        }
+                    }
+                }
             });
             return errors;
         }

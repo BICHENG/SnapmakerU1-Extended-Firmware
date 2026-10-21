@@ -20,6 +20,12 @@ MIN_POINTS = 2
 MAX_TEMPERATURE = 300
 MAX_DUTY = 0.60
 DEFAULT_HYSTERESIS = 5.0
+# A nozzle fan must not be held off once the hotend is warm enough to matter.
+# The stock stepped table starts at 45C, so the first curve node has to be at
+# or below this temperature and the node that covers it has to keep the fan
+# turning.
+MIN_COOL_TEMPERATURE = 50
+MIN_NOZZLE_DUTY = 0.05
 PROFILES = ('stock', 'quiet', 'very_quiet', 'custom')
 ALIASES = {
     'balanced': 'quiet',
@@ -73,6 +79,24 @@ def normalize_curves(value):
                 raise FanCurveError('%s temperatures must increase strictly' % name)
             output.append([temperature, round(duty, 3)])
             previous_temperature = temperature
+        if name == 'nozzle':
+            if output[0][0] > MIN_COOL_TEMPERATURE:
+                raise FanCurveError(
+                    'nozzle curve must start at or below %dC'
+                    % MIN_COOL_TEMPERATURE)
+            # The curve holds the duty of the last node at or below the
+            # cooling temperature, so that node and every node above it have
+            # to keep the fan turning.
+            cool_index = 0
+            for index, (temperature, _) in enumerate(output):
+                if temperature > MIN_COOL_TEMPERATURE:
+                    break
+                cool_index = index
+            for index in range(cool_index, len(output)):
+                if output[index][1] < MIN_NOZZLE_DUTY:
+                    raise FanCurveError(
+                        'nozzle node %d leaves the fan off above %dC'
+                        % (index + 1, MIN_COOL_TEMPERATURE))
         normalized[name] = output
     return normalized
 
@@ -80,8 +104,10 @@ def normalize_curves(value):
 def _normalize_heavy_load(value):
     if not isinstance(value, dict):
         value = {}
-    temperature = _finite_number(value.get('temperature', 200), 'heavy-load temperature')
-    heater_count = _finite_number(value.get('heater_count', 2), 'heavy-load heater count')
+    # The stock temp_speed_table reaches 100% when at least three toolheads
+    # heat up and one of them targets more than 260C.
+    temperature = _finite_number(value.get('temperature', 260), 'heavy-load temperature')
+    heater_count = _finite_number(value.get('heater_count', 3), 'heavy-load heater count')
     duty = _finite_number(value.get('duty', 1), 'heavy-load duty')
     if temperature < 0 or temperature > MAX_TEMPERATURE:
         raise FanCurveError('heavy-load temperature must be from 0 to %d' % MAX_TEMPERATURE)
