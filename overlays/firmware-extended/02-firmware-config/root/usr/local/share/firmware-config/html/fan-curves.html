@@ -11,13 +11,18 @@
         --success: #81c784; --error: #e57373; --warning: #ff9800;
     }
     * { box-sizing: border-box; }
+    html, body { height: 100%; }
     body {
         background: var(--card);
         color: var(--text);
+        display: flex;
+        flex-direction: column;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         font-size: 14px;
+        gap: 10px;
         margin: 0;
-        padding: 14px 16px 16px;
+        overflow: auto;
+        padding: 12px 14px;
     }
     button { font-family: inherit; }
     .btn {
@@ -37,24 +42,17 @@
     }
     select:focus, input[type="number"]:focus { outline: none; border-color: var(--accent); }
 
-    .editor-head { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+    .editor-head { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; }
     .editor-head-left { align-items: center; display: flex; gap: 10px; }
     .editor-head label { color: var(--muted); font-size: 12px; }
     .editor-head select { min-width: 180px; }
     .editor-active { color: var(--muted); font-size: 12px; }
     .editor-tabs { display: flex; gap: 8px; margin-left: auto; }
 
-    .editor-grid {
-        display: grid; gap: 14px;
-        grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.9fr);
-        grid-template-areas: "chart point" "extra extra";
-        align-items: start;
-    }
+    .editor-main { display: flex; flex: 1 1 auto; min-height: 240px; }
     .panel { background: var(--bg); border: 1px solid #3a3a3a; border-radius: 8px; padding: 12px; }
-    .panel-chart { grid-area: chart; }
-    .panel-point { grid-area: point; }
-    .editor-extra { display: grid; gap: 14px; grid-area: extra; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-    .panel-title { color: var(--muted); font-size: 11px; letter-spacing: 0.5px; margin-bottom: 10px; text-transform: uppercase; }
+    .panel-chart { display: flex; flex: 1; flex-direction: column; min-height: 0; padding: 8px; }
+    .editor-extra { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
     details.panel { padding: 0; }
     details.panel > summary {
         color: var(--muted); cursor: pointer; font-size: 11px; letter-spacing: 0.5px;
@@ -69,33 +67,40 @@
         .editor-extra { grid-template-columns: 1fr; }
     }
 
-    .chart-wrap { background: #202020; border-radius: 6px; padding: 6px; }
-    .chart { display: block; height: auto; touch-action: none; width: 100%; }
+    .chart-wrap { background: #202020; border-radius: 6px; flex: 1 1 auto; min-height: 0; position: relative; }
+    .chart { display: block; height: 100%; left: 0; position: absolute; top: 0; touch-action: none; width: 100%; }
     .chart:focus { outline: none; }
     .chart text { fill: var(--muted); font-size: 11px; }
     .chart-grid { stroke: #3d3d3d; stroke-width: 1; }
     .chart-axis { stroke: #6a6a6a; stroke-width: 1; }
     .chart-line { fill: none; stroke: var(--accent); stroke-width: 2.5; }
     .chart-reference { fill: none; stroke: #6a6a6a; stroke-dasharray: 5 4; stroke-width: 1.5; }
+    .chart-floor-line { stroke: var(--warning); stroke-dasharray: 4 4; stroke-width: 1.5; }
+    .chart-floor-label { fill: var(--warning); font-size: 10px; }
+    .chart-floor-label-bg { fill: #202020; }
     .chart-dot { fill: #7a7a7a; }
     .chart-point { cursor: grab; fill: var(--accent); stroke: #111; stroke-width: 2; }
     .chart-point:active { cursor: grabbing; }
     .chart-point.selected { stroke: #fff; stroke-width: 3; }
     .chart-point:focus { outline: none; }
 
-    .legend { align-items: center; color: var(--muted); display: flex; flex-wrap: wrap; font-size: 11px; gap: 16px; padding: 9px 4px 2px; }
+    .legend { align-items: center; color: var(--muted); display: flex; flex-wrap: wrap; font-size: 11px; gap: 16px; padding: 8px 4px 0; }
     .legend-item { align-items: center; display: flex; gap: 7px; }
     .legend-item[hidden] { display: none; }
     .swatch { border-top: 2px solid var(--accent); display: inline-block; height: 0; width: 24px; }
+    .swatch.floor { border-top: 2px dashed var(--warning); }
     .swatch.stock { border-top: 1.5px dashed #6a6a6a; }
-    .legend-hint { margin-left: auto; text-align: right; }
 
-    .field { display: grid; gap: 6px; margin-bottom: 12px; }
-    .field > span:first-child { color: var(--muted); font-size: 12px; }
-    .field-input { align-items: center; display: flex; gap: 8px; }
-    .field-input input { width: 120px; }
+    .editor-strip { align-items: center; display: flex; flex-wrap: wrap; gap: 8px 16px; }
+    .strip-title { color: var(--muted); font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; }
+    .strip-fields { align-items: center; display: flex; flex-wrap: wrap; gap: 8px 16px; }
+    .strip-fields[hidden] { display: none; }
+    .strip-field { align-items: center; color: var(--muted); display: flex; font-size: 12px; gap: 6px; }
+    .strip-field input { width: 84px; }
     .unit { color: var(--muted); font-size: 12px; }
-    .empty { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 0; }
+    .strip-hint { color: var(--muted); font-size: 12px; }
+    .strip-hint[hidden] { display: none; }
+    #hint { margin-left: auto; text-align: right; }
 
     .compare { border-collapse: collapse; font-size: 12px; width: 100%; }
     .compare th { color: var(--muted); font-weight: 500; padding: 4px 8px; text-align: right; }
@@ -106,7 +111,7 @@
 
     .rules { color: var(--muted); font-size: 12px; line-height: 1.7; margin: 0; }
 
-    .editor-foot { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+    .editor-foot { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; }
     .status { color: var(--muted); flex: 1 1 200px; font-size: 12px; min-height: 18px; }
     .status.error { color: var(--error); }
     .status.warning { color: var(--warning); }
@@ -125,8 +130,7 @@
     .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
 
     @media (max-width: 860px) {
-        .editor-grid { grid-template-columns: 1fr; grid-template-areas: "chart" "point" "compare" "rules"; }
-        .legend-hint { margin-left: 0; text-align: left; }
+        #hint { margin-left: 0; text-align: left; }
     }
 </style>
 </head>
@@ -144,52 +148,53 @@
     </div>
 </div>
 
-<div class="editor-grid">
+<main class="editor-main">
     <section class="panel panel-chart">
-        <div class="chart-wrap">
-            <svg class="chart" id="chart" viewBox="0 0 760 400" tabindex="0" role="application" aria-label="Fan curve chart"></svg>
+        <div class="chart-wrap" id="chart-wrap">
+            <svg class="chart" id="chart" tabindex="0" role="application" aria-label="Fan curve chart"></svg>
         </div>
         <div class="legend">
-            <span class="legend-item"><span class="swatch"></span><span id="legend-selected">Selected</span></span>
-            <span class="legend-item" id="legend-stock"><span class="swatch stock"></span>Stock</span>
-            <span class="legend-item legend-hint" id="hint"></span>
+            <span class="legend-item"><span class="swatch"></span><span id="legend-selected">Curve</span></span>
+            <span class="legend-item" id="legend-floor" hidden><span class="swatch floor"></span>Driver floor</span>
+            <span class="legend-item" id="legend-stock" hidden><span class="swatch stock"></span>Stock</span>
         </div>
     </section>
+</main>
 
-    <section class="panel panel-point">
-        <div class="panel-title">Selected point</div>
-        <div id="point-editor" hidden>
-            <label class="field">
-                <span>Temperature</span>
-                <span class="field-input"><input id="point-temperature" type="number" step="1" min="0" max="300"><span class="unit">°C</span></span>
-            </label>
-            <label class="field">
-                <span>Duty</span>
-                <span class="field-input"><input id="point-duty" type="number" step="0.1" min="0"><span class="unit">%</span></span>
-            </label>
-            <button class="btn btn-danger" id="point-delete" type="button">Delete point</button>
-        </div>
-        <p class="empty" id="point-empty"></p>
-    </section>
-
-    <div class="editor-extra">
-        <details class="panel">
-            <summary>Stock against the selected curve</summary>
-            <div class="detail-body">
-                <table class="compare">
-                    <thead><tr><th>°C</th><th>Stock</th><th id="compare-selected">Selected</th></tr></thead>
-                    <tbody id="compare-body"></tbody>
-                </table>
-                <p class="compare-note" id="compare-note"></p>
-            </div>
-        </details>
-        <details class="panel">
-            <summary>How this profile behaves</summary>
-            <div class="detail-body">
-                <p class="rules" id="rules"></p>
-            </div>
-        </details>
+<div class="editor-strip">
+    <span class="strip-title" id="point-title">Selected point</span>
+    <div class="strip-fields" id="point-editor" hidden>
+        <label class="strip-field">
+            <span>Temperature</span>
+            <input id="point-temperature" type="number" step="1" min="0" max="300"><span class="unit">°C</span>
+        </label>
+        <label class="strip-field">
+            <span>Duty</span>
+            <input id="point-duty" type="number" step="0.1" min="0"><span class="unit">%</span>
+        </label>
+        <button class="btn btn-danger" id="point-delete" type="button">Delete point</button>
     </div>
+    <span class="strip-hint" id="point-empty"></span>
+    <span class="strip-hint" id="hint"></span>
+</div>
+
+<div class="editor-extra">
+    <details class="panel">
+        <summary>Stock against the selected curve</summary>
+        <div class="detail-body">
+            <table class="compare">
+                <thead><tr><th>°C</th><th>Stock</th><th id="compare-selected">Selected</th></tr></thead>
+                <tbody id="compare-body"></tbody>
+            </table>
+            <p class="compare-note" id="compare-note"></p>
+        </div>
+    </details>
+    <details class="panel">
+        <summary>How this profile behaves</summary>
+        <div class="detail-body">
+            <p class="rules" id="rules"></p>
+        </div>
+    </details>
 </div>
 
 <div class="editor-foot">
@@ -197,6 +202,7 @@
     <div class="actions">
         <button class="btn btn-secondary" id="copy" type="button">Copy preset to Custom</button>
         <button class="btn btn-secondary" id="add-point" type="button">Add point</button>
+        <button class="btn btn-secondary" id="discard" type="button">Discard changes</button>
         <button class="btn btn-secondary" id="save" type="button">Save Custom</button>
         <button class="btn btn-primary" id="apply" type="button">Apply</button>
     </div>
@@ -226,7 +232,8 @@
 <script>
 const $ = id => document.getElementById(id);
 
-const CHART = { width: 760, height: 400, margin: { left: 52, right: 20, top: 20, bottom: 40 } };
+const CHART_MARGIN = { left: 52, right: 18, top: 18, bottom: 34 };
+const CHART_MIN = { width: 320, height: 200 };
 const MAX_TEMPERATURE = 300;
 
 let state = null;
@@ -238,6 +245,7 @@ let savedDraft = { power: [], nozzle: [] };
 let dirty = false;
 let drag = null;
 let pendingClick = null;
+let chartSize = { width: 760, height: 400 };
 
 // ---------------------------------------------------------------- helpers
 
@@ -277,8 +285,8 @@ function profile(value) {
     };
 }
 
-// The driver holds the duty of the last node at or below the temperature,
-// the same way the stock stepped table does.
+// The stock table is a step table: the duty of the last row at or below
+// the temperature.
 function step(points, temperature) {
     let duty = 0;
     for (const [threshold, value] of points) {
@@ -286,6 +294,24 @@ function step(points, temperature) {
         else break;
     }
     return duty;
+}
+
+// A curve is a line between its points, the same way the driver reads it.
+function curveDuty(points, temperature) {
+    if (!points.length) return 0;
+    if (temperature < points[0][0]) return 0;
+    const last = points[points.length - 1];
+    if (temperature >= last[0]) return last[1];
+    for (let index = 1; index < points.length; index++) {
+        const [lowTemperature, lowDuty] = points[index - 1];
+        const [highTemperature, highDuty] = points[index];
+        if (temperature < highTemperature) {
+            const span = highTemperature - lowTemperature;
+            if (span <= 0) return highDuty;
+            return lowDuty + (highDuty - lowDuty) * (temperature - lowTemperature) / span;
+        }
+    }
+    return last[1];
 }
 
 function maxPoints() {
@@ -297,14 +323,21 @@ function maxDuty() {
     return Number.isFinite(value) ? Math.min(value, 1) : 1;
 }
 
-function minCoolTemperature() {
-    const value = Number(state?.limits?.min_cool_temperature);
-    return Number.isFinite(value) ? value : 50;
+// The rule the driver holds a nozzle fan at. It comes with the state, so
+// changing it in the firmware-config module changes it here as well.
+function floorLimit() {
+    const temperature = Number(state?.limits?.min_cool_temperature);
+    const duty = Number(state?.limits?.min_nozzle_duty);
+    if (!Number.isFinite(temperature) || !Number.isFinite(duty)) return null;
+    return { temperature, duty };
 }
 
-function minNozzleDuty() {
-    const value = Number(state?.limits?.min_nozzle_duty);
-    return Number.isFinite(value) ? value : 0.05;
+// The duty the driver really runs at a temperature.
+function effectiveDuty(points, temperature) {
+    const duty = curveDuty(points, temperature);
+    const limit = floorLimit();
+    if (!limit || activeCurve !== 'nozzle' || temperature < limit.temperature) return duty;
+    return Math.max(duty, limit.duty);
 }
 
 // ---------------------------------------------------------------- state
@@ -351,8 +384,19 @@ function setStatus(message, kind = '') {
 
 // ---------------------------------------------------------------- chart
 
+// The chart fills its panel, so its size comes from the panel.
+function measureChart() {
+    const wrap = $('chart-wrap');
+    const rect = wrap.getBoundingClientRect();
+    return {
+        width: Math.max(CHART_MIN.width, Math.round(rect.width)),
+        height: Math.max(CHART_MIN.height, Math.round(rect.height))
+    };
+}
+
 function chartGeometry() {
-    const { width, height, margin } = CHART;
+    const { width, height } = chartSize;
+    const margin = CHART_MARGIN;
     const plotWidth = width - margin.left - margin.right;
     const plotHeight = height - margin.top - margin.bottom;
     return {
@@ -365,19 +409,54 @@ function chartGeometry() {
     };
 }
 
-function stepPath(points, geometry) {
-    let path = '';
-    points.forEach(([temperature, duty], index) => {
-        const x = geometry.toX(temperature);
-        const y = geometry.toY(duty);
-        path += index === 0 ? ` M ${x} ${y}` : ` H ${x} V ${y}`;
-    });
-    return path;
+// The fan is off below the first point. The floor can start earlier.
+function curveStart(points) {
+    const first = points.length ? points[0][0] : 0;
+    if (activeCurve !== 'nozzle') return first;
+    const limit = floorLimit();
+    return limit ? Math.min(first, limit.temperature) : first;
+}
+
+// The curve is sampled every degree, so the line that is drawn is the line
+// the driver follows.
+function sampleCurve(points, evaluate) {
+    const samples = [];
+    for (let temperature = curveStart(points); temperature <= MAX_TEMPERATURE; temperature++) {
+        samples.push([temperature, evaluate(points, temperature)]);
+    }
+    return samples;
+}
+
+function linePath(samples, geometry) {
+    return samples.map((sample, index) => {
+        const x = geometry.toX(sample[0]).toFixed(1);
+        const y = geometry.toY(sample[1]).toFixed(1);
+        return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
+    }).join(' ');
+}
+
+// The part of the chart the driver holds at the floor, so the rule is
+// visible instead of hidden inside the curve.
+function floorLimitHit(points) {
+    const limit = floorLimit();
+    if (!limit || activeCurve !== 'nozzle') return null;
+    const samples = sampleCurve(points, curveDuty);
+    const below = samples.some(sample =>
+        sample[0] >= limit.temperature && sample[1] < limit.duty - 1e-9);
+    return below ? limit : null;
 }
 
 function renderChart() {
     const svg = $('chart');
     if (!svg || !state) return;
+    // The chart is rebuilt, so the point that had the keyboard focus has to
+    // get it back.
+    const focused = document.activeElement;
+    const focusIndex = focused && focused.classList && focused.classList.contains('chart-point')
+        ? focused.dataset.index : null;
+
+    chartSize = measureChart();
+    svg.setAttribute('viewBox', `0 0 ${chartSize.width} ${chartSize.height}`);
     const geometry = chartGeometry();
     const points = shownPoints();
     const referencePoints = selectedProfile === 'stock' ? [] : (state.stock || {})[activeCurve] || [];
@@ -394,27 +473,48 @@ function renderChart() {
                `<text x="${x}" y="${geometry.height - 12}" text-anchor="middle">${temperature}°C</text>`;
     }).join('');
 
-    const path = stepPath(points, geometry);
-    const referencePath = stepPath(referencePoints, geometry);
+    const samples = sampleCurve(points, curveDuty);
+    const dutyPath = linePath(samples, geometry);
+    const floor = floorLimitHit(points);
+
+    let floorMark = '';
+    if (floor) {
+        const y = geometry.toY(floor.duty);
+        const x = geometry.toX(floor.temperature);
+        const label = `driver floor ${Math.round(floor.duty * 100)}% from ${floor.temperature}°C`;
+        floorMark = `<line class="chart-floor-line" x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${(geometry.width - geometry.margin.right).toFixed(1)}" y2="${y.toFixed(1)}"/>` +
+                    `<rect class="chart-floor-label-bg" x="${(x + 4).toFixed(1)}" y="${(y - 18).toFixed(1)}" width="${(label.length * 5.6 + 8).toFixed(1)}" height="14" rx="3"></rect>` +
+                    `<text class="chart-floor-label" x="${(x + 8).toFixed(1)}" y="${(y - 7).toFixed(1)}">${label}</text>`;
+    }
+
+    const referenceSamples = referencePoints.length ? sampleCurve(referencePoints, step) : [];
     const marks = points.map(([temperature, duty], index) => {
         const x = geometry.toX(temperature);
         const y = geometry.toY(duty);
-        if (!editable) return `<circle class="chart-dot" cx="${x}" cy="${y}" r="3"></circle>`;
+        if (!editable) return `<circle class="chart-dot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3"></circle>`;
         const active = index === selectedNode;
-        return `<circle class="chart-point${active ? ' selected' : ''}" cx="${x}" cy="${y}" r="${active ? 9 : 7}" data-index="${index}" tabindex="0" role="button" aria-label="Point ${index + 1}: ${temperature} degrees, ${Math.round(duty * 100)} percent"></circle>`;
+        return `<circle class="chart-point${active ? ' selected' : ''}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${active ? 9 : 7}" data-index="${index}" tabindex="0" role="button" aria-label="Point ${index + 1}: ${temperature} degrees, ${Math.round(duty * 100)} percent"></circle>`;
     }).join('');
 
     svg.innerHTML = `${grid}${xLabels}` +
         `<line class="chart-axis" x1="${geometry.margin.left}" y1="${geometry.height - geometry.margin.bottom}" x2="${geometry.width - geometry.margin.right}" y2="${geometry.height - geometry.margin.bottom}"/>` +
         `<line class="chart-axis" x1="${geometry.margin.left}" y1="${geometry.margin.top}" x2="${geometry.margin.left}" y2="${geometry.height - geometry.margin.bottom}"/>` +
-        (referencePath ? `<path class="chart-reference" d="${referencePath}"></path>` : '') +
-        (path ? `<path class="chart-line" d="${path}"></path>${marks}` :
+        (referenceSamples.length ? `<path class="chart-reference" d="${linePath(referenceSamples, geometry)}"></path>` : '') +
+        floorMark +
+        (dutyPath ? `<path class="chart-line" d="${dutyPath}"></path>` : '') +
+        (points.length ? marks :
             `<text x="${geometry.width / 2}" y="${geometry.height / 2}" text-anchor="middle">This profile has no curve</text>`);
+
+    if (focusIndex !== null) {
+        const next = svg.querySelector(`.chart-point[data-index="${focusIndex}"]`);
+        if (next) next.focus();
+    }
 
     $('legend-selected').textContent = profileLabel(selectedProfile);
     $('legend-stock').hidden = !referencePoints.length;
+    $('legend-floor').hidden = !floor;
     $('hint').textContent = editable
-        ? 'Click empty space to add a point, drag a point to move it.'
+        ? 'Click empty space to add a point, drag a point to move it, arrow keys to nudge it.'
         : 'Presets are read-only. Copy it to Custom to edit the points.';
 }
 
@@ -442,21 +542,20 @@ function renderCompare() {
     if (!state) return;
     const stockPoints = (state.stock || {})[activeCurve] || [];
     const points = shownPoints();
-    const floorDuty = activeCurve === 'nozzle' ? minNozzleDuty() : 0;
-    const floorFrom = minCoolTemperature();
+    const limit = floorLimit();
     let raised = false;
     $('compare-body').innerHTML = compareTemperatures().map(temperature => {
-        const stockDuty = step(stockPoints, temperature);
-        const curveDuty = step(points, temperature);
-        const duty = temperature >= floorFrom ? Math.max(curveDuty, floorDuty) : curveDuty;
-        const held = duty > curveDuty;
+        const stock = step(stockPoints, temperature);
+        const own = curveDuty(points, temperature);
+        const duty = effectiveDuty(points, temperature);
+        const held = duty > own + 1e-9;
         if (held) raised = true;
-        return `<tr${held ? ' class="floored"' : ''}><td>${temperature}</td><td>${Math.round(stockDuty * 100)}%</td><td>${Math.round(duty * 100)}%${held ? ' ↑' : ''}</td></tr>`;
+        return `<tr${held ? ' class="floored"' : ''}><td>${temperature}</td><td>${Math.round(stock * 100)}%</td><td>${Math.round(duty * 100)}%${held ? ' ↑' : ''}</td></tr>`;
     }).join('');
     $('compare-selected').textContent = profileLabel(selectedProfile);
     const notes = [];
-    if (raised) {
-        notes.push(`↑ The driver holds a nozzle fan at ${Math.round(floorDuty * 100)}% from ${floorFrom}°C on, so a curve cannot switch the fan off while the hotend is hot.`);
+    if (raised && limit) {
+        notes.push(`↑ The driver holds a nozzle fan at ${Math.round(limit.duty * 100)}% from ${limit.temperature}°C on, so a curve cannot switch the fan off while the hotend is hot.`);
     }
     if (activeCurve === 'power') notes.push(heavyLoadText());
     $('compare-note').textContent = notes.join(' ');
@@ -477,15 +576,17 @@ function renderPointEditor(force) {
     if (!isEditable() || selectedNode < 0 || !points[selectedNode]) {
         editor.hidden = true;
         empty.hidden = false;
+        $('point-title').textContent = 'Selected point';
         empty.textContent = isEditable()
-            ? 'Click a point on the chart to edit its temperature and duty. Click empty space to add a point.'
-            : 'This profile is read-only. Use "Copy preset to Custom" to edit its points.';
+            ? 'Click a point on the chart to edit it, click empty space to add one.'
+            : 'The chart shows the duty the fan runs.';
         $('point-delete').disabled = true;
         return;
     }
     const [temperature, duty] = points[selectedNode];
     editor.hidden = false;
     empty.hidden = true;
+    $('point-title').textContent = `Point ${selectedNode + 1} of ${points.length}`;
     // A field that is being typed into keeps its text, otherwise the clamp
     // would rewrite the number while the user is still writing it.
     if (force || document.activeElement !== $('point-temperature')) {
@@ -584,12 +685,20 @@ function addPointInBiggestGap() {
 function chartCoordinates(event) {
     const svg = $('chart');
     const rect = svg.getBoundingClientRect();
-    const scaleX = CHART.width / rect.width;
-    const scaleY = CHART.height / rect.height;
+    const scaleX = chartSize.width / rect.width;
+    const scaleY = chartSize.height / rect.height;
     const x = (event.clientX - rect.left) * scaleX;
     const y = (event.clientY - rect.top) * scaleY;
     const geometry = chartGeometry();
     return { x, y, temperature: geometry.fromX(x), duty: geometry.fromY(y) };
+}
+
+// A point is only added when the pointer was released on the chart, so a
+// press that is followed by a click on a button cannot add one.
+function pointerOnChart(event) {
+    const rect = $('chart').getBoundingClientRect();
+    return event.clientX >= rect.left && event.clientX <= rect.right &&
+           event.clientY >= rect.top && event.clientY <= rect.bottom;
 }
 
 function onPointerDown(event) {
@@ -606,7 +715,8 @@ function onPointerDown(event) {
 }
 
 function startDrag(index) {
-    drag = { index };
+    const point = (draft[activeCurve] || [])[index];
+    drag = { index, before: point ? point.slice() : null };
 }
 
 function onPointerMove(event) {
@@ -614,6 +724,12 @@ function onPointerMove(event) {
         pendingClick = null;
     }
     if (!drag) return;
+    // A pointer that was released outside the window sends no pointerup.
+    // The button state says that the drag is over.
+    if (event.buttons === 0) {
+        drag = null;
+        return;
+    }
     const position = chartCoordinates(event);
     const points = draft[activeCurve] || [];
     if (!points[drag.index]) return;
@@ -628,14 +744,18 @@ function onPointerMove(event) {
 
 function onPointerUp(event) {
     if (drag) {
+        const moved = drag;
         drag = null;
         renderCompare();
-        setStatus('Point moved. Save Custom to keep it.');
+        const point = (draft[activeCurve] || [])[moved.index];
+        if (point && moved.before && (point[0] !== moved.before[0] || point[1] !== moved.before[1])) {
+            setStatus('Point moved. Save Custom to keep it.');
+        }
         return;
     }
     if (!pendingClick) return;
     pendingClick = null;
-    if (!isEditable()) return;
+    if (!isEditable() || !pointerOnChart(event)) return;
     const position = chartCoordinates(event);
     addPoint(Math.round(position.temperature), Math.round(position.duty * 1000) / 1000);
 }
@@ -751,9 +871,10 @@ async function post(body, title, message) {
     }
 }
 
-function notifyParent() {
+function notifyParent(type) {
     if (window.parent && window.parent !== window) {
-        window.parent.postMessage({ source: 'fan-curves-editor', type: 'applied' }, window.location.origin);
+        window.parent.postMessage({ source: 'fan-curves-editor', type: type || 'applied' },
+            window.location.origin);
     }
 }
 
@@ -761,7 +882,11 @@ function notifyParent() {
 
 function renderRules() {
     const hysteresis = state.hysteresis;
-    const rules = `Non-Stock profiles use ${hysteresis}°C hysteresis. Ordinary duty goes up to ${Math.round(maxDuty() * 100)}%. The driver holds a nozzle fan at ${Math.round(minNozzleDuty() * 100)}% from ${minCoolTemperature()}°C on, so no curve can leave the fan off while the hotend is hot. ${heavyLoadText()}`;
+    const limit = floorLimit();
+    const floorText = limit
+        ? `The driver holds a nozzle fan at ${Math.round(limit.duty * 100)}% from ${limit.temperature}°C on, so no curve can leave the fan off while the hotend is hot.`
+        : '';
+    const rules = `The duty is the line between the points. Non-Stock profiles use ${hysteresis}°C hysteresis, so a falling temperature waits before the duty follows. Ordinary duty goes up to ${Math.round(maxDuty() * 100)}%. ${floorText} ${heavyLoadText()}`;
     $('rules').textContent = selectedProfile === 'stock'
         ? 'Stock uses the original target-temperature and stepped-table semantics. It is read-only here.'
         : selectedProfile === 'custom'
@@ -770,6 +895,7 @@ function renderRules() {
 }
 
 function renderAll() {
+    if (!state) return;
     const profileSelect = $('profile');
     profileSelect.value = selectedProfile;
     $('active').textContent = `Active: ${profileLabel(state.current)}`;
@@ -777,6 +903,7 @@ function renderAll() {
     $('nozzle-tab').className = `btn ${activeCurve === 'nozzle' ? 'btn-primary' : 'btn-secondary'}`;
     $('copy').disabled = selectedProfile === 'stock' || selectedProfile === 'custom';
     $('add-point').disabled = !isEditable();
+    $('discard').disabled = !dirty;
     $('save').disabled = !isEditable();
     $('apply').disabled = false;
     renderRules();
@@ -859,7 +986,9 @@ function applyProfile() {
         closeConfirm();
         try {
             await post(body, `Apply ${label}`, 'Applying');
-            dirty = false;
+            // Applying a preset does not write the Custom curve, so a
+            // Custom that is being worked on stays worked on.
+            if (selectedProfile === 'custom') dirty = false;
             setStatus(`${label} applied.`, 'success');
             notifyParent();
         } catch (error) {
@@ -909,6 +1038,7 @@ $('power-tab').addEventListener('click', () => { activeCurve = 'power'; selected
 $('nozzle-tab').addEventListener('click', () => { activeCurve = 'nozzle'; selectedNode = -1; renderAll(); });
 $('copy').addEventListener('click', copyPresetToCustom);
 $('add-point').addEventListener('click', addPointInBiggestGap);
+$('discard').addEventListener('click', resetDraft);
 $('save').addEventListener('click', saveCustom);
 $('apply').addEventListener('click', applyProfile);
 $('point-delete').addEventListener('click', deleteNode);
@@ -948,14 +1078,36 @@ window.addEventListener('pointerup', onPointerUp);
 window.addEventListener('pointercancel', onPointerCancel);
 window.addEventListener('blur', onPointerCancel);
 
+// A press on the chart is only a click to add a point when the pointer is
+// released on the chart as well. Any other press cancels it.
+document.addEventListener('pointerdown', () => { pendingClick = null; }, true);
+
+// The chart fills the panel, so it is drawn again when the panel changes.
+if (window.ResizeObserver) {
+    new ResizeObserver(() => renderChart()).observe($('chart-wrap'));
+}
+window.addEventListener('resize', renderChart);
+
 // The main page asks for a fresh state when the profile was changed there.
 window.addEventListener('message', event => {
     if (event.origin !== window.location.origin) return;
     const data = event.data || {};
-    if (data.source !== 'fan-curves-main' || data.type !== 'refresh') return;
+    if (data.source !== 'fan-curves-main') return;
+    if (data.type === 'close') {
+        notifyParent('closed');
+        return;
+    }
+    if (data.type !== 'refresh') return;
+    $('action-backdrop').hidden = true;
     reloadState(true).catch(error => {
         setStatus(error.message, 'error');
     });
+});
+
+// The editor lives in a frame, so Escape has to be handed to the page that
+// opened it.
+document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') notifyParent('close');
 });
 
 load();
