@@ -516,40 +516,40 @@ def check_stock_is_stock():
               '(stock=%.2f patched=%.2f)' % (theirs, ours))
 
 
-def check_the_floor():
-    section('the rule that holds a nozzle fan turning')
+def check_the_curve_is_what_runs():
+    section('the curve is what the driver runs')
     power = [[70, 0.2], [260, 0.6]]
     write_curve('custom', power, [[50, 0.0], [120, 0.0], [260, 0.6]])
     hot = {'extruder': FakeHeater(80, 80)}
     fan = make_nozzle_fan(PATCHED, hot)
-    check('a curve that asks for 0% still gives the floor',
-          abs(speed_of(fan) - 0.30) < 1e-9, '(speed=%s)' % speed_of(fan))
+    check('a curve that asks for 0% gets 0%',
+          abs(speed_of(fan)) < 1e-9, '(speed=%s)' % speed_of(fan))
+
+    warm = {'extruder': FakeHeater(190, 190)}
+    fan = make_nozzle_fan(PATCHED, warm)
+    check('the driver follows the curve between its points',
+          abs(speed_of(fan) - 0.3) < 1e-9, '(speed=%s)' % speed_of(fan))
 
     cold = {'extruder': FakeHeater(30, 30)}
     fan = make_nozzle_fan(PATCHED, cold)
     check('a cold nozzle fan is left alone',
           abs(speed_of(fan)) < 1e-9, '(speed=%s)' % speed_of(fan))
 
-    # The rule travels with the profile file, so the driver follows the file.
+    # A rule under the curve in the file is not followed. The driver runs the
+    # curve and nothing else.
     write_curve('custom', power, [[50, 0.0], [120, 0.0], [260, 0.6]],
                 floor=(60, 0.12))
     warm = {'extruder': FakeHeater(70, 70)}
     fan = make_nozzle_fan(PATCHED, warm)
-    check('the driver follows the floor the curve file carries',
-          abs(speed_of(fan) - 0.12) < 1e-9, '(speed=%s)' % speed_of(fan))
-
-    below = {'extruder': FakeHeater(50, 50)}
-    fan = make_nozzle_fan(PATCHED, below)
-    check('a curve below the floor temperature is not held up',
+    check('a rule under the curve in the file is ignored',
           abs(speed_of(fan)) < 1e-9, '(speed=%s)' % speed_of(fan))
 
     with open(DEFAULT_PROFILE, 'r', encoding='utf-8') as stream:
         default = json.load(stream)
-    check('the profile the firmware ships holds the stock quietest step',
-          default.get('min_cool_temperature') == 45
-          and default.get('min_nozzle_duty') == 0.3,
-          '(floor=%s/%s)' % (default.get('min_cool_temperature'),
-                             default.get('min_nozzle_duty')))
+    check('the profile the firmware ships carries no rule under the curve',
+          'min_cool_temperature' not in default
+          and 'min_nozzle_duty' not in default,
+          '(document=%s)' % default)
     remove_curve()
 
 
@@ -640,8 +640,6 @@ def check_the_shipped_profile():
         default = json.load(stream)
     nozzle = [(int(t), float(d)) for t, d in default['curves']['nozzle']]
     power = [(int(t), float(d)) for t, d in default['curves']['power']]
-    floor = (float(default['min_cool_temperature']),
-             float(default['min_nozzle_duty']))
 
     table = [(45, 0.3), (60, 0.35), (70, 0.4), (100, 0.45), (140, 0.5),
              (160, 0.6), (180, 0.65), (200, 0.7), (220, 0.75), (230, 0.8),
@@ -652,8 +650,6 @@ def check_the_shipped_profile():
     shortfalls = []
     for temp in range(45, 301):
         duty = curve_duty(nozzle, temp)
-        if temp >= floor[0]:
-            duty = max(duty, floor[1])
         if duty + 1e-9 < stepped(table, temp):
             shortfalls.append('%dC: %.3f < %.3f'
                               % (temp, duty, stepped(table, temp)))
@@ -672,7 +668,7 @@ def check_the_shipped_profile():
 def main():
     check_the_patch()
     check_stock_is_stock()
-    check_the_floor()
+    check_the_curve_is_what_runs()
     check_the_curve_is_a_line()
     check_the_stock_rules()
     check_the_shipped_profile()

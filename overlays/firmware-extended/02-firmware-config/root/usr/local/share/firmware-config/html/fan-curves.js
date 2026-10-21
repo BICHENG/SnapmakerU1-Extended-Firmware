@@ -40,7 +40,6 @@
         </div>
         <div class="legend">
             <span class="legend-item"><span class="swatch"></span><span id="fc-legend-selected">Curve</span></span>
-            <span class="legend-item" id="fc-legend-floor" hidden><span class="swatch floor"></span><span id="fc-legend-floor-text">Driver floor</span></span>
             <span class="legend-item" id="fc-legend-stock" hidden><span class="swatch stock"></span>Stock</span>
         </div>
     </section>
@@ -187,23 +186,8 @@
             return Number.isFinite(value) ? Math.min(value, 1) : 1;
         }
 
-        // The rule the driver holds a nozzle fan at. It travels with the profile
-        // file, so the line on the chart is the rule the driver runs.
-        function floorLimit() {
-            const entry = state?.presets?.[selectedProfile];
-            const temperature = Number(entry?.floor?.temperature);
-            const duty = Number(entry?.floor?.duty);
-            if (!Number.isFinite(temperature) || !Number.isFinite(duty)) return null;
-            return { temperature, duty };
-        }
-
-        // The duty the driver really runs at a temperature.
-        function effectiveDuty(points, temperature) {
-            const duty = curveDuty(points, temperature);
-            const limit = floorLimit();
-            if (!limit || activeCurve !== 'nozzle' || temperature < limit.temperature) return duty;
-            return Math.max(duty, limit.duty);
-        }
+        // The duty the driver runs at a temperature is the curve itself.
+        // A curve that asks for less gets less; there is no rule under it.
 
         function setStatus(message, kind = '') {
             const status = $('status');
@@ -221,11 +205,7 @@
                     curves: profile(entry),
                     error: String(entry.error || ''),
                     hysteresis: Number.isFinite(Number(entry.hysteresis)) ? Number(entry.hysteresis) : 5,
-                    heavyLoad: entry.heavy_load && typeof entry.heavy_load === 'object' ? entry.heavy_load : {},
-                    floor: {
-                        temperature: Number(entry.min_cool_temperature),
-                        duty: Number(entry.min_nozzle_duty)
-                    }
+                    heavyLoad: entry.heavy_load && typeof entry.heavy_load === 'object' ? entry.heavy_load : {}
                 };
             });
             const labels = {};
@@ -309,12 +289,9 @@
             };
         }
 
-        // The fan is off below the first point. The floor can start earlier.
+        // The fan is off below the first point.
         function curveStart(points) {
-            const first = points.length ? points[0][0] : 0;
-            if (activeCurve !== 'nozzle') return first;
-            const limit = floorLimit();
-            return limit ? Math.min(first, limit.temperature) : first;
+            return points.length ? points[0][0] : 0;
         }
 
         // The curve is sampled every degree, so the line that is drawn is the line
@@ -333,17 +310,6 @@
                 const y = geometry.toY(sample[1]).toFixed(1);
                 return `${index === 0 ? 'M' : 'L'} ${x} ${y}`;
             }).join(' ');
-        }
-
-        // The part of the chart the driver holds at the floor, so the rule is
-        // visible instead of hidden inside the curve.
-        function floorLimitHit(points) {
-            const limit = floorLimit();
-            if (!limit || activeCurve !== 'nozzle') return null;
-            const samples = sampleCurve(points, curveDuty);
-            const below = samples.some(sample =>
-                sample[0] >= limit.temperature && sample[1] < limit.duty - 1e-9);
-            return below ? limit : null;
         }
 
         function renderChart() {
@@ -375,14 +341,6 @@
 
             const samples = sampleCurve(points, curveDuty);
             const dutyPath = linePath(samples, geometry);
-            const floor = floorLimitHit(points);
-
-            let floorMark = '';
-            if (floor) {
-                const y = geometry.toY(floor.duty);
-                const x = geometry.toX(floor.temperature);
-                floorMark = `<line class="chart-floor-line" x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${(geometry.width - geometry.margin.right).toFixed(1)}" y2="${y.toFixed(1)}"/>`;
-            }
 
             const referenceSamples = referencePoints.length ? sampleCurve(referencePoints, step) : [];
             const marks = points.map(([temperature, duty], index) => {
@@ -402,7 +360,6 @@
                 `<line class="chart-axis" x1="${geometry.margin.left}" y1="${geometry.margin.top}" x2="${geometry.margin.left}" y2="${geometry.height - geometry.margin.bottom}"/>` +
                 (referenceSamples.length ? `<path class="chart-reference" d="${linePath(referenceSamples, geometry)}"></path>` : '') +
                 (dutyPath ? `<path class="chart-line" d="${dutyPath}"></path>` : '') +
-                floorMark +
                 (points.length ? marks :
                     `<text x="${geometry.width / 2}" y="${geometry.height / 2}" text-anchor="middle">${emptyText}</text>`) +
                 '<g class="chart-readout" id="fc-chart-readout"></g>';
@@ -414,10 +371,6 @@
 
             $('legend-selected').textContent = profileLabel(selectedProfile);
             $('legend-stock').hidden = !referencePoints.length;
-            $('legend-floor').hidden = !floor;
-            $('legend-floor-text').textContent = floor
-                ? `Driver floor ${Math.round(floor.duty * 100)}% from ${floor.temperature}°C`
-                : 'Driver floor';
             $('hint').textContent = editable
                 ? 'Click empty space to add a point, drag a point to move it, right-click a point to remove it.'
                 : (profileError()
@@ -436,7 +389,7 @@
             }
             const geometry = chartGeometry();
             const points = shownPoints();
-            const own = effectiveDuty(points, temperature);
+            const own = curveDuty(points, temperature);
             const withStock = selectedProfile !== 'stock';
             const stock = step((state.stock || {})[activeCurve] || [], temperature);
             const text = `${Math.round(temperature)}°C   ${Math.round(own * 100)}%` +
@@ -795,12 +748,8 @@
 
         function rulesText() {
             const entry = state?.presets?.[selectedProfile];
-            const limit = floorLimit();
-            const floor = limit
-                ? `The driver holds a nozzle fan at ${Math.round(limit.duty * 100)}% from ${limit.temperature}°C on, so no curve can leave the fan off while the hotend is hot. `
-                : '';
             const hysteresis = Number.isFinite(Number(entry?.hysteresis)) ? Number(entry.hysteresis) : 5;
-            return `The duty is the line between the points. A curve uses ${hysteresis}°C hysteresis, so a falling temperature waits for the band before the duty follows. Ordinary duty goes up to ${Math.round(maxDuty() * 100)}%. ${floor}${heavyLoadText()}`;
+            return `The duty is the line between the points. A curve uses ${hysteresis}°C hysteresis, so a falling temperature waits for the band before the duty follows. The fan is off below the first point, and the duty is what the curve says it is. Ordinary duty goes up to ${Math.round(maxDuty() * 100)}%. ${heavyLoadText()}`;
         }
 
         // ---------------------------------------------------------------- profiles

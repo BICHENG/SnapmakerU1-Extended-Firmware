@@ -1,6 +1,6 @@
 --- a/klippy/extras/heater_fan.py
 +++ b/klippy/extras/heater_fan.py
-@@ -3,10 +3,127 @@
+@@ -3,10 +3,106 @@
  # Copyright (C) 2016-2020  Kevin O'Connor <kevin@koconnor.net>
  #
  # This file may be distributed under the terms of the GNU GPLv3 license.
@@ -25,14 +25,6 @@
 +# go that high. The heavy-load rule is what reaches 100%.
 +FAN_CURVE_MAX_DUTY = 1.0
 +FAN_CURVE_DEFAULT_HYSTERESIS = 5.0
-+# A nozzle fan must not be held off once the hotend is warm enough to matter.
-+# The rule comes from the stock fan table: the stock nozzle fan starts at 30%
-+# duty from 45C and never runs quieter than that, so the driver holds a nozzle
-+# fan at least at the stock's quietest setting from that temperature on.
-+# The values below are the fallback: the curve file carries the rule the
-+# firmware-config module owns, so the driver and the editor read the same one.
-+FAN_CURVE_MIN_COOL_TEMPERATURE = 45
-+FAN_CURVE_MIN_NOZZLE_DUTY = 0.30
 +# The Faulty Toolhead Bypass raises the heater_temp of the affected nozzle
 +# cooling fan to 999 and zeroes the last stepped_temp_table entry. A profile
 +# must not take that fan back over.
@@ -95,17 +87,6 @@
 +                or not 0 <= heavy_duty <= 1):
 +            raise ValueError('heavy-load trigger is out of range')
 +        target_temperature, target_duty = normalized[0]
-+        # The rule the driver holds a nozzle fan at travels with the curve.
-+        min_cool_temperature = float(document.get(
-+            'min_cool_temperature', FAN_CURVE_MIN_COOL_TEMPERATURE))
-+        min_nozzle_duty = float(document.get(
-+            'min_nozzle_duty', FAN_CURVE_MIN_NOZZLE_DUTY))
-+        if (not math.isfinite(min_cool_temperature)
-+                or not 0 <= min_cool_temperature <= FAN_CURVE_MAX_TEMPERATURE):
-+            raise ValueError('minimum cooling temperature is out of range')
-+        if (not math.isfinite(min_nozzle_duty)
-+                or not 0 <= min_nozzle_duty <= FAN_CURVE_MAX_DUTY):
-+            raise ValueError('minimum nozzle duty is out of range')
 +        return {
 +            'points': normalized,
 +            'target_temperature': target_temperature,
@@ -115,8 +96,6 @@
 +            'heavy_count': int(heavy_heaters),
 +            'heavy_hot': int(heavy_hot),
 +            'heavy_duty': heavy_duty,
-+            'min_cool_temperature': min_cool_temperature,
-+            'min_nozzle_duty': min_nozzle_duty,
 +        }
 +    except FileNotFoundError:
 +        return None
@@ -128,7 +107,7 @@
  class PrinterHeaterFan:
      def __init__(self, config):
          self.printer = config.get_printer()
-@@ -35,6 +152,8 @@ class PrinterHeaterFan:
+@@ -35,6 +131,8 @@ class PrinterHeaterFan:
                  if current_temp <= prev_temp:
                      raise config.error(f"Temperature values must be ascending. Found {prev_temp} then {current_temp}")
          self.current_stepped_index = -1
@@ -137,7 +116,7 @@
          # Currently uses a fixed value, could be optimized in the future to use half the difference
          # between adjacent temperature points for more precise hysteresis control
          self.temp_hysteresis = config.getfloat("temp_hysteresis", 5, minval=0.)
-@@ -57,6 +176,13 @@ class PrinterHeaterFan:
+@@ -57,6 +155,13 @@ class PrinterHeaterFan:
          # Register SET_HEATER_FAN command
          gcode = self.printer.lookup_object('gcode')
          self.fan_name = config.get_name().split()[1]
@@ -151,7 +130,7 @@
          gcode.register_mux_command("SET_HEATER_FAN", "FAN", self.fan_name,
                                   self.cmd_SET_HEATER_FAN,
                                   desc=self.cmd_SET_HEATER_FAN_help)
-@@ -80,6 +206,7 @@ class PrinterHeaterFan:
+@@ -80,6 +185,7 @@ class PrinterHeaterFan:
              self.original_fan_speed = self.fan_speed
          self.fan_speed = self.probe_speed
          self.last_speed = self.current_stepped_index = -1  # Force update in next callback
@@ -159,7 +138,7 @@
          if self.fan_timer is not None:
              self.reactor.update_timer(self.fan_timer, self.reactor.NOW)
      def restore_fan_speed(self):
-@@ -88,6 +215,7 @@ class PrinterHeaterFan:
+@@ -88,6 +194,7 @@ class PrinterHeaterFan:
                  self.fan_speed = self.original_fan_speed
              self.original_fan_speed = None
              self.last_speed = self.current_stepped_index = -1  # Force update in next callback
@@ -167,7 +146,7 @@
              if self.fan_timer is not None:
                  self.reactor.update_timer(self.fan_timer, self.reactor.NOW)
      def calculate_stepped_fan_speed(self, temp):
-@@ -123,9 +251,83 @@ class PrinterHeaterFan:
+@@ -123,9 +230,78 @@ class PrinterHeaterFan:
              return max(self.min_speed, min(speed, 1.0)), 'in_range'
          else:
              return 0.0, 'below_min'
@@ -238,11 +217,6 @@
 +                if (active_heaters >= self.fan_curve['heavy_count']
 +                        and hot_heaters >= self.fan_curve['heavy_hot']):
 +                    speed = max(speed, self.fan_curve['heavy_duty'])
-+            elif curve_temp >= self.fan_curve['min_cool_temperature']:
-+                # A nozzle fan must not be held off once the hotend is warm
-+                # enough to matter. A curve is free to ask for less, the
-+                # floor still applies.
-+                speed = max(speed, self.fan_curve['min_nozzle_duty'])
 +            if speed > 0.0 and self.original_fan_speed is not None:
 +                # Probing locks the nozzle fan to probe_speed, same as the
 +                # stock stepped table does.
@@ -252,7 +226,7 @@
              for rule in self.temp_speed_table:
                  temp_threshold, target_temp_threshold, satisfied_heater_threshold, heater_count_threshold, rule_speed = rule
                  satisfied_heaters = 0
-@@ -159,7 +361,9 @@ class PrinterHeaterFan:
+@@ -159,7 +335,9 @@ class PrinterHeaterFan:
                          speed = max(self.min_speed, min(self.fan_speed, 1.0))
                          break
  
@@ -263,7 +237,7 @@
              current_temp, target_temp = self.external_temp_sensor.get_temp(eventtime)
              min_temp, max_temp = self.external_temp_guard_range[0]
              if not self.external_temp_in_guard_mode:
-@@ -198,6 +402,7 @@ class PrinterHeaterFan:
+@@ -198,6 +376,7 @@ class PrinterHeaterFan:
              return
          self.fan_speed = speed
          self.last_speed = self.current_stepped_index = -1  # Force update in next callback

@@ -84,12 +84,13 @@ def check_the_default():
           os.path.exists(os.path.join(profile_dir, '.default-installed')))
 
     document = read_json(os.path.join(profile_dir, 'fan_curves_optimal.json'))
-    check('the installed default holds the cooling temperature of the driver',
-          document['min_cool_temperature'] == fan.MIN_COOL_TEMPERATURE,
-          '(value=%s)' % document.get('min_cool_temperature'))
-    check('the installed default holds the cooling duty of the driver',
-          document['min_nozzle_duty'] == fan.MIN_NOZZLE_DUTY,
-          '(value=%s)' % document.get('min_nozzle_duty'))
+    check('the installed default carries no rule under the curve',
+          'min_cool_temperature' not in document
+          and 'min_nozzle_duty' not in document,
+          '(document=%s)' % document)
+    check('the nozzle curve of the default starts at the stock step',
+          document['curves']['nozzle'][0] == [45, 0.3],
+          '(curve=%s)' % (document['curves']['nozzle'][0],))
     check('the seed runs only once', fan.seed_default() is None)
 
 
@@ -138,22 +139,21 @@ def check_the_life_of_a_profile():
     document = read_json(path)
     document['heavy_load'] = {'temperature': 200, 'heater_count': 2,
                               'hot_count': 1, 'duty': 0.8}
-    document['min_cool_temperature'] = 60
     write_json(path, document)
     fan.save_profile('my_cool', document['curves'])
     saved = fan._load_profile('my_cool')
     check('saving keeps the heavy load rule',
           saved['heavy_load']['temperature'] == 200,
           '(rule=%s)' % (saved['heavy_load'],))
-    check('saving keeps the cooling temperature',
-          saved['min_cool_temperature'] == 60,
-          '(value=%s)' % saved.get('min_cool_temperature'))
+    check('a saved profile carries no rule under the curve',
+          'min_cool_temperature' not in saved
+          and 'min_nozzle_duty' not in saved,
+          '(document=%s)' % saved)
 
     state = fan.get_state()
-    check('the state carries the cooling temperature of the profile',
-          state['presets']['my_cool']['min_cool_temperature'] == 60)
-    check('the state carries the cooling duty of the profile',
-          state['presets']['my_cool']['min_nozzle_duty'] == fan.MIN_NOZZLE_DUTY)
+    check('the state carries no rule under the curve',
+          'min_cool_temperature' not in state['presets']['my_cool']
+          and 'min_nozzle_duty' not in state['presets']['my_cool'])
     check('the state carries the label of the profile',
           state['labels']['my_cool'] == 'My Cool',
           '(label=%s)' % state['labels'].get('my_cool'))
@@ -164,19 +164,20 @@ def check_the_life_of_a_profile():
     active = read_json(os.path.join(config_dir, 'fan-curves-active.json'))
     check('the applied profile runs', active['profile'] == 'my_cool',
           '(profile=%s)' % active.get('profile'))
-    check('the running rule is the rule of the profile',
-          active['min_cool_temperature'] == 60,
-          '(value=%s)' % active.get('min_cool_temperature'))
+    check('the running curve is the curve of the profile',
+          active['curves']['nozzle'] == saved['curves']['nozzle'],
+          '(curve=%s)' % (active['curves']['nozzle'],))
     check('the running profile is reported', fan.current_profile() == 'my_cool')
 
-    # Renaming keeps the running profile and its rule.
+    # Renaming keeps the running profile and its curve.
     fan.rename_profile('my_cool', 'quiet')
     check('the profile was renamed', fan.available_profiles() == ['optimal', 'quiet'],
           '(profiles=%s)' % fan.available_profiles())
     check('the running profile follows the rename', fan.current_profile() == 'quiet')
     active = read_json(os.path.join(config_dir, 'fan-curves-active.json'))
-    check('the rename keeps the rule', active['min_cool_temperature'] == 60,
-          '(value=%s)' % active.get('min_cool_temperature'))
+    check('the rename keeps the running curve',
+          active['curves']['nozzle'] == saved['curves']['nozzle'],
+          '(curve=%s)' % (active['curves']['nozzle'],))
 
     # A running profile is deleted as well, and the printer goes back to the
     # stock curves.

@@ -77,7 +77,6 @@
 .fc-editor .chart-axis { stroke: #6a6a6a; stroke-width: 1; }
 .fc-editor .chart-line { fill: none; stroke: var(--accent); stroke-width: 2.5; }
 .fc-editor .chart-reference { fill: none; stroke: #6a6a6a; stroke-dasharray: 5 4; stroke-width: 1.5; }
-.fc-editor .chart-floor-line { stroke: var(--warning); stroke-dasharray: 4 4; stroke-width: 1.5; }
 .fc-editor .chart-guide { stroke: #555; stroke-dasharray: 2 3; stroke-width: 1; }
 .fc-editor .chart-guide-dot { fill: var(--accent); }
 .fc-editor .chart-readout-bg { fill: #111; opacity: 0.9; }
@@ -92,7 +91,6 @@
 .fc-editor .legend-item { align-items: center; display: flex; gap: 7px; }
 .fc-editor .legend-item[hidden] { display: none; }
 .fc-editor .swatch { border-top: 2px solid var(--accent); display: inline-block; height: 0; width: 24px; }
-.fc-editor .swatch.floor { border-top: 2px dashed var(--warning); }
 .fc-editor .swatch.stock { border-top: 1.5px dashed #6a6a6a; }
 
 .fc-editor .editor-strip { align-items: center; display: flex; flex-wrap: wrap; gap: 8px 16px; }

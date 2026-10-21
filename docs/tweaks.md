@@ -133,14 +133,14 @@ The setting is available under **Settings → Tweaks → Fan Curves**. The curve
 - The profile menu creates a new profile, renames one, deletes one, and restores the default profile.
 - **Save** writes the curve into the profile file. **Apply** makes that profile the running one and restarts Klipper.
 
-The editor draws the selected curve next to the stock curve and, where the driver holds a nozzle fan at the floor, draws that floor as a line of its own. A profile that is running can be deleted: the printer goes back to the stock curves first, so the running curve always has a file behind it.
+The editor draws the selected curve next to the stock curve. A profile that is running can be deleted: the printer goes back to the stock curves first, so the running curve always has a file behind it.
 
 Applying an option atomically replaces `/oem/printer_data/config/extended/fan-curves-active.json` and restarts Klipper. When the printer is upgraded from the older editor, the curve it kept in `fan-curves.json` is imported as a profile file named `custom`, so nothing you drew is lost. `Stock` stores a Stock marker and leaves the original printer configuration in control. A legacy `20_fan_curves.cfg` is renamed before Klipper starts so an older install cannot be loaded accidentally.
 
 **Risks:**
 
 - A profile of your own is your own risk. Different materials need different cooling, so test it before a long print
-- The rule that holds a nozzle fan turning travels with the profile file, as `min_cool_temperature` and `min_nozzle_duty`. The values the firmware ships are `45` and `30%`, the quietest step of the stock nozzle fan, so a new profile is never quieter than the printer's own fan. A profile of your own may name a lower duty, and then the curve can run below the stock fan on your own risk. The driver and the editor read the same two numbers, so changing them in the file changes both
+- The driver runs the curve as it is written. Below the first point the fan is off, and a curve that asks for less gets less, so a profile of your own can leave the nozzle fan below the duty the stock table would run. The curve is the only thing that decides the duty
 - The power fan heavy-load rule is part of the profile: it reaches 100% when at least three toolheads heat up and one of them targets more than `260°C`
 
 **Recommendation:**

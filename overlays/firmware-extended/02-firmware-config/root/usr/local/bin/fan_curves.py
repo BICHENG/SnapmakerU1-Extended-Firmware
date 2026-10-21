@@ -40,15 +40,6 @@ DEFAULT_HEAVY_LOAD = {'temperature': 260, 'heater_count': 3,
 RISK_NOTICE = ('Stock keeps a lot of cooling in reserve, but a profile of your own '
                'is your own risk. Different materials need different cooling, so test '
                'it before a long print. Happy printing!')
-# A nozzle fan must not be held off once the hotend is warm enough to matter.
-# The rule comes from the stock fan table: the stock nozzle fan starts at
-# 30% duty from 45C and never runs quieter than that, so a curve that asks
-# for less is held at the stock's quietest setting. The numbers are the
-# stock's own, and they live in the profile file, so the driver and the
-# editor read the same rule. A profile of the user can hold a lower duty on
-# purpose, and that is on their own risk.
-MIN_COOL_TEMPERATURE = 45
-MIN_NOZZLE_DUTY = 0.30
 # The stock nozzle fan and power fan, taken from the Snapmaker U1
 # printer.cfg. The curve editor draws them next to a profile so the effect of
 # a curve can be compared with the original behaviour.
@@ -160,27 +151,12 @@ def _normalize_document(value, profile=None, allow_new=False):
         value.get('hysteresis', DEFAULT_HYSTERESIS), 'hysteresis')
     if not 0 <= hysteresis <= MAX_TEMPERATURE:
         raise FanCurveError('hysteresis must be from 0 to %d' % MAX_TEMPERATURE)
-    # The driver holds a nozzle fan at this duty from this temperature on.
-    # The values travel with the curve, so the driver and the editor read
-    # the same rule.
-    cool_temperature = _finite_number(
-        value.get('min_cool_temperature', MIN_COOL_TEMPERATURE),
-        'minimum cooling temperature')
-    min_duty = _finite_number(
-        value.get('min_nozzle_duty', MIN_NOZZLE_DUTY), 'minimum nozzle duty')
-    if not 0 <= cool_temperature <= MAX_TEMPERATURE:
-        raise FanCurveError(
-            'minimum cooling temperature must be from 0 to %d' % MAX_TEMPERATURE)
-    if not 0 <= min_duty <= MAX_DUTY:
-        raise FanCurveError('minimum nozzle duty must be between 0 and %.2f' % MAX_DUTY)
     return {
         'version': 1,
         'profile': profile,
         'curves': curves,
         'hysteresis': hysteresis,
         'heavy_load': _normalize_heavy_load(value.get('heavy_load')),
-        'min_cool_temperature': cool_temperature,
-        'min_nozzle_duty': min_duty,
     }
 
 
@@ -289,8 +265,6 @@ def _profile_settings(profile):
     return {
         'hysteresis': document['hysteresis'],
         'heavy_load': document['heavy_load'],
-        'min_cool_temperature': document['min_cool_temperature'],
-        'min_nozzle_duty': document['min_nozzle_duty'],
     }
 
 
@@ -467,8 +441,6 @@ def get_state():
             'curves': document['curves'],
             'hysteresis': document['hysteresis'],
             'heavy_load': document['heavy_load'],
-            'min_cool_temperature': document['min_cool_temperature'],
-            'min_nozzle_duty': document['min_nozzle_duty'],
         }
     names = [STOCK_PROFILE] + sorted(profiles)
     return {
