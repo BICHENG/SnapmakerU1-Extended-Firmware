@@ -6,7 +6,7 @@ title: Klipper Tweaks
 
 Configurable Klipper motion, motor-current, and fan-control tweaks. These settings can **only** be configured via the [Firmware Configuration](firmware_config.md) web interface under **Settings → Tweaks**.
 
-> **Note**: `Max Speed` and `TMC Reduced Current` change motion and motor-current settings. `Quiet` is the production-tested fan profile; `Optimal` is the default fan profile and never cools less than stock does once the hotend is past 140°C.
+> **Note**: `Max Speed` and `TMC Reduced Current` change motion and motor-current settings. `Optimal` is the default fan profile the firmware ships, and it never cools less than stock does once the hotend is past 140°C.
 
 ## TMC AutoTune
 
@@ -114,17 +114,41 @@ Selects cooling curves for the power fan and all four nozzle fans.
 
 **Options:**
 
-- `Optimal` - the default profile. Its nozzle curve reaches the stock cooling at `140°C` and follows it from there on, and stays below it while the hotend is still warming up. Its power curve reaches the stock 60% from `200°C` on, so a PLA or ABS print gets the stock cooling.
-- `Custom` - a curve of your own, edited in the curve editor. How much it cools the hotend is on your risk. Its first power node supplies both the power-fan target trigger and duty, so a curve beginning at `220°C` only starts there. All curve profiles use `5°C` hysteresis.
-- `Stock` - removes the override and restores the curves from the base printer configuration.
+- `Stock` - the printer's own stepped fan table. It has no file, the editor shows it read only, and it is what the printer runs when no curve file is active.
+- `Optimal` - the profile the firmware ships. Its nozzle curve reaches the stock cooling at `140°C` and follows it from there on, and stays below it while the hotend is still warming up. Its power curve reaches the stock 60% from `200°C` on, so a PLA or ABS print gets the stock cooling.
+- Every other profile is a curve of your own. How much it cools the hotend is on your risk.
+
+Every profile except `Stock` is a file named `fan_curves_<name>.json` in `/oem/printer_data/config/extended/fan-curves-presets/`. That directory is the only place profiles are looked for, so a file you add, rename or remove is the one the editor and the driver see. The firmware installs its default profile `Optimal` into that directory once, when the printer boots. If you delete or rename it, it stays gone, and the editor can write it back with **Restore the default profile**.
 
 The duty between two points of a curve is the line between them, so the fan follows the temperature instead of jumping from step to step. The stock tables stay stepped tables, the curves do not.
 
-Personal curves are not shipped with the firmware. Drop a `fan_curves_<name>.json` file into `/oem/printer_data/config/extended/fan-curves-presets/` and it shows up in the curve editor next to the built-in presets.
+The nozzle curve follows the effective toolhead temperature, the same as the stock table, so a print that sets 240°C selects the 240°C speed right away. The power fan follows target temperatures only, the same way the stock `temp_speed_table` does, so a toolhead with a faulty thermistor cannot push the power fan up. The first power node is also the power-fan target trigger and duty. All curve profiles use `5°C` hysteresis, ordinary duty stays at or below 100%, probing still locks the nozzle fans to their `probe_speed`, and the cavity temperature guard still forces the fans to 100% when the chamber leaves its guard range.
 
-The nozzle fan curves use actual nozzle temperatures for normal table selection, so a 250°C target does not immediately select the 250°C nozzle-fan speed. The power fan follows target temperatures only, the same way the stock `temp_speed_table` does, so a toolhead with a faulty thermistor cannot push the power fan up. The first power node is also the power-fan target trigger and duty. All non-Stock curve profiles use `5°C` hysteresis. Ordinary curve entries stay at or below 100%. Probing still locks the nozzle fans to their `probe_speed`, and the cavity temperature guard still forces the fans to 100% when the chamber leaves its guard range. The original `heater_fan` sections remain the only Klipper sections; the selected profile is stored in `fan-curves-active.json`, which the patched fan driver reads at startup. That file also carries the rule the driver holds a nozzle fan at, `5%` duty from `50°C` on, so no curve can leave the heatsink fan off while the hotend is hot and the driver and the editor always show the same rule. The power-fan heavy-load rule matches the stock rule: it reaches 100% when at least three toolheads heat up and one of them targets more than `260°C`.
+**Drawing a curve:**
 
-The setting is available under **Settings → Tweaks → Fan Curves**. The Fan Curves card below it shows the profile that is running and opens the curve editor, which has its own page and opens in a modal. The editor draws the selected curve next to the stock curve and, where the driver holds a nozzle fan at the floor, draws that floor as a line of its own. A point is edited by clicking it: the bar below the curve then shows the temperature and the duty of that one point, and dragging the point moves it. Clicking empty space in the curve adds a point there. The comparison with the stock curve and the rules of the profile are folded away and open on demand. Applying an option atomically replaces `/oem/printer_data/config/extended/fan-curves-active.json` and restarts Klipper. Saved Custom points remain in `/oem/printer_data/config/extended/fan-curves.json`, which also preserves Custom data from the earlier editor. `Stock` stores a Stock marker and leaves the original printer configuration in control. A legacy `20_fan_curves.cfg` is renamed before Klipper starts so an older install cannot be loaded accidentally.
+The setting is available under **Settings → Tweaks → Fan Curves**. The Fan Curves card below it shows the profile that is running and opens the curve editor, which has its own page and opens in a modal.
+
+- Click empty space in the chart to add a point, drag a point to move it, right click a point to remove it.
+- Click a point to select it, then edit its temperature and duty in the fields under the chart.
+- The profile menu creates a new profile, renames one, deletes one, and restores the default profile.
+- **Save** writes the curve into the profile file. **Apply** makes that profile the running one and restarts Klipper.
+
+The editor draws the selected curve next to the stock curve and, where the driver holds a nozzle fan at the floor, draws that floor as a line of its own. A profile that is running cannot be deleted; apply another profile first.
+
+Applying an option atomically replaces `/oem/printer_data/config/extended/fan-curves-active.json` and restarts Klipper. When the printer is upgraded from the older editor, the curve it kept in `fan-curves.json` is imported as a profile file named `custom`, so nothing you drew is lost. `Stock` stores a Stock marker and leaves the original printer configuration in control. A legacy `20_fan_curves.cfg` is renamed before Klipper starts so an older install cannot be loaded accidentally.
+
+**Risks:**
+
+- A profile of your own is your own risk. Different materials need different cooling, so test it before a long print
+- The rule that holds a nozzle fan turning travels with the profile file, as `min_cool_temperature` and `min_nozzle_duty` (50 and 5% by default), so no curve can leave the heatsink fan off while the hotend is hot. The driver and the editor read the same two numbers, so changing them in the file changes both
+- The power fan heavy-load rule is part of the profile: it reaches 100% when at least three toolheads heat up and one of them targets more than `260°C`
+
+**Recommendation:**
+- Start with `Optimal`, and use `Stock` for prints that need the full cooling, such as a heated chamber
+- Test a profile of your own with a short print before a long one
+
+**Configuration:**
+This feature can **only** be configured via Firmware Configuration web interface. Manual configuration is not supported.
 
 ## Object Processing for Adaptive Mesh
 
@@ -176,7 +200,7 @@ These tweaks work by adding or removing configuration files from `/oem/printer_d
 - `klipper/tmc_current.cfg` - Reduced current settings
 - `klipper/10_max_speed.cfg` - Max Speed motion limits and tool change speeds (either tier installs to this one file)
 - `fan-curves-active.json` - Selected profile and curves read by the patched fan driver
-- `fan-curves.json` - Saved Custom curve data for the editor
+- `fan-curves-presets/` - The profile files, one per profile, that the editor draws and the driver reads
 - `moonraker/object_processing.cfg` - Moonraker object processing settings
 
 The JSON files are read by the patched fan driver; the remaining files are included by the main printer configuration when present. Manual editing is not recommended while the Firmware Configuration interface is running.
