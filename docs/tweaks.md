@@ -6,7 +6,7 @@ title: Klipper Tweaks
 
 Configurable Klipper motion, motor-current, and fan-control tweaks. These settings can **only** be configured via the [Firmware Configuration](firmware_config.md) web interface under **Settings → Tweaks**.
 
-> **Note**: `Max Speed` and `TMC Reduced Current` change motion and motor-current settings. `Optimal` is the default fan profile the firmware ships, and it never cools less than stock does once the hotend is past 140°C.
+> **Note**: `Max Speed` and `TMC Reduced Current` change motion and motor-current settings. `Optimal` is the default fan profile the firmware ships, and its nozzle curve never cools less than stock does once the hotend is past 140°C.
 
 ## TMC AutoTune
 
@@ -115,7 +115,7 @@ Selects cooling curves for the power fan and all four nozzle fans.
 **Options:**
 
 - `Stock` - the printer's own stepped fan table. It has no file, the editor shows it read only, and it is what the printer runs when no curve file is active.
-- `Optimal` - the profile the firmware ships. Its nozzle curve reaches the stock cooling at `140°C` and follows it from there on, and stays below it while the hotend is still warming up. Its power curve reaches the stock 60% from `200°C` on, so a PLA or ABS print gets the stock cooling.
+- `Optimal` - the profile the firmware ships. Its nozzle curve starts at the quietest step of the stock nozzle fan (`45°C`, `30%`), reaches the stock cooling at `140°C` and follows it from there on. Its power curve reaches the stock 60% from `200°C` on, so a PLA or ABS print gets the stock cooling.
 - Every other profile is a curve of your own. How much it cools the hotend is on your risk.
 
 Every profile except `Stock` is a file named `fan_curves_<name>.json` in `/oem/printer_data/config/extended/fan-curves-presets/`. That directory is the only place profiles are looked for, so a file you add, rename or remove is the one the editor and the driver see. The firmware installs its default profile `Optimal` into that directory once, when the printer boots. If you delete or rename it, it stays gone, and the editor can write it back with **Restore the default profile**.
@@ -126,21 +126,21 @@ The nozzle curve follows the effective toolhead temperature, the same as the sto
 
 **Drawing a curve:**
 
-The setting is available under **Settings → Tweaks → Fan Curves**. The Fan Curves card below it shows the profile that is running and opens the curve editor, which has its own page and opens in a modal.
+The setting is available under **Settings → Tweaks → Fan Curves**. The curve editor belongs to that setting: it sits under the dropdown, draws the profile that is running, and is the only place where a curve is drawn.
 
 - Click empty space in the chart to add a point, drag a point to move it, right click a point to remove it.
 - Click a point to select it, then edit its temperature and duty in the fields under the chart.
 - The profile menu creates a new profile, renames one, deletes one, and restores the default profile.
 - **Save** writes the curve into the profile file. **Apply** makes that profile the running one and restarts Klipper.
 
-The editor draws the selected curve next to the stock curve and, where the driver holds a nozzle fan at the floor, draws that floor as a line of its own. A profile that is running cannot be deleted; apply another profile first.
+The editor draws the selected curve next to the stock curve and, where the driver holds a nozzle fan at the floor, draws that floor as a line of its own. A profile that is running can be deleted: the printer goes back to the stock curves first, so the running curve always has a file behind it.
 
 Applying an option atomically replaces `/oem/printer_data/config/extended/fan-curves-active.json` and restarts Klipper. When the printer is upgraded from the older editor, the curve it kept in `fan-curves.json` is imported as a profile file named `custom`, so nothing you drew is lost. `Stock` stores a Stock marker and leaves the original printer configuration in control. A legacy `20_fan_curves.cfg` is renamed before Klipper starts so an older install cannot be loaded accidentally.
 
 **Risks:**
 
 - A profile of your own is your own risk. Different materials need different cooling, so test it before a long print
-- The rule that holds a nozzle fan turning travels with the profile file, as `min_cool_temperature` and `min_nozzle_duty` (50 and 5% by default), so no curve can leave the heatsink fan off while the hotend is hot. The driver and the editor read the same two numbers, so changing them in the file changes both
+- The rule that holds a nozzle fan turning travels with the profile file, as `min_cool_temperature` and `min_nozzle_duty`. The values the firmware ships are `45` and `30%`, the quietest step of the stock nozzle fan, so a new profile is never quieter than the printer's own fan. A profile of your own may name a lower duty, and then the curve can run below the stock fan on your own risk. The driver and the editor read the same two numbers, so changing them in the file changes both
 - The power fan heavy-load rule is part of the profile: it reaches 100% when at least three toolheads heat up and one of them targets more than `260°C`
 
 **Recommendation:**
