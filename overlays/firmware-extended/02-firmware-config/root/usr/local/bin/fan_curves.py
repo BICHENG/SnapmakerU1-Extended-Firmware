@@ -136,12 +136,27 @@ def _normalize_document(value, profile=None):
         value.get('hysteresis', DEFAULT_HYSTERESIS), 'hysteresis')
     if not 0 <= hysteresis <= MAX_TEMPERATURE:
         raise FanCurveError('hysteresis must be from 0 to %d' % MAX_TEMPERATURE)
+    # The driver holds a nozzle fan at this duty from this temperature on.
+    # The values travel with the curve, so the driver and the editor read
+    # the same rule.
+    cool_temperature = _finite_number(
+        value.get('min_cool_temperature', MIN_COOL_TEMPERATURE),
+        'minimum cooling temperature')
+    min_duty = _finite_number(
+        value.get('min_nozzle_duty', MIN_NOZZLE_DUTY), 'minimum nozzle duty')
+    if not 0 <= cool_temperature <= MAX_TEMPERATURE:
+        raise FanCurveError(
+            'minimum cooling temperature must be from 0 to %d' % MAX_TEMPERATURE)
+    if not 0 <= min_duty <= MAX_DUTY:
+        raise FanCurveError('minimum nozzle duty must be between 0 and %.2f' % MAX_DUTY)
     return {
         'version': 1,
         'profile': profile,
         'curves': curves,
         'hysteresis': hysteresis,
         'heavy_load': _normalize_heavy_load(value.get('heavy_load')),
+        'min_cool_temperature': cool_temperature,
+        'min_nozzle_duty': min_duty,
     }
 
 
