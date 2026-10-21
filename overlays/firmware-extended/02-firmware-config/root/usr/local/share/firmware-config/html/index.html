@@ -409,8 +409,8 @@
 
         // The curve editor has its own page and opens in a modal, so this page
         // only shows which profile runs and the way into the editor.
-        function fanCurvesProfileLabel(key) {
-            const known = { stock: 'Stock', optimal: 'Optimal', custom: 'Custom' }[key];
+        function fanCurvesProfileLabel(key, labels) {
+            const known = (labels || {})[key];
             if (known) return known;
             return String(key || '').split('_').filter(Boolean)
                 .map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
@@ -450,9 +450,10 @@
             try {
                 const payload = await (await apiFetch('api/fan-curves')).json();
                 const current = String(payload.current || 'stock');
-                $('fan-curves-current').textContent = `Active: ${fanCurvesProfileLabel(current)}`;
+                const labels = payload.labels || {};
+                $('fan-curves-current').textContent = `Active: ${fanCurvesProfileLabel(current, labels)}`;
                 $('fan-curves-summary').textContent =
-                    'Cooling curves for the power fan and all four nozzle fans. Open the editor to draw a curve, or use the setting above to switch profile.';
+                    'Cooling curves for the power fan and all four nozzle fans. Every profile but the stock one is a file of your own. Open the editor to draw a curve, or use the setting above to switch profile.';
             } catch (error) {
                 $('fan-curves-summary').textContent = `The fan curve editor is unavailable: ${error.message}`;
             }

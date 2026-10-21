@@ -34,38 +34,44 @@
     .btn-primary { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 600; }
     .btn-primary:hover:not(:disabled) { background: #6fd0f8; }
     .btn-secondary { background: var(--item); }
-    .btn-danger { background: transparent; border-color: var(--error); color: var(--error); }
-    .btn-danger:hover:not(:disabled) { background: rgba(229, 115, 115, 0.15); }
-    select, input[type="number"] {
+    .btn-icon { line-height: 1; padding: 8px 11px; }
+    select, input[type="number"], input[type="text"] {
         background: var(--item); border: 1px solid #555; border-radius: 6px;
         color: var(--text); font-family: inherit; font-size: 13px; padding: 8px 10px;
     }
-    select:focus, input[type="number"]:focus { outline: none; border-color: var(--accent); }
+    select:focus, input:focus { outline: none; border-color: var(--accent); }
 
-    .editor-head { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; }
-    .editor-head-left { align-items: center; display: flex; gap: 10px; }
+    .editor-head { align-items: center; display: flex; flex-wrap: wrap; gap: 10px; }
+    .editor-head-left { align-items: center; display: flex; gap: 8px; }
     .editor-head label { color: var(--muted); font-size: 12px; }
-    .editor-head select { min-width: 180px; }
+    .editor-head select { min-width: 170px; }
     .editor-active { color: var(--muted); font-size: 12px; }
     .editor-tabs { display: flex; gap: 8px; margin-left: auto; }
+    .info {
+        align-items: center; border: 1px solid #555; border-radius: 50%; color: var(--muted);
+        cursor: help; display: inline-flex; font-size: 11px; height: 18px;
+        justify-content: center; width: 18px;
+    }
+    .info:hover { color: var(--text); }
+
+    .menu-wrap { position: relative; }
+    .menu {
+        background: var(--bg); border: 1px solid #444; border-radius: 8px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.55); display: flex; flex-direction: column;
+        left: 0; min-width: 190px; padding: 4px; position: absolute; top: calc(100% + 6px); z-index: 20;
+    }
+    .menu[hidden] { display: none; }
+    .menu button {
+        background: none; border: 0; border-radius: 6px; color: var(--text); cursor: pointer;
+        font-size: 13px; padding: 8px 10px; text-align: left;
+    }
+    .menu button:hover:not(:disabled) { background: var(--hover); }
+    .menu button:disabled { color: #666; cursor: not-allowed; }
+    .profile-name { width: 180px; }
 
     .editor-main { display: flex; flex: 1 1 auto; min-height: 240px; }
     .panel { background: var(--bg); border: 1px solid #3a3a3a; border-radius: 8px; padding: 12px; }
     .panel-chart { display: flex; flex: 1; flex-direction: column; min-height: 0; padding: 8px; }
-    .editor-extra { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-    details.panel { padding: 0; }
-    details.panel > summary {
-        color: var(--muted); cursor: pointer; font-size: 11px; letter-spacing: 0.5px;
-        list-style: none; padding: 11px 12px; text-transform: uppercase;
-    }
-    details.panel > summary::-webkit-details-marker { display: none; }
-    details.panel > summary::before { content: "▸ "; }
-    details.panel[open] > summary::before { content: "▾ "; }
-    details.panel > summary:hover { color: var(--text); }
-    details.panel > .detail-body { padding: 0 12px 12px; }
-    @media (max-width: 860px) {
-        .editor-extra { grid-template-columns: 1fr; }
-    }
 
     .chart-wrap { background: #202020; border-radius: 6px; flex: 1 1 auto; min-height: 0; position: relative; }
     .chart { display: block; height: 100%; left: 0; position: absolute; top: 0; touch-action: none; width: 100%; }
@@ -78,6 +84,10 @@
     .chart-floor-line { stroke: var(--warning); stroke-dasharray: 4 4; stroke-width: 1.5; }
     .chart-floor-label { fill: var(--warning); font-size: 10px; }
     .chart-floor-label-bg { fill: #202020; }
+    .chart-guide { stroke: #555; stroke-dasharray: 2 3; stroke-width: 1; }
+    .chart-guide-dot { fill: var(--accent); }
+    .chart-readout-bg { fill: #111; opacity: 0.9; }
+    .chart-readout-text { fill: var(--text); font-size: 11px; }
     .chart-dot { fill: #7a7a7a; }
     .chart-point { cursor: grab; fill: var(--accent); stroke: #111; stroke-width: 2; }
     .chart-point:active { cursor: grabbing; }
@@ -101,15 +111,6 @@
     .strip-hint { color: var(--muted); font-size: 12px; }
     .strip-hint[hidden] { display: none; }
     #hint { margin-left: auto; text-align: right; }
-
-    .compare { border-collapse: collapse; font-size: 12px; width: 100%; }
-    .compare th { color: var(--muted); font-weight: 500; padding: 4px 8px; text-align: right; }
-    .compare th:first-child, .compare td:first-child { text-align: left; }
-    .compare td { border-top: 1px solid #333; padding: 4px 8px; text-align: right; }
-    .compare tr.floored td:last-child { color: var(--warning); }
-    .compare-note { color: var(--muted); font-size: 11px; line-height: 1.6; margin: 10px 0 0; }
-
-    .rules { color: var(--muted); font-size: 12px; line-height: 1.7; margin: 0; }
 
     .editor-foot { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; }
     .status { color: var(--muted); flex: 1 1 200px; font-size: 12px; min-height: 18px; }
@@ -136,17 +137,29 @@
 </head>
 <body>
 
-<div class="editor-head">
+<header class="editor-head">
     <div class="editor-head-left">
         <label for="profile">Profile</label>
         <select id="profile" aria-label="Fan curve profile"></select>
+        <input class="profile-name" id="profile-name" type="text" maxlength="24" placeholder="name" hidden>
+        <div class="menu-wrap">
+            <button class="btn btn-icon" id="profile-menu" type="button" aria-haspopup="true" aria-expanded="false" title="Profile actions">…</button>
+            <div class="menu" id="profile-actions" hidden>
+                <button type="button" data-action="new">New profile</button>
+                <button type="button" data-action="rename">Rename</button>
+                <button type="button" data-action="delete">Delete</button>
+                <button type="button" data-action="restore">Restore the default profile</button>
+                <button type="button" data-action="discard">Discard changes</button>
+            </div>
+        </div>
         <span class="editor-active" id="active"></span>
     </div>
     <div class="editor-tabs">
         <button class="btn btn-secondary" id="power-tab" type="button">Power fan</button>
         <button class="btn btn-secondary" id="nozzle-tab" type="button">Nozzle fans (×4)</button>
     </div>
-</div>
+    <span class="info" id="info" tabindex="0">i</span>
+</header>
 
 <main class="editor-main">
     <section class="panel panel-chart">
@@ -172,41 +185,18 @@
             <span>Duty</span>
             <input id="point-duty" type="number" step="0.1" min="0"><span class="unit">%</span>
         </label>
-        <button class="btn btn-danger" id="point-delete" type="button">Delete point</button>
     </div>
     <span class="strip-hint" id="point-empty"></span>
     <span class="strip-hint" id="hint"></span>
 </div>
 
-<div class="editor-extra">
-    <details class="panel">
-        <summary>Stock against the selected curve</summary>
-        <div class="detail-body">
-            <table class="compare">
-                <thead><tr><th>°C</th><th>Stock</th><th id="compare-selected">Selected</th></tr></thead>
-                <tbody id="compare-body"></tbody>
-            </table>
-            <p class="compare-note" id="compare-note"></p>
-        </div>
-    </details>
-    <details class="panel">
-        <summary>How this profile behaves</summary>
-        <div class="detail-body">
-            <p class="rules" id="rules"></p>
-        </div>
-    </details>
-</div>
-
-<div class="editor-foot">
+<footer class="editor-foot">
     <div class="status" id="status" aria-live="polite"></div>
     <div class="actions">
-        <button class="btn btn-secondary" id="copy" type="button">Copy preset to Custom</button>
-        <button class="btn btn-secondary" id="add-point" type="button">Add point</button>
-        <button class="btn btn-secondary" id="discard" type="button">Discard changes</button>
-        <button class="btn btn-secondary" id="save" type="button">Save Custom</button>
+        <button class="btn btn-secondary" id="save" type="button">Save</button>
         <button class="btn btn-primary" id="apply" type="button">Apply</button>
     </div>
-</div>
+</footer>
 
 <div class="backdrop" id="confirm-backdrop" hidden>
     <div class="dialog">
@@ -237,32 +227,31 @@ const CHART_MIN = { width: 320, height: 200 };
 const MAX_TEMPERATURE = 300;
 
 let state = null;
-let selectedProfile = 'stock';
+// The profile that is shown. It starts empty, so the editor opens on the
+// profile that is running.
+let selectedProfile = '';
 let activeCurve = 'power';
 let selectedNode = -1;
-let draft = { power: [], nozzle: [] };
-let savedDraft = { power: [], nozzle: [] };
-let dirty = false;
+// The working copy of every profile the editor has seen. A profile that was
+// not written to its file yet keeps its edits while another one is picked.
+let drafts = {};
 let drag = null;
 let pendingClick = null;
 let chartSize = { width: 760, height: 400 };
+let naming = null;
 
 // ---------------------------------------------------------------- helpers
-
-function escapeHtml(value) {
-    const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-    return String(value ?? '').replace(/[&<>"']/g, character => entities[character]);
-}
 
 function profileKey(key) {
     return String(key || '').toLowerCase().replace(/[- ]/g, '_');
 }
 
-const PROFILE_LABELS = { stock: 'Stock', optimal: 'Optimal', custom: 'Custom' };
+const PROFILE_LABELS = { stock: 'Stock', optimal: 'Optimal' };
 
-// A preset that is not shipped with the firmware keeps its own name.
+// The name the firmware gives a profile. A profile the user made keeps
+// the name it was given.
 function profileLabel(key) {
-    const known = PROFILE_LABELS[key];
+    const known = state?.labels?.[key] || PROFILE_LABELS[key];
     if (known) return known;
     return String(key || '').split('_').filter(Boolean)
         .map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
@@ -323,11 +312,12 @@ function maxDuty() {
     return Number.isFinite(value) ? Math.min(value, 1) : 1;
 }
 
-// The rule the driver holds a nozzle fan at. It comes with the state, so
-// changing it in the firmware-config module changes it here as well.
+// The rule the driver holds a nozzle fan at. It travels with the profile
+// file, so the line on the chart is the rule the driver runs.
 function floorLimit() {
-    const temperature = Number(state?.limits?.min_cool_temperature);
-    const duty = Number(state?.limits?.min_nozzle_duty);
+    const entry = state?.presets?.[selectedProfile];
+    const temperature = Number(entry?.floor?.temperature);
+    const duty = Number(entry?.floor?.duty);
     if (!Number.isFinite(temperature) || !Number.isFinite(duty)) return null;
     return { temperature, duty };
 }
@@ -340,46 +330,81 @@ function effectiveDuty(points, temperature) {
     return Math.max(duty, limit.duty);
 }
 
+function setStatus(message, kind = '') {
+    const status = $('status');
+    status.textContent = message || '';
+    status.className = `status${kind ? ` ${kind}` : ''}`;
+}
+
 // ---------------------------------------------------------------- state
 
 function normalize(payload) {
     const presets = {};
     Object.entries(payload.presets || {}).forEach(([key, value]) => {
-        presets[profileKey(key)] = profile(value);
+        const entry = value && typeof value === 'object' ? value : {};
+        presets[profileKey(key)] = {
+            curves: profile(entry),
+            error: String(entry.error || ''),
+            hysteresis: Number.isFinite(Number(entry.hysteresis)) ? Number(entry.hysteresis) : 5,
+            heavyLoad: entry.heavy_load && typeof entry.heavy_load === 'object' ? entry.heavy_load : {},
+            floor: {
+                temperature: Number(entry.min_cool_temperature),
+                duty: Number(entry.min_nozzle_duty)
+            }
+        };
     });
-    const saved = profile(payload.custom);
-    draft = { power: saved.power.slice(), nozzle: saved.nozzle.slice() };
-    savedDraft = { power: saved.power.slice(), nozzle: saved.nozzle.slice() };
-    dirty = false;
-    selectedNode = -1;
+    const labels = {};
+    Object.entries(payload.labels || {}).forEach(([key, value]) => {
+        labels[profileKey(key)] = String(value);
+    });
     return {
         current: profileKey(payload.current || 'stock'),
-        profiles: Array.isArray(payload.profiles) && payload.profiles.length
-            ? payload.profiles.map(profileKey)
-            : ['stock', ...Object.keys(presets).sort(), 'custom'],
+        profiles: (Array.isArray(payload.profiles) && payload.profiles.length
+            ? payload.profiles
+            : ['stock', ...Object.keys(presets)]).map(profileKey),
         presets,
+        labels,
+        notice: String(payload.notice || ''),
         stock: profile(payload.stock),
-        limits: payload.limits || {},
-        hysteresis: Number.isFinite(Number(payload.hysteresis)) ? Number(payload.hysteresis) : 5,
-        heavyLoad: payload.heavy_load || { temperature: 260, heater_count: 3, hot_count: 1, duty: 1 }
+        limits: payload.limits || {}
     };
 }
 
+// The working copy of a profile. Stock has no file, so it is read-only.
+function draftFor(name) {
+    if (!drafts[name]) {
+        const source = name === 'stock'
+            ? state.stock
+            : ((state.presets[name] || {}).curves || { power: [], nozzle: [] });
+        drafts[name] = {
+            power: source.power.map(point => point.slice()),
+            nozzle: source.nozzle.map(point => point.slice()),
+            dirty: false
+        };
+    }
+    return drafts[name];
+}
+
+// Every profile but the stock one is a file, so it can be edited, renamed
+// and deleted.
 function isEditable() {
-    return selectedProfile === 'custom';
+    const entry = state?.presets?.[selectedProfile];
+    return selectedProfile !== 'stock' && !!entry && !entry.error;
+}
+
+// What is wrong with the file of the selected profile, if anything.
+function profileError() {
+    return state?.presets?.[selectedProfile]?.error || '';
+}
+
+function currentDraft() {
+    return draftFor(selectedProfile);
 }
 
 // The points the chart shows for the selected profile and curve.
 function shownPoints() {
-    if (selectedProfile === 'custom') return draft[activeCurve] || [];
     if (selectedProfile === 'stock') return (state.stock || {})[activeCurve] || [];
-    return (state.presets[selectedProfile] || {})[activeCurve] || [];
-}
-
-function setStatus(message, kind = '') {
-    const status = $('status');
-    status.textContent = message || '';
-    status.className = `status${kind ? ` ${kind}` : ''}`;
+    return currentDraft()[activeCurve] || [];
 }
 
 // ---------------------------------------------------------------- chart
@@ -496,6 +521,10 @@ function renderChart() {
         return `<circle class="chart-point${active ? ' selected' : ''}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${active ? 9 : 7}" data-index="${index}" tabindex="0" role="button" aria-label="Point ${index + 1}: ${temperature} degrees, ${Math.round(duty * 100)} percent"></circle>`;
     }).join('');
 
+    const emptyText = profileError()
+        ? 'The file of this profile cannot be read'
+        : 'This profile has no curve';
+
     svg.innerHTML = `${grid}${xLabels}` +
         `<line class="chart-axis" x1="${geometry.margin.left}" y1="${geometry.height - geometry.margin.bottom}" x2="${geometry.width - geometry.margin.right}" y2="${geometry.height - geometry.margin.bottom}"/>` +
         `<line class="chart-axis" x1="${geometry.margin.left}" y1="${geometry.margin.top}" x2="${geometry.margin.left}" y2="${geometry.height - geometry.margin.bottom}"/>` +
@@ -503,7 +532,8 @@ function renderChart() {
         floorMark +
         (dutyPath ? `<path class="chart-line" d="${dutyPath}"></path>` : '') +
         (points.length ? marks :
-            `<text x="${geometry.width / 2}" y="${geometry.height / 2}" text-anchor="middle">This profile has no curve</text>`);
+            `<text x="${geometry.width / 2}" y="${geometry.height / 2}" text-anchor="middle">${emptyText}</text>`) +
+        '<g class="chart-readout" id="chart-readout"></g>';
 
     if (focusIndex !== null) {
         const next = svg.querySelector(`.chart-point[data-index="${focusIndex}"]`);
@@ -514,51 +544,38 @@ function renderChart() {
     $('legend-stock').hidden = !referencePoints.length;
     $('legend-floor').hidden = !floor;
     $('hint').textContent = editable
-        ? 'Click empty space to add a point, drag a point to move it, arrow keys to nudge it.'
-        : 'Presets are read-only. Copy it to Custom to edit the points.';
+        ? 'Click empty space to add a point, drag a point to move it, right-click a point to remove it.'
+        : (profileError()
+            ? 'The file of this profile cannot be read.'
+            : 'The stock curve is the original Snapmaker behaviour.');
 }
 
-// ---------------------------------------------------------------- compare
-
-function compareTemperatures() {
-    return activeCurve === 'nozzle'
-        ? [50, 70, 100, 140, 180, 220, 260]
-        : [45, 120, 160, 200, 260];
-}
-
-function heavyLoadText() {
-    const heavy = state.heavyLoad || {};
-    const temperature = Number(heavy.temperature) || 260;
-    const heaterCount = Number(heavy.heater_count) || 0;
-    const hotCount = Number(heavy.hot_count) || 1;
-    const duty = Math.round((Number(heavy.duty) || 1) * 100);
-    const heaters = heaterCount > 0
-        ? `at least ${heaterCount} toolhead${heaterCount === 1 ? '' : 's'} heat up and `
-        : '';
-    return `Heavy load: the power fan reaches ${duty}% when ${heaters}${hotCount} toolhead${hotCount === 1 ? '' : 's'} target more than ${temperature}°C.`;
-}
-
-function renderCompare() {
-    if (!state) return;
-    const stockPoints = (state.stock || {})[activeCurve] || [];
-    const points = shownPoints();
-    const limit = floorLimit();
-    let raised = false;
-    $('compare-body').innerHTML = compareTemperatures().map(temperature => {
-        const stock = step(stockPoints, temperature);
-        const own = curveDuty(points, temperature);
-        const duty = effectiveDuty(points, temperature);
-        const held = duty > own + 1e-9;
-        if (held) raised = true;
-        return `<tr${held ? ' class="floored"' : ''}><td>${temperature}</td><td>${Math.round(stock * 100)}%</td><td>${Math.round(duty * 100)}%${held ? ' ↑' : ''}</td></tr>`;
-    }).join('');
-    $('compare-selected').textContent = profileLabel(selectedProfile);
-    const notes = [];
-    if (raised && limit) {
-        notes.push(`↑ The driver holds a nozzle fan at ${Math.round(limit.duty * 100)}% from ${limit.temperature}°C on, so a curve cannot switch the fan off while the hotend is hot.`);
+// The readout under the cursor: the temperature, the duty of the curve and
+// the duty of the stock curve.
+function showReadout(temperature) {
+    const group = $('chart-readout');
+    if (!group || !state) return;
+    if (temperature === null) {
+        group.innerHTML = '';
+        return;
     }
-    if (activeCurve === 'power') notes.push(heavyLoadText());
-    $('compare-note').textContent = notes.join(' ');
+    const geometry = chartGeometry();
+    const points = shownPoints();
+    const own = effectiveDuty(points, temperature);
+    const withStock = selectedProfile !== 'stock';
+    const stock = step((state.stock || {})[activeCurve] || [], temperature);
+    const text = `${Math.round(temperature)}°C   ${Math.round(own * 100)}%` +
+        (withStock ? `   stock ${Math.round(stock * 100)}%` : '');
+    const width = text.length * 6.2 + 14;
+    const x = geometry.toX(temperature);
+    const y = geometry.toY(own);
+    const left = Math.max(geometry.margin.left,
+        Math.min(geometry.width - geometry.margin.right - width, x - width / 2));
+    group.innerHTML =
+        `<line class="chart-guide" x1="${x.toFixed(1)}" y1="${geometry.margin.top}" x2="${x.toFixed(1)}" y2="${(geometry.height - geometry.margin.bottom).toFixed(1)}"/>` +
+        `<circle class="chart-guide-dot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4"></circle>` +
+        `<rect class="chart-readout-bg" x="${left.toFixed(1)}" y="${(geometry.margin.top + 4).toFixed(1)}" width="${width.toFixed(1)}" height="18" rx="4"></rect>` +
+        `<text class="chart-readout-text" x="${(left + 7).toFixed(1)}" y="${(geometry.margin.top + 17).toFixed(1)}">${text}</text>`;
 }
 
 // ---------------------------------------------------------------- point editor
@@ -572,15 +589,14 @@ function selectNode(index) {
 function renderPointEditor(force) {
     const editor = $('point-editor');
     const empty = $('point-empty');
-    const points = draft[activeCurve] || [];
+    const points = currentDraft()[activeCurve] || [];
     if (!isEditable() || selectedNode < 0 || !points[selectedNode]) {
         editor.hidden = true;
         empty.hidden = false;
         $('point-title').textContent = 'Selected point';
         empty.textContent = isEditable()
-            ? 'Click a point on the chart to edit it, click empty space to add one.'
+            ? 'Click a point on the chart to edit it.'
             : 'The chart shows the duty the fan runs.';
-        $('point-delete').disabled = true;
         return;
     }
     const [temperature, duty] = points[selectedNode];
@@ -595,44 +611,42 @@ function renderPointEditor(force) {
     if (force || document.activeElement !== $('point-duty')) {
         $('point-duty').value = (duty * 100).toFixed(1);
     }
-    $('point-delete').disabled = points.length <= 2;
 }
 
 // The neighbours bound the temperature, the driver keeps the order strict.
 function nodeBounds(index) {
-    const points = draft[activeCurve] || [];
+    const points = currentDraft()[activeCurve] || [];
     const previous = index > 0 ? points[index - 1][0] : -1;
     const next = index < points.length - 1 ? points[index + 1][0] : MAX_TEMPERATURE + 1;
     return { min: previous + 1, max: next - 1 };
 }
 
 function updateNode(index, temperature, duty) {
-    const points = draft[activeCurve] || [];
+    const points = currentDraft()[activeCurve] || [];
     if (!points[index]) return;
     const bounds = nodeBounds(index);
     const clampedTemperature = Math.max(bounds.min, Math.min(bounds.max, Math.round(temperature)));
     const clampedDuty = Math.max(0, Math.min(maxDuty(), Math.round(duty * 1000) / 1000));
     if (points[index][0] === clampedTemperature && points[index][1] === clampedDuty) return;
     points[index] = [clampedTemperature, clampedDuty];
-    dirty = true;
+    currentDraft().dirty = true;
     renderChart();
-    renderCompare();
     renderPointEditor();
 }
 
 function deleteNode() {
-    const points = draft[activeCurve] || [];
+    const points = currentDraft()[activeCurve] || [];
     if (!isEditable() || selectedNode < 0 || points.length <= 2) return;
     points.splice(selectedNode, 1);
     selectedNode = Math.min(selectedNode, points.length - 1);
-    dirty = true;
+    currentDraft().dirty = true;
     renderAll();
-    setStatus('Point deleted. Save Custom to keep it.');
+    setStatus('Point removed. Save the profile to keep it.');
 }
 
 // Adds a point at a free temperature. Returns the new index or -1.
 function addPoint(temperature, duty) {
-    const points = draft[activeCurve] || [];
+    const points = currentDraft()[activeCurve] || [];
     if (!isEditable()) return -1;
     if (points.length >= maxPoints()) {
         setStatus(`A curve holds at most ${maxPoints()} points.`, 'error');
@@ -653,31 +667,10 @@ function addPoint(temperature, duty) {
     }
     points.splice(index, 0, [spot, duty]);
     selectedNode = index;
-    dirty = true;
+    currentDraft().dirty = true;
     renderAll();
-    setStatus('Point added. Save Custom to keep it.');
+    setStatus('Point added. Save the profile to keep it.');
     return index;
-}
-
-function addPointInBiggestGap() {
-    const points = draft[activeCurve] || [];
-    if (!isEditable()) return;
-    if (points.length < 2) {
-        addPoint(0, 0);
-        return;
-    }
-    let gapIndex = 0;
-    let gap = 0;
-    for (let index = 0; index < points.length - 1; index++) {
-        const currentGap = points[index + 1][0] - points[index][0];
-        if (currentGap > gap) { gap = currentGap; gapIndex = index; }
-    }
-    if (gap < 2) {
-        setStatus('There is no room for another point.', 'error');
-        return;
-    }
-    const temperature = Math.round((points[gapIndex][0] + points[gapIndex + 1][0]) / 2);
-    addPoint(temperature, Math.round((points[gapIndex][1] + points[gapIndex + 1][1]) * 500) / 1000);
 }
 
 // ---------------------------------------------------------------- pointer
@@ -694,7 +687,7 @@ function chartCoordinates(event) {
 }
 
 // A point is only added when the pointer was released on the chart, so a
-// press that is followed by a click on a button cannot add one.
+// press that is followed by a press on a button cannot add one.
 function pointerOnChart(event) {
     const rect = $('chart').getBoundingClientRect();
     return event.clientX >= rect.left && event.clientX <= rect.right &&
@@ -715,7 +708,7 @@ function onPointerDown(event) {
 }
 
 function startDrag(index) {
-    const point = (draft[activeCurve] || [])[index];
+    const point = (currentDraft()[activeCurve] || [])[index];
     drag = { index, before: point ? point.slice() : null };
 }
 
@@ -723,33 +716,37 @@ function onPointerMove(event) {
     if (pendingClick && Math.abs(event.clientX - pendingClick.x) + Math.abs(event.clientY - pendingClick.y) > 4) {
         pendingClick = null;
     }
-    if (!drag) return;
+    if (!drag) {
+        showReadout(pointerOnChart(event) ? chartCoordinates(event).temperature : null);
+        return;
+    }
     // A pointer that was released outside the window sends no pointerup.
     // The button state says that the drag is over.
     if (event.buttons === 0) {
         drag = null;
+        showReadout(null);
         return;
     }
     const position = chartCoordinates(event);
-    const points = draft[activeCurve] || [];
+    const points = currentDraft()[activeCurve] || [];
     if (!points[drag.index]) return;
     const bounds = nodeBounds(drag.index);
     const temperature = Math.max(bounds.min, Math.min(bounds.max, Math.round(position.temperature)));
     const duty = Math.max(0, Math.min(maxDuty(), Math.round(position.duty * 1000) / 1000));
     points[drag.index] = [temperature, duty];
-    dirty = true;
+    currentDraft().dirty = true;
     renderChart();
     renderPointEditor();
+    showReadout(null);
 }
 
 function onPointerUp(event) {
     if (drag) {
         const moved = drag;
         drag = null;
-        renderCompare();
-        const point = (draft[activeCurve] || [])[moved.index];
+        const point = (currentDraft()[activeCurve] || [])[moved.index];
         if (point && moved.before && (point[0] !== moved.before[0] || point[1] !== moved.before[1])) {
-            setStatus('Point moved. Save Custom to keep it.');
+            setStatus('Point moved. Save the profile to keep it.');
         }
         return;
     }
@@ -765,6 +762,16 @@ function onPointerUp(event) {
 function onPointerCancel() {
     drag = null;
     pendingClick = null;
+    showReadout(null);
+}
+
+// The right mouse button removes the point under it.
+function onContextMenu(event) {
+    event.preventDefault();
+    const target = event.target.closest('.chart-point');
+    if (!target || !isEditable()) return;
+    selectNode(Number(target.dataset.index));
+    deleteNode();
 }
 
 function onKeyDown(event) {
@@ -778,7 +785,7 @@ function onKeyDown(event) {
         return;
     }
     const index = Number(target.dataset.index);
-    const points = draft[activeCurve] || [];
+    const points = currentDraft()[activeCurve] || [];
     const point = points[index];
     if (!point) return;
     const step = event.shiftKey ? 5 : 1;
@@ -799,6 +806,28 @@ function onKeyDown(event) {
         selectNode(index);
         deleteNode();
     }
+}
+
+// Adds a point in the middle of the biggest gap of the curve.
+function addPointInBiggestGap() {
+    const points = currentDraft()[activeCurve] || [];
+    if (!isEditable()) return;
+    if (points.length < 2) {
+        addPoint(0, 0);
+        return;
+    }
+    let gapIndex = 0;
+    let gap = 0;
+    for (let index = 0; index < points.length - 1; index++) {
+        const currentGap = points[index + 1][0] - points[index][0];
+        if (currentGap > gap) { gap = currentGap; gapIndex = index; }
+    }
+    if (gap < 2) {
+        setStatus('There is no room for another point.', 'error');
+        return;
+    }
+    const temperature = Math.round((points[gapIndex][0] + points[gapIndex + 1][0]) / 2);
+    addPoint(temperature, Math.round((points[gapIndex][1] + points[gapIndex + 1][1]) * 500) / 1000);
 }
 
 // ---------------------------------------------------------------- dialogs
@@ -845,8 +874,10 @@ async function apiFetch(url, options = {}) {
     return response;
 }
 
-async function post(body, title, message) {
-    showAction(title);
+// A quiet call reports through the status line, a loud one opens the log
+// dialog that a Klipper restart needs.
+async function post(body, title, quiet) {
+    if (!quiet) showAction(title);
     try {
         const response = await apiFetch('api/fan-curves', {
             method: 'POST',
@@ -858,15 +889,13 @@ async function post(body, title, message) {
         if (contentType.includes('application/json')) {
             result = await response.json();
             if (result && result.success === false) throw new Error(result.error || 'The operation failed');
-            appendLog(`${result?.message || 'Done'}\n`);
-        } else {
+            if (!quiet) appendLog(`${result?.message || 'Done'}\n`);
+        } else if (!quiet) {
             appendLog(await response.text());
         }
-        $('action-close').textContent = 'Close';
         return result;
     } catch (error) {
-        appendLog(`\nERROR: ${error.message}`);
-        $('action-close').textContent = 'Close';
+        if (!quiet) appendLog(`\nERROR: ${error.message}`);
         throw error;
     }
 }
@@ -878,61 +907,169 @@ function notifyParent(type) {
     }
 }
 
-// ---------------------------------------------------------------- actions
+// ---------------------------------------------------------------- rules
 
-function renderRules() {
-    const hysteresis = state.hysteresis;
-    const limit = floorLimit();
-    const floorText = limit
-        ? `The driver holds a nozzle fan at ${Math.round(limit.duty * 100)}% from ${limit.temperature}°C on, so no curve can leave the fan off while the hotend is hot.`
+function heavyLoadText() {
+    const heavy = state?.presets?.[selectedProfile]?.heavyLoad || {};
+    const temperature = Number(heavy.temperature) || 260;
+    const heaterCount = Number(heavy.heater_count) || 0;
+    const hotCount = Number(heavy.hot_count) || 1;
+    const duty = Math.round((Number(heavy.duty) || 1) * 100);
+    const heaters = heaterCount > 0
+        ? `at least ${heaterCount} toolhead${heaterCount === 1 ? '' : 's'} heat up and `
         : '';
-    const rules = `The duty is the line between the points. Non-Stock profiles use ${hysteresis}°C hysteresis, so a falling temperature waits before the duty follows. Ordinary duty goes up to ${Math.round(maxDuty() * 100)}%. ${floorText} ${heavyLoadText()}`;
-    $('rules').textContent = selectedProfile === 'stock'
-        ? 'Stock uses the original target-temperature and stepped-table semantics. It is read-only here.'
-        : selectedProfile === 'custom'
-        ? `Custom is a curve of your own, so how much it cools the hotend is on your risk. ${rules}`
-        : `${profileLabel(selectedProfile)} is a preset. The first power node sets both the power-fan target trigger and its duty. ${rules}`;
+    return `Heavy load: the power fan reaches ${duty}% when ${heaters}${hotCount} toolhead${hotCount === 1 ? '' : 's'} target more than ${temperature}°C.`;
+}
+
+function rulesText() {
+    const entry = state?.presets?.[selectedProfile];
+    const limit = floorLimit();
+    const floor = limit
+        ? `The driver holds a nozzle fan at ${Math.round(limit.duty * 100)}% from ${limit.temperature}°C on, so no curve can leave the fan off while the hotend is hot. `
+        : '';
+    const hysteresis = Number.isFinite(Number(entry?.hysteresis)) ? Number(entry.hysteresis) : 5;
+    return `The duty is the line between the points. A curve uses ${hysteresis}°C hysteresis, so a falling temperature waits for the band before the duty follows. Ordinary duty goes up to ${Math.round(maxDuty() * 100)}%. ${floor}${heavyLoadText()}`;
+}
+
+// ---------------------------------------------------------------- profiles
+
+function fillProfileSelect() {
+    const select = $('profile');
+    select.innerHTML = '';
+    state.profiles.forEach(key => {
+        const option = document.createElement('option');
+        option.value = key;
+        option.textContent = profileLabel(key);
+        select.appendChild(option);
+    });
+    select.value = selectedProfile;
 }
 
 function renderAll() {
     if (!state) return;
-    const profileSelect = $('profile');
-    profileSelect.value = selectedProfile;
+    fillProfileSelect();
     $('active').textContent = `Active: ${profileLabel(state.current)}`;
     $('power-tab').className = `btn ${activeCurve === 'power' ? 'btn-primary' : 'btn-secondary'}`;
     $('nozzle-tab').className = `btn ${activeCurve === 'nozzle' ? 'btn-primary' : 'btn-secondary'}`;
-    $('copy').disabled = selectedProfile === 'stock' || selectedProfile === 'custom';
-    $('add-point').disabled = !isEditable();
-    $('discard').disabled = !dirty;
-    $('save').disabled = !isEditable();
+    $('info').title = rulesText();
+    const editable = isEditable();
+    $('save').disabled = !editable || !currentDraft().dirty;
     $('apply').disabled = false;
-    renderRules();
+    $('profile-actions').querySelector('[data-action="rename"]').disabled = !editable;
+    $('profile-actions').querySelector('[data-action="delete"]').disabled = !editable;
+    $('profile-actions').querySelector('[data-action="discard"]').disabled = !currentDraft().dirty;
+    const broken = profileError();
+    if (broken) setStatus(broken, 'error');
     renderChart();
-    renderCompare();
     renderPointEditor();
 }
 
-function copyPresetToCustom() {
-    if (selectedProfile === 'custom' || selectedProfile === 'stock') return;
-    const source = state.presets[selectedProfile] || { power: [], nozzle: [] };
-    draft = { power: source.power.map(point => point.slice()), nozzle: source.nozzle.map(point => point.slice()) };
-    selectedProfile = 'custom';
+function selectProfile(name) {
+    selectedProfile = name;
     selectedNode = -1;
-    dirty = true;
+    setStatus('');
     renderAll();
-    setStatus('Preset copied to Custom. Save it before applying.');
 }
 
-function resetDraft() {
-    draft = { power: savedDraft.power.map(point => point.slice()), nozzle: savedDraft.nozzle.map(point => point.slice()) };
-    selectedNode = -1;
-    dirty = false;
-    renderAll();
-    setStatus('Draft restored from the saved Custom profile.');
+function startNaming(mode) {
+    naming = mode;
+    const input = $('profile-name');
+    $('profile').hidden = true;
+    input.hidden = false;
+    input.value = mode === 'rename' ? selectedProfile : '';
+    input.placeholder = mode === 'rename' ? 'new name' : 'name of the new profile';
+    input.focus();
+    input.select();
 }
+
+function stopNaming() {
+    naming = null;
+    $('profile-name').hidden = true;
+    $('profile').hidden = false;
+    $('profile').value = selectedProfile;
+}
+
+async function confirmNaming() {
+    const mode = naming;
+    if (!mode) return;
+    const name = $('profile-name').value.trim();
+    stopNaming();
+    if (!name) {
+        setStatus('A profile needs a name.', 'error');
+        return;
+    }
+    const curves = {
+        power: currentDraft().power.map(point => point.slice()),
+        nozzle: currentDraft().nozzle.map(point => point.slice())
+    };
+    try {
+        const result = await post({
+            action: mode === 'new' ? 'new' : 'rename',
+            name,
+            profile: selectedProfile,
+            curves
+        }, null, true);
+        const created = result?.profile || name;
+        // A new profile leaves the profile that is on the screen alone. A
+        // rename moves its file, so its working copy is stale.
+        if (mode === 'rename') delete drafts[selectedProfile];
+        await reloadState();
+        selectProfile(created);
+        setStatus(mode === 'new'
+            ? `${profileLabel(created)} created. Edit it and apply it when it is right.`
+            : `Renamed to ${profileLabel(created)}.`, 'success');
+    } catch (error) {
+        setStatus(error.message, 'error');
+    }
+}
+
+async function deleteProfile() {
+    if (!isEditable()) return;
+    const name = selectedProfile;
+    showConfirm(`Delete ${profileLabel(name)}?`,
+        'The file is removed from the profile directory. A profile that is running cannot be deleted; apply another profile first.', async () => {
+        closeConfirm();
+        try {
+            await post({ action: 'delete', profile: name }, null, true);
+            delete drafts[name];
+            await reloadState();
+            selectProfile(state.current);
+            setStatus(`${profileLabel(name)} deleted.`, 'success');
+        } catch (error) {
+            setStatus(error.message, 'error');
+        }
+    });
+}
+
+function restoreDefaultProfile() {
+    showConfirm('Restore the default profile',
+        'The profile the firmware ships is written over the file of the default profile. Your own version of it is lost.', async () => {
+        closeConfirm();
+        try {
+            const result = await post({ action: 'restore' }, null, true);
+            const name = result?.profile || 'optimal';
+            delete drafts[name];
+            await reloadState();
+            selectProfile(name);
+            setStatus(`${profileLabel(name)} restored.`, 'success');
+        } catch (error) {
+            setStatus(error.message, 'error');
+        }
+    });
+}
+
+function discardChanges() {
+    delete drafts[selectedProfile];
+    selectedNode = -1;
+    renderAll();
+    setStatus('The profile is back to the file.');
+}
+
+// ---------------------------------------------------------------- actions
 
 function validateDraft() {
     const errors = [];
+    const draft = currentDraft();
     ['power', 'nozzle'].forEach(name => {
         const points = draft[name] || [];
         if (points.length < 2) errors.push(`${name} needs at least two points`);
@@ -952,20 +1089,26 @@ function validateDraft() {
     return errors;
 }
 
-function saveCustom() {
+function saveProfile() {
+    if (!isEditable()) return;
     const errors = validateDraft();
     if (errors.length) {
         setStatus(errors.join('; '), 'error');
         return;
     }
-    showConfirm('Save Custom fan curves', 'Save the current power and nozzle curves as Custom?', async () => {
+    const draft = currentDraft();
+    showConfirm(`Save ${profileLabel(selectedProfile)}`,
+        'Write the curve to your profile file?', async () => {
         closeConfirm();
         try {
-            await post({ action: 'save', curves: { power: draft.power, nozzle: draft.nozzle } },
-                'Save Custom fan curves', 'Saving');
-            savedDraft = { power: draft.power.map(point => point.slice()), nozzle: draft.nozzle.map(point => point.slice()) };
-            dirty = false;
-            setStatus('Custom saved.', 'success');
+            await post({
+                action: 'save',
+                profile: selectedProfile,
+                curves: { power: draft.power, nozzle: draft.nozzle }
+            }, null, true);
+            currentDraft().dirty = false;
+            setStatus(`${profileLabel(selectedProfile)} saved.`, 'success');
+            renderAll();
         } catch (error) {
             setStatus(error.message, 'error');
         }
@@ -973,23 +1116,27 @@ function saveCustom() {
 }
 
 function applyProfile() {
-    const errors = validateDraft();
+    const errors = isEditable() ? validateDraft() : [];
     if (errors.length) {
         setStatus(errors.join('; '), 'error');
         return;
     }
     const body = { action: 'apply', profile: selectedProfile };
-    if (selectedProfile === 'custom') body.curves = { power: draft.power, nozzle: draft.nozzle };
+    if (isEditable()) {
+        const draft = currentDraft();
+        body.curves = { power: draft.power, nozzle: draft.nozzle };
+    }
     const label = profileLabel(selectedProfile);
-    showConfirm(`Apply ${label}`,
-        'Applying a fan profile restarts Klipper and may interrupt a print. Continue?', async () => {
+    const message = selectedProfile === 'stock'
+        ? 'Applying the stock curves restarts Klipper and may interrupt a print. Continue?'
+        : `${state.notice}\n\nApplying restarts Klipper and may interrupt a print. Continue?`;
+    showConfirm(`Apply ${label}`, message, async () => {
         closeConfirm();
         try {
-            await post(body, `Apply ${label}`, 'Applying');
-            // Applying a preset does not write the Custom curve, so a
-            // Custom that is being worked on stays worked on.
-            if (selectedProfile === 'custom') dirty = false;
+            await post(body, `Apply ${label}`);
+            if (isEditable()) currentDraft().dirty = false;
             setStatus(`${label} applied.`, 'success');
+            renderAll();
             notifyParent();
         } catch (error) {
             setStatus(error.message, 'error');
@@ -997,30 +1144,20 @@ function applyProfile() {
     });
 }
 
-async function reloadState(keepDraft) {
+async function reloadState() {
     const payload = await (await apiFetch('api/fan-curves')).json();
-    const keep = keepDraft && dirty;
-    const currentDraft = {
-        power: draft.power.map(point => point.slice()),
-        nozzle: draft.nozzle.map(point => point.slice())
-    };
     state = normalize(payload);
-    if (keep) {
-        draft = currentDraft;
-        dirty = true;
-    } else {
-        selectedProfile = state.current;
-    }
-    const select = $('profile');
-    select.innerHTML = state.profiles
-        .map(key => `<option value="${escapeHtml(key)}">${escapeHtml(profileLabel(key))}</option>`)
-        .join('');
+    // A draft that was not written to its file follows the file again.
+    Object.keys(drafts).forEach(name => {
+        if (!drafts[name].dirty || !state.profiles.includes(name)) delete drafts[name];
+    });
+    if (!state.profiles.includes(selectedProfile)) selectedProfile = state.current;
     renderAll();
 }
 
 async function load() {
     try {
-        await reloadState(false);
+        await reloadState();
     } catch (error) {
         setStatus(`The fan curve API is unavailable: ${error.message}`, 'error');
     }
@@ -1029,31 +1166,59 @@ async function load() {
 // ---------------------------------------------------------------- wiring
 
 $('profile').addEventListener('change', event => {
-    selectedProfile = event.target.value;
-    selectedNode = -1;
-    setStatus('');
-    renderAll();
+    selectProfile(event.target.value);
+});
+$('profile-name').addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        confirmNaming();
+    } else if (event.key === 'Escape') {
+        event.preventDefault();
+        stopNaming();
+    }
+});
+$('profile-name').addEventListener('blur', () => {
+    if (naming) stopNaming();
+});
+$('profile-menu').addEventListener('click', event => {
+    event.stopPropagation();
+    const menu = $('profile-actions');
+    menu.hidden = !menu.hidden;
+    $('profile-menu').setAttribute('aria-expanded', String(!menu.hidden));
+});
+document.addEventListener('click', event => {
+    if (!$('profile-actions').hidden && !event.target.closest('.menu-wrap')) {
+        $('profile-actions').hidden = true;
+        $('profile-menu').setAttribute('aria-expanded', 'false');
+    }
+});
+$('profile-actions').addEventListener('click', event => {
+    const action = event.target.dataset.action;
+    if (!action) return;
+    $('profile-actions').hidden = true;
+    $('profile-menu').setAttribute('aria-expanded', 'false');
+    if (action === 'new') startNaming('new');
+    else if (action === 'rename') startNaming('rename');
+    else if (action === 'delete') deleteProfile();
+    else if (action === 'restore') restoreDefaultProfile();
+    else if (action === 'discard') discardChanges();
 });
 $('power-tab').addEventListener('click', () => { activeCurve = 'power'; selectedNode = -1; renderAll(); });
 $('nozzle-tab').addEventListener('click', () => { activeCurve = 'nozzle'; selectedNode = -1; renderAll(); });
-$('copy').addEventListener('click', copyPresetToCustom);
-$('add-point').addEventListener('click', addPointInBiggestGap);
-$('discard').addEventListener('click', resetDraft);
-$('save').addEventListener('click', saveCustom);
+$('save').addEventListener('click', saveProfile);
 $('apply').addEventListener('click', applyProfile);
-$('point-delete').addEventListener('click', deleteNode);
 $('point-temperature').addEventListener('input', event => {
     if (!isEditable() || selectedNode < 0) return;
     const value = Number(event.target.value);
     if (!Number.isFinite(value)) return;
-    const points = draft[activeCurve] || [];
+    const points = currentDraft()[activeCurve] || [];
     updateNode(selectedNode, value, points[selectedNode][1]);
 });
 $('point-duty').addEventListener('input', event => {
     if (!isEditable() || selectedNode < 0) return;
     const value = Number(event.target.value);
     if (!Number.isFinite(value)) return;
-    const points = draft[activeCurve] || [];
+    const points = currentDraft()[activeCurve] || [];
     updateNode(selectedNode, points[selectedNode][0], value / 100);
 });
 $('point-temperature').addEventListener('change', () => {
@@ -1073,6 +1238,8 @@ $('action-close').addEventListener('click', () => { $('action-backdrop').hidden 
 const chart = $('chart');
 chart.addEventListener('pointerdown', onPointerDown);
 chart.addEventListener('keydown', onKeyDown);
+chart.addEventListener('contextmenu', onContextMenu);
+chart.addEventListener('pointerleave', () => { if (!drag) showReadout(null); });
 window.addEventListener('pointermove', onPointerMove);
 window.addEventListener('pointerup', onPointerUp);
 window.addEventListener('pointercancel', onPointerCancel);
@@ -1099,7 +1266,7 @@ window.addEventListener('message', event => {
     }
     if (data.type !== 'refresh') return;
     $('action-backdrop').hidden = true;
-    reloadState(true).catch(error => {
+    reloadState().catch(error => {
         setStatus(error.message, 'error');
     });
 });
