@@ -1,0 +1,242 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-PackageHomePage: https://github.com/paxx12-snapmaker-u1/SnapmakerU1-Extended-Firmware
+# SPDX-FileCopyrightText: Copyright (c) 2026 @paxx12
+
+"""Host side checks for the profile file model of the fan curves.
+
+The real fan_curves.py of this repository is driven against a temporary
+config directory: the default profile is installed, a profile is drawn,
+renamed, applied and deleted, and the rules the module enforces are checked.
+No printer is needed.
+
+    python overlays/firmware-extended/02-firmware-config/test/fan_curves_test.py
+"""
+import importlib.util
+import json
+import os
+import shutil
+import sys
+import tempfile
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.abspath(os.path.join(HERE, '..', '..', '..', '..'))
+MODULE_PATH = os.path.join(
+    REPO, 'overlays', 'firmware-extended', '02-firmware-config', 'root',
+    'usr', 'local', 'bin', 'fan_curves.py')
+DEFAULT_DIR = os.path.join(
+    REPO, 'overlays', 'firmware-extended', '32-feature-klipper-tweaks', 'root',
+    'usr', 'local', 'share', 'firmware-config', 'tweaks', 'klipper')
+
+CHECKS = 0
+FAILURES = []
+
+
+def check(name, condition, detail=''):
+    global CHECKS
+    CHECKS += 1
+    if condition:
+        print('  ok   %s' % name)
+    else:
+        FAILURES.append(name)
+        print('  FAIL %s %s' % (name, detail))
+
+
+def section(title):
+    print('\n== %s' % title)
+
+
+def load_module(config_dir):
+    os.environ['FAN_CURVES_CONFIG_DIR'] = config_dir
+    os.environ['FAN_CURVES_DEFAULT_DIR'] = DEFAULT_DIR
+    spec = importlib.util.spec_from_file_location('fan_curves_test', MODULE_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def read_json(path):
+    with open(path, 'r', encoding='utf-8') as stream:
+        return json.load(stream)
+
+
+def write_json(path, document):
+    with open(path, 'w', encoding='utf-8') as stream:
+        json.dump(document, stream)
+
+
+def refuses(module, curves):
+    """The module does not accept these curves."""
+    try:
+        module.normalize_curves(curves)
+    except module.FanCurveError:
+        return True
+    return False
+
+
+def check_the_default():
+    section('the profile the firmware ships')
+    name = fan.seed_default()
+    check('the seed installs the default profile', name == 'optimal',
+          '(name=%s)' % name)
+    check('the default is the only profile', fan.available_profiles() == ['optimal'],
+          '(profiles=%s)' % fan.available_profiles())
+    check('the seed leaves a marker behind',
+          os.path.exists(os.path.join(profile_dir, '.default-installed')))
+
+    document = read_json(os.path.join(profile_dir, 'fan_curves_optimal.json'))
+    check('the installed default holds the cooling temperature of the driver',
+          document['min_cool_temperature'] == fan.MIN_COOL_TEMPERATURE,
+          '(value=%s)' % document.get('min_cool_temperature'))
+    check('the installed default holds the cooling duty of the driver',
+          document['min_nozzle_duty'] == fan.MIN_NOZZLE_DUTY,
+          '(value=%s)' % document.get('min_nozzle_duty'))
+    check('the seed runs only once', fan.seed_default() is None)
+
+
+def check_the_rules():
+    section('the rules a curve has to follow')
+    check('a curve with two points is accepted',
+          not refuses(fan, {'power': [[45, 0.6], [260, 0.6]],
+                            'nozzle': [[45, 0.3], [260, 0.9]]}))
+    check('a curve with one point is refused',
+          refuses(fan, {'power': [[45, 0.6]], 'nozzle': [[45, 0.3], [260, 0.9]]}))
+    check('a curve with seventeen points is refused',
+          refuses(fan, {'power': [[45, 0.6], [260, 0.6]],
+                        'nozzle': [[45 + 10 * index, 0.5] for index in range(17)]}))
+    check('a curve with sixteen points is accepted',
+          not refuses(fan, {'power': [[45, 0.6], [260, 0.6]],
+                            'nozzle': [[45 + 10 * index, 0.5] for index in range(16)]}))
+    check('a temperature above 300C is refused',
+          refuses(fan, {'power': [[45, 0.6], [260, 0.6]],
+                        'nozzle': [[45, 0.3], [301, 0.9]]}))
+    check('a duty above 100% is refused',
+          refuses(fan, {'power': [[45, 0.6], [260, 0.6]],
+                        'nozzle': [[45, 0.3], [260, 1.1]]}))
+    check('a duty below 0% is refused',
+          refuses(fan, {'power': [[45, 0.6], [260, 0.6]],
+                        'nozzle': [[45, -0.1], [260, 0.9]]}))
+    check('temperatures that do not ascend are refused',
+          refuses(fan, {'power': [[45, 0.6], [260, 0.6]],
+                        'nozzle': [[100, 0.3], [60, 0.9]]}))
+    check('curves that are not an object are refused',
+          refuses(fan, {'power': 'no', 'nozzle': [[45, 0.3], [260, 0.9]]}))
+
+
+def check_the_life_of_a_profile():
+    section('the life of a profile')
+    fan.create_profile('my_cool')
+    document = fan._load_profile('my_cool')
+    check('a new profile starts with the stock ends',
+          document['curves']['nozzle'] == [[45, 0.3], [260, 0.9]],
+          '(curve=%s)' % (document['curves']['nozzle'],))
+    check('the power curve of a new profile starts with the stock ends',
+          document['curves']['power'] == [[45, 0.6], [260, 0.6]],
+          '(curve=%s)' % (document['curves']['power'],))
+
+    # Saving keeps the settings a change of the curve does not touch.
+    path = os.path.join(profile_dir, 'fan_curves_my_cool.json')
+    document = read_json(path)
+    document['heavy_load'] = {'temperature': 200, 'heater_count': 2,
+                              'hot_count': 1, 'duty': 0.8}
+    document['min_cool_temperature'] = 60
+    write_json(path, document)
+    fan.save_profile('my_cool', document['curves'])
+    saved = fan._load_profile('my_cool')
+    check('saving keeps the heavy load rule',
+          saved['heavy_load']['temperature'] == 200,
+          '(rule=%s)' % (saved['heavy_load'],))
+    check('saving keeps the cooling temperature',
+          saved['min_cool_temperature'] == 60,
+          '(value=%s)' % saved.get('min_cool_temperature'))
+
+    state = fan.get_state()
+    check('the state carries the cooling temperature of the profile',
+          state['presets']['my_cool']['min_cool_temperature'] == 60)
+    check('the state carries the cooling duty of the profile',
+          state['presets']['my_cool']['min_nozzle_duty'] == fan.MIN_NOZZLE_DUTY)
+    check('the state carries the label of the profile',
+          state['labels']['my_cool'] == 'My Cool',
+          '(label=%s)' % state['labels'].get('my_cool'))
+    check('the state carries the warning', state['notice'] == fan.RISK_NOTICE)
+
+    # Applying writes the curve and the rule to the file the driver reads.
+    fan.apply_profile('my_cool', saved['curves'], restart=False)
+    active = read_json(os.path.join(config_dir, 'fan-curves-active.json'))
+    check('the applied profile runs', active['profile'] == 'my_cool',
+          '(profile=%s)' % active.get('profile'))
+    check('the running rule is the rule of the profile',
+          active['min_cool_temperature'] == 60,
+          '(value=%s)' % active.get('min_cool_temperature'))
+    check('the running profile is reported', fan.current_profile() == 'my_cool')
+
+    # Renaming keeps the running profile and its rule.
+    fan.rename_profile('my_cool', 'quiet')
+    check('the profile was renamed', fan.available_profiles() == ['optimal', 'quiet'],
+          '(profiles=%s)' % fan.available_profiles())
+    check('the running profile follows the rename', fan.current_profile() == 'quiet')
+    active = read_json(os.path.join(config_dir, 'fan-curves-active.json'))
+    check('the rename keeps the rule', active['min_cool_temperature'] == 60,
+          '(value=%s)' % active.get('min_cool_temperature'))
+
+    # A running profile is deleted as well, and the printer goes back to the
+    # stock curves.
+    fan.delete_profile('quiet', restart=False)
+    check('a running profile is deleted', fan.available_profiles() == ['optimal'],
+          '(profiles=%s)' % fan.available_profiles())
+    check('the printer goes back to the stock curves',
+          fan.current_profile() == 'stock')
+
+
+def check_the_default_comes_back():
+    section('the default comes back only on purpose')
+    fan.delete_profile('optimal', restart=False)
+    check('the default was deleted', fan.available_profiles() == [],
+          '(profiles=%s)' % fan.available_profiles())
+    check('the seed does not bring the default back', fan.seed_default() is None)
+    check('the default stays away', fan.available_profiles() == [])
+    fan.restore_default()
+    check('the default can be restored', fan.available_profiles() == ['optimal'],
+          '(profiles=%s)' % fan.available_profiles())
+
+
+def check_an_older_install():
+    section('an older install keeps its curve')
+    write_json(os.path.join(config_dir, 'fan-curves.json'),
+               {'nozzle': [[50, 0.1], [260, 0.9]],
+                'power': [[45, 0.4], [260, 0.4]]})
+    os.remove(os.path.join(config_dir, 'fan-curves-active.json'))
+    fan.migrate_legacy('custom')
+    check('the old custom curve became a profile',
+          'custom' in fan.available_profiles(),
+          '(profiles=%s)' % fan.available_profiles())
+    check('the old profile is the running one', fan.current_profile() == 'custom')
+
+    os.remove(os.path.join(config_dir, 'fan-curves-active.json'))
+    fan.migrate_legacy('something_else')
+    check('an unknown old profile falls back to the default',
+          fan.current_profile() == 'optimal',
+          '(profile=%s)' % fan.current_profile())
+
+
+def main():
+    global fan, config_dir, profile_dir
+    config_dir = tempfile.mkdtemp(prefix='fan-curves-test-')
+    profile_dir = os.path.join(config_dir, 'fan-curves-presets')
+    try:
+        fan = load_module(config_dir)
+        check('there is no profile before the seed', fan.available_profiles() == [],
+              '(profiles=%s)' % fan.available_profiles())
+        check('stock is the running profile', fan.current_profile() == 'stock')
+        check_the_default()
+        check_the_rules()
+        check_the_life_of_a_profile()
+        check_the_default_comes_back()
+        check_an_older_install()
+    finally:
+        shutil.rmtree(config_dir, ignore_errors=True)
+    print('\n%d checks, %d failures' % (CHECKS, len(FAILURES)))
+    return 1 if FAILURES else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
