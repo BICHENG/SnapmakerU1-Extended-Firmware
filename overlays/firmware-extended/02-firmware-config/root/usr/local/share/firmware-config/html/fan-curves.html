@@ -486,8 +486,14 @@ function renderPointEditor() {
     const [temperature, duty] = points[selectedNode];
     editor.hidden = false;
     empty.hidden = true;
-    $('point-temperature').value = temperature;
-    $('point-duty').value = (duty * 100).toFixed(1);
+    // A field that is being typed into keeps its text, otherwise the clamp
+    // would rewrite the number while the user is still writing it.
+    if (document.activeElement !== $('point-temperature')) {
+        $('point-temperature').value = temperature;
+    }
+    if (document.activeElement !== $('point-duty')) {
+        $('point-duty').value = (duty * 100).toFixed(1);
+    }
     $('point-delete').disabled = points.length <= 2;
 }
 
@@ -535,11 +541,16 @@ function addPoint(temperature, duty) {
     if (index === -1) index = points.length;
     const previous = index > 0 ? points[index - 1][0] : -1;
     const next = index < points.length ? points[index][0] : MAX_TEMPERATURE + 1;
-    if (temperature <= previous || temperature >= next) {
+    // The clicked temperature can land on a neighbour, which is one degree
+    // away from a free spot. Move it there instead of refusing.
+    let spot = temperature;
+    if (spot <= previous) spot = previous + 1;
+    if (spot >= next) spot = next - 1;
+    if (spot <= previous || spot >= next) {
         setStatus('There is no room for another point between these two.', 'error');
         return -1;
     }
-    points.splice(index, 0, [temperature, duty]);
+    points.splice(index, 0, [spot, duty]);
     selectedNode = index;
     dirty = true;
     renderAll();
@@ -907,6 +918,12 @@ $('point-duty').addEventListener('input', event => {
     if (!Number.isFinite(value)) return;
     const points = draft[activeCurve] || [];
     updateNode(selectedNode, points[selectedNode][0], value / 100);
+});
+$('point-temperature').addEventListener('change', () => {
+    renderPointEditor();
+});
+$('point-duty').addEventListener('change', () => {
+    renderPointEditor();
 });
 $('confirm-ok').addEventListener('click', () => {
     const action = confirmAction;
