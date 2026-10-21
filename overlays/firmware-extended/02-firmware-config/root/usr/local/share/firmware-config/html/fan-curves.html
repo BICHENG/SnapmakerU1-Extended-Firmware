@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fan curve editor</title>
+<style>
+    :root {
+        --bg: #1a1a1a; --card: #2d2d2d; --item: #3d3d3d; --hover: #4d4d4d;
+        --accent: #4fc3f7; --text: #e0e0e0; --muted: #888;
+        --success: #81c784; --error: #e57373; --warning: #ff9800;
+    }
+    * { box-sizing: border-box; }
+    body {
+        background: var(--card);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        font-size: 14px;
+        margin: 0;
+        padding: 14px 16px 16px;
+    }
+    button { font-family: inherit; }
+    .btn {
+        background: var(--item); border: 1px solid #555; border-radius: 6px;
+        color: var(--text); cursor: pointer; font-size: 13px; padding: 8px 14px;
+    }
+    .btn:hover:not(:disabled) { background: var(--hover); }
+    .btn:disabled { cursor: not-allowed; opacity: 0.45; }
+    .btn-primary { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 600; }
+    .btn-primary:hover:not(:disabled) { background: #6fd0f8; }
+    .btn-secondary { background: var(--item); }
+    .btn-danger { background: transparent; border-color: var(--error); color: var(--error); }
+    .btn-danger:hover:not(:disabled) { background: rgba(229, 115, 115, 0.15); }
+    select, input[type="number"] {
+        background: var(--item); border: 1px solid #555; border-radius: 6px;
+        color: var(--text); font-family: inherit; font-size: 13px; padding: 8px 10px;
+    }
+    select:focus, input[type="number"]:focus { outline: none; border-color: var(--accent); }
+
+    .editor-head { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+    .editor-head-left { align-items: center; display: flex; gap: 10px; }
+    .editor-head label { color: var(--muted); font-size: 12px; }
+    .editor-head select { min-width: 180px; }
+    .editor-active { color: var(--muted); font-size: 12px; }
+    .editor-tabs { display: flex; gap: 8px; margin-left: auto; }
+
+    .editor-grid {
+        display: grid; gap: 14px;
+        grid-template-columns: minmax(0, 1.55fr) minmax(280px, 0.9fr);
+        grid-template-areas: "chart point" "extra extra";
+        align-items: start;
+    }
+    .panel { background: var(--bg); border: 1px solid #3a3a3a; border-radius: 8px; padding: 12px; }
+    .panel-chart { grid-area: chart; }
+    .panel-point { grid-area: point; }
+    .editor-extra { display: grid; gap: 14px; grid-area: extra; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .panel-title { color: var(--muted); font-size: 11px; letter-spacing: 0.5px; margin-bottom: 10px; text-transform: uppercase; }
+    details.panel { padding: 0; }
+    details.panel > summary {
+        color: var(--muted); cursor: pointer; font-size: 11px; letter-spacing: 0.5px;
+        list-style: none; padding: 11px 12px; text-transform: uppercase;
+    }
+    details.panel > summary::-webkit-details-marker { display: none; }
+    details.panel > summary::before { content: "▸ "; }
+    details.panel[open] > summary::before { content: "▾ "; }
+    details.panel > summary:hover { color: var(--text); }
+    details.panel > .detail-body { padding: 0 12px 12px; }
+    @media (max-width: 860px) {
+        .editor-extra { grid-template-columns: 1fr; }
+    }
+
+    .chart-wrap { background: #202020; border-radius: 6px; padding: 6px; }
+    .chart { display: block; height: auto; touch-action: none; width: 100%; }
+    .chart:focus { outline: none; }
+    .chart text { fill: var(--muted); font-size: 11px; }
+    .chart-grid { stroke: #3d3d3d; stroke-width: 1; }
+    .chart-axis { stroke: #6a6a6a; stroke-width: 1; }
+    .chart-line { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+    .chart-reference { fill: none; stroke: #6a6a6a; stroke-dasharray: 5 4; stroke-width: 1.5; }
+    .chart-dot { fill: #7a7a7a; }
+    .chart-point { cursor: grab; fill: var(--accent); stroke: #111; stroke-width: 2; }
+    .chart-point:active { cursor: grabbing; }
+    .chart-point.selected { stroke: #fff; stroke-width: 3; }
+    .chart-point:focus { outline: none; }
+
+    .legend { align-items: center; color: var(--muted); display: flex; flex-wrap: wrap; font-size: 11px; gap: 16px; padding: 9px 4px 2px; }
+    .legend-item { align-items: center; display: flex; gap: 7px; }
+    .legend-item[hidden] { display: none; }
+    .swatch { border-top: 2px solid var(--accent); display: inline-block; height: 0; width: 24px; }
+    .swatch.stock { border-top: 1.5px dashed #6a6a6a; }
+    .legend-hint { margin-left: auto; text-align: right; }
+
+    .field { display: grid; gap: 6px; margin-bottom: 12px; }
+    .field > span:first-child { color: var(--muted); font-size: 12px; }
+    .field-input { align-items: center; display: flex; gap: 8px; }
+    .field-input input { width: 120px; }
+    .unit { color: var(--muted); font-size: 12px; }
+    .empty { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 0; }
+
+    .compare { border-collapse: collapse; font-size: 12px; width: 100%; }
+    .compare th { color: var(--muted); font-weight: 500; padding: 4px 8px; text-align: right; }
+    .compare th:first-child, .compare td:first-child { text-align: left; }
+    .compare td { border-top: 1px solid #333; padding: 4px 8px; text-align: right; }
+    .compare tr.floored td:last-child { color: var(--warning); }
+    .compare-note { color: var(--muted); font-size: 11px; line-height: 1.6; margin: 10px 0 0; }
+
+    .rules { color: var(--muted); font-size: 12px; line-height: 1.7; margin: 0; }
+
+    .editor-foot { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+    .status { color: var(--muted); flex: 1 1 200px; font-size: 12px; min-height: 18px; }
+    .status.error { color: var(--error); }
+    .status.warning { color: var(--warning); }
+    .status.success { color: var(--success); }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .backdrop {
+        align-items: center; background: rgba(0, 0, 0, 0.6); display: flex;
+        inset: 0; justify-content: center; padding: 24px; position: fixed; z-index: 50;
+    }
+    .backdrop[hidden] { display: none; }
+    .dialog { background: var(--card); border: 1px solid #444; border-radius: 10px; max-width: 460px; padding: 18px; width: 100%; }
+    .dialog-title { font-size: 15px; margin-bottom: 10px; }
+    .dialog-body { color: var(--muted); font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
+    .dialog-log { color: var(--muted); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.6; margin: 0; max-height: 220px; overflow: auto; white-space: pre-wrap; }
+    .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+    @media (max-width: 860px) {
+        .editor-grid { grid-template-columns: 1fr; grid-template-areas: "chart" "point" "compare" "rules"; }
+        .legend-hint { margin-left: 0; text-align: left; }
+    }
+</style>
+</head>
+<body>
+
+<div class="editor-head">
+    <div class="editor-head-left">
+        <label for="profile">Profile</label>
+        <select id="profile" aria-label="Fan curve profile"></select>
+        <span class="editor-active" id="active"></span>
+    </div>
+    <div class="editor-tabs">
+        <button class="btn btn-secondary" id="power-tab" type="button">Power fan</button>
+        <button class="btn btn-secondary" id="nozzle-tab" type="button">Nozzle fans (×4)</button>
+    </div>
+</div>
+
+<div class="editor-grid">
+    <section class="panel panel-chart">
+        <div class="chart-wrap">
+            <svg class="chart" id="chart" viewBox="0 0 760 400" tabindex="0" role="application" aria-label="Fan curve chart"></svg>
+        </div>
+        <div class="legend">
+            <span class="legend-item"><span class="swatch"></span><span id="legend-selected">Selected</span></span>
+            <span class="legend-item" id="legend-stock"><span class="swatch stock"></span>Stock</span>
+            <span class="legend-item legend-hint" id="hint"></span>
+        </div>
+    </section>
+
+    <section class="panel panel-point">
+        <div class="panel-title">Selected point</div>
+        <div id="point-editor" hidden>
+            <label class="field">
+                <span>Temperature</span>
+                <span class="field-input"><input id="point-temperature" type="number" step="1" min="0" max="300"><span class="unit">°C</span></span>
+            </label>
+            <label class="field">
+                <span>Duty</span>
+                <span class="field-input"><input id="point-duty" type="number" step="0.1" min="0"><span class="unit">%</span></span>
+            </label>
+            <button class="btn btn-danger" id="point-delete" type="button">Delete point</button>
+        </div>
+        <p class="empty" id="point-empty"></p>
+    </section>
+
+    <div class="editor-extra">
+        <details class="panel">
+            <summary>Stock against the selected curve</summary>
+            <div class="detail-body">
+                <table class="compare">
+                    <thead><tr><th>°C</th><th>Stock</th><th id="compare-selected">Selected</th></tr></thead>
+                    <tbody id="compare-body"></tbody>
+                </table>
+                <p class="compare-note" id="compare-note"></p>
+            </div>
+        </details>
+        <details class="panel">
+            <summary>How this profile behaves</summary>
+            <div class="detail-body">
+                <p class="rules" id="rules"></p>
+            </div>
+        </details>
+    </div>
+</div>
+
+<div class="editor-foot">
+    <div class="status" id="status" aria-live="polite"></div>
+    <div class="actions">
+        <button class="btn btn-secondary" id="copy" type="button">Copy preset to Custom</button>
+        <button class="btn btn-secondary" id="add-point" type="button">Add point</button>
+        <button class="btn btn-secondary" id="save" type="button">Save Custom</button>
+        <button class="btn btn-primary" id="apply" type="button">Apply</button>
+    </div>
+</div>
+
+<div class="backdrop" id="confirm-backdrop" hidden>
+    <div class="dialog">
+        <div class="dialog-title" id="confirm-title"></div>
+        <div class="dialog-body" id="confirm-body"></div>
+        <div class="dialog-actions">
+            <button class="btn btn-secondary" id="confirm-cancel" type="button">Cancel</button>
+            <button class="btn btn-primary" id="confirm-ok" type="button">Confirm</button>
+        </div>
+    </div>
+</div>
+
+<div class="backdrop" id="action-backdrop" hidden>
+    <div class="dialog">
+        <div class="dialog-title" id="action-title"></div>
+        <pre class="dialog-log" id="action-log"></pre>
+        <div class="dialog-actions">
+            <button class="btn btn-primary" id="action-close" type="button">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+const CHART = { width: 760, height: 400, margin: { left: 52, right: 20, top: 20, bottom: 40 } };
+const MAX_TEMPERATURE = 300;
+
+let state = null;
+let selectedProfile = 'stock';
+let activeCurve = 'power';
+let selectedNode = -1;
+let draft = { power: [], nozzle: [] };
+let savedDraft = { power: [], nozzle: [] };
+let dirty = false;
+let drag = null;
+let pendingClick = null;
+
+// ---------------------------------------------------------------- helpers
+
+function escapeHtml(value) {
+    const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+    return String(value ?? '').replace(/[&<>"']/g, character => entities[character]);
+}
+
+function profileKey(key) {
+    return String(key || '').toLowerCase().replace(/[- ]/g, '_');
+}
+
+const PROFILE_LABELS = { stock: 'Stock', optimal: 'Optimal', custom: 'Custom' };
+
+// A preset that is not shipped with the firmware keeps its own name.
+function profileLabel(key) {
+    const known = PROFILE_LABELS[key];
+    if (known) return known;
+    return String(key || '').split('_').filter(Boolean)
+        .map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+}
+
+function pointsOf(value) {
+    const list = Array.isArray(value) ? value : [];
+    return list.map(point => {
+        if (Array.isArray(point)) return [Number(point[0]), Number(point[1])];
+        return [Number(point.temperature ?? point.temp), Number(point.duty ?? point.speed ?? point.value)];
+    }).filter(point => point.every(Number.isFinite));
+}
+
+function profile(value) {
+    const source = value && typeof value === 'object' ? value : {};
+    const curves = source.curves && typeof source.curves === 'object' ? source.curves : source;
+    return {
+        power: pointsOf(curves.power || curves.power_fan),
+        nozzle: pointsOf(curves.nozzle || curves.nozzle_fans)
+    };
+}
+
+// The driver holds the duty of the last node at or below the temperature,
+// the same way the stock stepped table does.
+function step(points, temperature) {
+    let duty = 0;
+    for (const [threshold, value] of points) {
+        if (temperature >= threshold) duty = value;
+        else break;
+    }
+    return duty;
+}
+
+function maxPoints() {
+    return Number(state?.limits?.max_points) || 16;
+}
+
+function maxDuty() {
+    const value = Number(state?.limits?.duty?.[1]);
+    return Number.isFinite(value) ? Math.min(value, 1) : 1;
+}
+
+function minCoolTemperature() {
+    const value = Number(state?.limits?.min_cool_temperature);
+    return Number.isFinite(value) ? value : 50;
+}
+
+function minNozzleDuty() {
+    const value = Number(state?.limits?.min_nozzle_duty);
+    return Number.isFinite(value) ? value : 0.05;
+}
+
+// ---------------------------------------------------------------- state
+
+function normalize(payload) {
+    const presets = {};
+    Object.entries(payload.presets || {}).forEach(([key, value]) => {
+        presets[profileKey(key)] = profile(value);
+    });
+    const saved = profile(payload.custom);
+    draft = { power: saved.power.slice(), nozzle: saved.nozzle.slice() };
+    savedDraft = { power: saved.power.slice(), nozzle: saved.nozzle.slice() };
+    dirty = false;
+    selectedNode = -1;
+    return {
+        current: profileKey(payload.current || 'stock'),
+        profiles: Array.isArray(payload.profiles) && payload.profiles.length
+            ? payload.profiles.map(profileKey)
+            : ['stock', ...Object.keys(presets).sort(), 'custom'],
+        presets,
+        stock: profile(payload.stock),
+        limits: payload.limits || {},
+        hysteresis: Number.isFinite(Number(payload.hysteresis)) ? Number(payload.hysteresis) : 5,
+        heavyLoad: payload.heavy_load || { temperature: 260, heater_count: 3, hot_count: 1, duty: 1 }
+    };
+}
+
+function isEditable() {
+    return selectedProfile === 'custom';
+}
+
+// The points the chart shows for the selected profile and curve.
+function shownPoints() {
+    if (selectedProfile === 'custom') return draft[activeCurve] || [];
+    if (selectedProfile === 'stock') return (state.stock || {})[activeCurve] || [];
+    return (state.presets[selectedProfile] || {})[activeCurve] || [];
+}
+
+function setStatus(message, kind = '') {
+    const status = $('status');
+    status.textContent = message || '';
+    status.className = `status${kind ? ` ${kind}` : ''}`;
+}
+
+// ---------------------------------------------------------------- chart
+
+function chartGeometry() {
+    const { width, height, margin } = CHART;
+    const plotWidth = width - margin.left - margin.right;
+    const plotHeight = height - margin.top - margin.bottom;
+    return {
+        width, height, margin, plotWidth, plotHeight,
+        toX: temperature => margin.left + (temperature / MAX_TEMPERATURE) * plotWidth,
+        toY: duty => margin.top + (1 - duty) * plotHeight,
+        fromX: x => Math.max(0, Math.min(MAX_TEMPERATURE,
+            ((x - margin.left) / plotWidth) * MAX_TEMPERATURE)),
+        fromY: y => Math.max(0, Math.min(1, 1 - ((y - margin.top) / plotHeight)))
+    };
+}
+
+function stepPath(points, geometry) {
+    let path = '';
+    points.forEach(([temperature, duty], index) => {
+        const x = geometry.toX(temperature);
+        const y = geometry.toY(duty);
+        path += index === 0 ? ` M ${x} ${y}` : ` H ${x} V ${y}`;
+    });
+    return path;
+}
+
+function renderChart() {
+    const svg = $('chart');
+    if (!svg || !state) return;
+    const geometry = chartGeometry();
+    const points = shownPoints();
+    const referencePoints = selectedProfile === 'stock' ? [] : (state.stock || {})[activeCurve] || [];
+    const editable = isEditable();
+
+    const grid = [0, 0.2, 0.4, 0.6, 0.8, 1].map(duty => {
+        const y = geometry.toY(duty);
+        return `<line class="chart-grid" x1="${geometry.margin.left}" y1="${y}" x2="${geometry.width - geometry.margin.right}" y2="${y}"/>` +
+               `<text x="${geometry.margin.left - 8}" y="${y + 4}" text-anchor="end">${Math.round(duty * 100)}%</text>`;
+    }).join('');
+    const xLabels = [0, 100, 200, 300].map(temperature => {
+        const x = geometry.toX(temperature);
+        return `<line class="chart-grid" x1="${x}" y1="${geometry.margin.top}" x2="${x}" y2="${geometry.height - geometry.margin.bottom}"/>` +
+               `<text x="${x}" y="${geometry.height - 12}" text-anchor="middle">${temperature}°C</text>`;
+    }).join('');
+
+    const path = stepPath(points, geometry);
+    const referencePath = stepPath(referencePoints, geometry);
+    const marks = points.map(([temperature, duty], index) => {
+        const x = geometry.toX(temperature);
+        const y = geometry.toY(duty);
+        if (!editable) return `<circle class="chart-dot" cx="${x}" cy="${y}" r="3"></circle>`;
+        const active = index === selectedNode;
+        return `<circle class="chart-point${active ? ' selected' : ''}" cx="${x}" cy="${y}" r="${active ? 9 : 7}" data-index="${index}" tabindex="0" role="button" aria-label="Point ${index + 1}: ${temperature} degrees, ${Math.round(duty * 100)} percent"></circle>`;
+    }).join('');
+
+    svg.innerHTML = `${grid}${xLabels}` +
+        `<line class="chart-axis" x1="${geometry.margin.left}" y1="${geometry.height - geometry.margin.bottom}" x2="${geometry.width - geometry.margin.right}" y2="${geometry.height - geometry.margin.bottom}"/>` +
+        `<line class="chart-axis" x1="${geometry.margin.left}" y1="${geometry.margin.top}" x2="${geometry.margin.left}" y2="${geometry.height - geometry.margin.bottom}"/>` +
+        (referencePath ? `<path class="chart-reference" d="${referencePath}"></path>` : '') +
+        (path ? `<path class="chart-line" d="${path}"></path>${marks}` :
+            `<text x="${geometry.width / 2}" y="${geometry.height / 2}" text-anchor="middle">This profile has no curve</text>`);
+
+    $('legend-selected').textContent = profileLabel(selectedProfile);
+    $('legend-stock').hidden = !referencePoints.length;
+    $('hint').textContent = editable
+        ? 'Click empty space to add a point, drag a point to move it.'
+        : 'Presets are read-only. Copy it to Custom to edit the points.';
+}
+
+// ---------------------------------------------------------------- compare
+
+function compareTemperatures() {
+    return activeCurve === 'nozzle'
+        ? [50, 70, 100, 140, 180, 220, 260]
+        : [45, 120, 160, 200, 260];
+}
+
+function heavyLoadText() {
+    const heavy = state.heavyLoad || {};
+    const temperature = Number(heavy.temperature) || 260;
+    const heaterCount = Number(heavy.heater_count) || 0;
+    const hotCount = Number(heavy.hot_count) || 1;
+    const duty = Math.round((Number(heavy.duty) || 1) * 100);
+    const heaters = heaterCount > 0
+        ? `at least ${heaterCount} toolhead${heaterCount === 1 ? '' : 's'} heat up and `
+        : '';
+    return `Heavy load: the power fan reaches ${duty}% when ${heaters}${hotCount} toolhead${hotCount === 1 ? '' : 's'} target more than ${temperature}°C.`;
+}
+
+function renderCompare() {
+    if (!state) return;
+    const stockPoints = (state.stock || {})[activeCurve] || [];
+    const points = shownPoints();
+    const floorDuty = activeCurve === 'nozzle' ? minNozzleDuty() : 0;
+    const floorFrom = minCoolTemperature();
+    let raised = false;
+    $('compare-body').innerHTML = compareTemperatures().map(temperature => {
+        const stockDuty = step(stockPoints, temperature);
+        const curveDuty = step(points, temperature);
+        const duty = temperature >= floorFrom ? Math.max(curveDuty, floorDuty) : curveDuty;
+        const held = duty > curveDuty;
+        if (held) raised = true;
+        return `<tr${held ? ' class="floored"' : ''}><td>${temperature}</td><td>${Math.round(stockDuty * 100)}%</td><td>${Math.round(duty * 100)}%${held ? ' ↑' : ''}</td></tr>`;
+    }).join('');
+    $('compare-selected').textContent = profileLabel(selectedProfile);
+    const notes = [];
+    if (raised) {
+        notes.push(`↑ The driver holds a nozzle fan at ${Math.round(floorDuty * 100)}% from ${floorFrom}°C on, so a curve cannot switch the fan off while the hotend is hot.`);
+    }
+    if (activeCurve === 'power') notes.push(heavyLoadText());
+    $('compare-note').textContent = notes.join(' ');
+}
+
+// ---------------------------------------------------------------- point editor
+
+function selectNode(index) {
+    selectedNode = index;
+    renderChart();
+    renderPointEditor();
+}
+
+function renderPointEditor() {
+    const editor = $('point-editor');
+    const empty = $('point-empty');
+    const points = draft[activeCurve] || [];
+    if (!isEditable() || selectedNode < 0 || !points[selectedNode]) {
+        editor.hidden = true;
+        empty.hidden = false;
+        empty.textContent = isEditable()
+            ? 'Click a point on the chart to edit its temperature and duty. Click empty space to add a point.'
+            : 'This profile is read-only. Use "Copy preset to Custom" to edit its points.';
+        $('point-delete').disabled = true;
+        return;
+    }
+    const [temperature, duty] = points[selectedNode];
+    editor.hidden = false;
+    empty.hidden = true;
+    $('point-temperature').value = temperature;
+    $('point-duty').value = (duty * 100).toFixed(1);
+    $('point-delete').disabled = points.length <= 2;
+}
+
+// The neighbours bound the temperature, the driver keeps the order strict.
+function nodeBounds(index) {
+    const points = draft[activeCurve] || [];
+    const previous = index > 0 ? points[index - 1][0] : -1;
+    const next = index < points.length - 1 ? points[index + 1][0] : MAX_TEMPERATURE + 1;
+    return { min: previous + 1, max: next - 1 };
+}
+
+function updateNode(index, temperature, duty) {
+    const points = draft[activeCurve] || [];
+    if (!points[index]) return;
+    const bounds = nodeBounds(index);
+    const clampedTemperature = Math.max(bounds.min, Math.min(bounds.max, Math.round(temperature)));
+    const clampedDuty = Math.max(0, Math.min(maxDuty(), Math.round(duty * 1000) / 1000));
+    if (points[index][0] === clampedTemperature && points[index][1] === clampedDuty) return;
+    points[index] = [clampedTemperature, clampedDuty];
+    dirty = true;
+    renderChart();
+    renderCompare();
+    renderPointEditor();
+}
+
+function deleteNode() {
+    const points = draft[activeCurve] || [];
+    if (!isEditable() || selectedNode < 0 || points.length <= 2) return;
+    points.splice(selectedNode, 1);
+    selectedNode = Math.min(selectedNode, points.length - 1);
+    dirty = true;
+    renderAll();
+    setStatus('Point deleted. Save Custom to keep it.');
+}
+
+// Adds a point at a free temperature. Returns the new index or -1.
+function addPoint(temperature, duty) {
+    const points = draft[activeCurve] || [];
+    if (!isEditable()) return -1;
+    if (points.length >= maxPoints()) {
+        setStatus(`A curve holds at most ${maxPoints()} points.`, 'error');
+        return -1;
+    }
+    let index = points.findIndex(point => point[0] > temperature);
+    if (index === -1) index = points.length;
+    const previous = index > 0 ? points[index - 1][0] : -1;
+    const next = index < points.length ? points[index][0] : MAX_TEMPERATURE + 1;
+    if (temperature <= previous || temperature >= next) {
+        setStatus('There is no room for another point between these two.', 'error');
+        return -1;
+    }
+    points.splice(index, 0, [temperature, duty]);
+    selectedNode = index;
+    dirty = true;
+    renderAll();
+    setStatus('Point added. Save Custom to keep it.');
+    return index;
+}
+
+function addPointInBiggestGap() {
+    const points = draft[activeCurve] || [];
+    if (!isEditable()) return;
+    if (points.length < 2) {
+        addPoint(0, 0);
+        return;
+    }
+    let gapIndex = 0;
+    let gap = 0;
+    for (let index = 0; index < points.length - 1; index++) {
+        const currentGap = points[index + 1][0] - points[index][0];
+        if (currentGap > gap) { gap = currentGap; gapIndex = index; }
+    }
+    if (gap < 2) {
+        setStatus('There is no room for another point.', 'error');
+        return;
+    }
+    const temperature = Math.round((points[gapIndex][0] + points[gapIndex + 1][0]) / 2);
+    addPoint(temperature, Math.round((points[gapIndex][1] + points[gapIndex + 1][1]) * 500) / 1000);
+}
+
+// ---------------------------------------------------------------- pointer
+
+function chartCoordinates(event) {
+    const svg = $('chart');
+    const rect = svg.getBoundingClientRect();
+    const scaleX = CHART.width / rect.width;
+    const scaleY = CHART.height / rect.height;
+    const x = (event.clientX - rect.left) * scaleX;
+    const y = (event.clientY - rect.top) * scaleY;
+    const geometry = chartGeometry();
+    return { x, y, temperature: geometry.fromX(x), duty: geometry.fromY(y) };
+}
+
+function onPointerDown(event) {
+    if (!isEditable()) return;
+    const target = event.target.closest('.chart-point');
+    if (target) {
+        event.preventDefault();
+        const index = Number(target.dataset.index);
+        selectNode(index);
+        startDrag(index);
+        return;
+    }
+    pendingClick = { x: event.clientX, y: event.clientY };
+}
+
+function startDrag(index) {
+    drag = { index };
+}
+
+function onPointerMove(event) {
+    if (pendingClick && Math.abs(event.clientX - pendingClick.x) + Math.abs(event.clientY - pendingClick.y) > 4) {
+        pendingClick = null;
+    }
+    if (!drag) return;
+    const position = chartCoordinates(event);
+    const points = draft[activeCurve] || [];
+    if (!points[drag.index]) return;
+    const bounds = nodeBounds(drag.index);
+    const temperature = Math.max(bounds.min, Math.min(bounds.max, Math.round(position.temperature)));
+    const duty = Math.max(0, Math.min(maxDuty(), Math.round(position.duty * 1000) / 1000));
+    points[drag.index] = [temperature, duty];
+    dirty = true;
+    renderChart();
+    renderPointEditor();
+}
+
+function onPointerUp(event) {
+    if (drag) {
+        drag = null;
+        renderCompare();
+        setStatus('Point moved. Save Custom to keep it.');
+        return;
+    }
+    if (!pendingClick) return;
+    pendingClick = null;
+    if (!isEditable()) return;
+    const position = chartCoordinates(event);
+    addPoint(Math.round(position.temperature), Math.round(position.duty * 1000) / 1000);
+}
+
+function onKeyDown(event) {
+    if (!isEditable()) return;
+    const target = event.target.closest('.chart-point');
+    if (!target) {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            addPointInBiggestGap();
+        }
+        return;
+    }
+    const index = Number(target.dataset.index);
+    const points = draft[activeCurve] || [];
+    const point = points[index];
+    if (!point) return;
+    const step = event.shiftKey ? 5 : 1;
+    if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        updateNode(index, point[0] - step, point[1]);
+    } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        updateNode(index, point[0] + step, point[1]);
+    } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        updateNode(index, point[0], point[1] + step / 100);
+    } else if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        updateNode(index, point[0], point[1] - step / 100);
+    } else if (event.key === 'Delete' || event.key === 'Backspace') {
+        event.preventDefault();
+        selectNode(index);
+        deleteNode();
+    }
+}
+
+// ---------------------------------------------------------------- dialogs
+
+let confirmAction = null;
+
+function showConfirm(title, message, onConfirm) {
+    $('confirm-title').textContent = title;
+    $('confirm-body').textContent = message;
+    confirmAction = onConfirm;
+    $('confirm-backdrop').hidden = false;
+}
+
+function closeConfirm() {
+    $('confirm-backdrop').hidden = true;
+    confirmAction = null;
+}
+
+function showAction(title) {
+    $('action-title').textContent = title;
+    $('action-log').textContent = '';
+    $('action-backdrop').hidden = false;
+}
+
+function appendLog(text) {
+    $('action-log').textContent += text;
+}
+
+// ---------------------------------------------------------------- server
+
+function getJWT() {
+    const key = `user-token-${window.location.host.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    return localStorage.getItem(key);
+}
+
+async function apiFetch(url, options = {}) {
+    const jwt = getJWT();
+    options.headers = { ...(jwt ? { Authorization: `Bearer ${jwt}` } : {}), ...options.headers };
+    const response = await fetch(url, options);
+    if (!response.ok) {
+        const detail = await response.text().catch(() => '');
+        throw new Error(`HTTP ${response.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`);
+    }
+    return response;
+}
+
+async function post(body, title, message) {
+    showAction(title);
+    try {
+        const response = await apiFetch('api/fan-curves', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const contentType = response.headers.get('content-type') || '';
+        let result = null;
+        if (contentType.includes('application/json')) {
+            result = await response.json();
+            if (result && result.success === false) throw new Error(result.error || 'The operation failed');
+            appendLog(`${result?.message || 'Done'}\n`);
+        } else {
+            appendLog(await response.text());
+        }
+        $('action-close').textContent = 'Close';
+        return result;
+    } catch (error) {
+        appendLog(`\nERROR: ${error.message}`);
+        $('action-close').textContent = 'Close';
+        throw error;
+    }
+}
+
+function notifyParent() {
+    if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ source: 'fan-curves-editor', type: 'applied' }, window.location.origin);
+    }
+}
+
+// ---------------------------------------------------------------- actions
+
+function renderRules() {
+    const hysteresis = state.hysteresis;
+    const rules = `Non-Stock profiles use ${hysteresis}°C hysteresis. Ordinary duty goes up to ${Math.round(maxDuty() * 100)}%. The driver holds a nozzle fan at ${Math.round(minNozzleDuty() * 100)}% from ${minCoolTemperature()}°C on, so no curve can leave the fan off while the hotend is hot. ${heavyLoadText()}`;
+    $('rules').textContent = selectedProfile === 'stock'
+        ? 'Stock uses the original target-temperature and stepped-table semantics. It is read-only here.'
+        : selectedProfile === 'custom'
+        ? `Custom is a curve of your own, so how much it cools the hotend is on your risk. ${rules}`
+        : `${profileLabel(selectedProfile)} is a preset. The first power node sets both the power-fan target trigger and its duty. ${rules}`;
+}
+
+function renderAll() {
+    const profileSelect = $('profile');
+    profileSelect.value = selectedProfile;
+    $('active').textContent = `Active: ${profileLabel(state.current)}`;
+    $('power-tab').className = `btn ${activeCurve === 'power' ? 'btn-primary' : 'btn-secondary'}`;
+    $('nozzle-tab').className = `btn ${activeCurve === 'nozzle' ? 'btn-primary' : 'btn-secondary'}`;
+    $('copy').disabled = selectedProfile === 'stock' || selectedProfile === 'custom';
+    $('add-point').disabled = !isEditable();
+    $('save').disabled = !isEditable();
+    $('apply').disabled = false;
+    renderRules();
+    renderChart();
+    renderCompare();
+    renderPointEditor();
+}
+
+function copyPresetToCustom() {
+    if (selectedProfile === 'custom' || selectedProfile === 'stock') return;
+    const source = state.presets[selectedProfile] || { power: [], nozzle: [] };
+    draft = { power: source.power.map(point => point.slice()), nozzle: source.nozzle.map(point => point.slice()) };
+    selectedProfile = 'custom';
+    selectedNode = -1;
+    dirty = true;
+    renderAll();
+    setStatus('Preset copied to Custom. Save it before applying.');
+}
+
+function resetDraft() {
+    draft = { power: savedDraft.power.map(point => point.slice()), nozzle: savedDraft.nozzle.map(point => point.slice()) };
+    selectedNode = -1;
+    dirty = false;
+    renderAll();
+    setStatus('Draft restored from the saved Custom profile.');
+}
+
+function validateDraft() {
+    const errors = [];
+    ['power', 'nozzle'].forEach(name => {
+        const points = draft[name] || [];
+        if (points.length < 2) errors.push(`${name} needs at least two points`);
+        if (points.length > maxPoints()) errors.push(`${name} has too many points`);
+        points.forEach(([temperature, duty], index) => {
+            if (!Number.isInteger(temperature) || temperature < 0 || temperature > MAX_TEMPERATURE) {
+                errors.push(`${name} point ${index + 1} has an invalid temperature`);
+            }
+            if (!Number.isFinite(duty) || duty < 0 || duty > maxDuty()) {
+                errors.push(`${name} point ${index + 1} exceeds the ordinary duty limit`);
+            }
+            if (index && temperature <= points[index - 1][0]) {
+                errors.push(`${name} temperatures must increase strictly`);
+            }
+        });
+    });
+    return errors;
+}
+
+function saveCustom() {
+    const errors = validateDraft();
+    if (errors.length) {
+        setStatus(errors.join('; '), 'error');
+        return;
+    }
+    showConfirm('Save Custom fan curves', 'Save the current power and nozzle curves as Custom?', async () => {
+        closeConfirm();
+        try {
+            await post({ action: 'save', curves: { power: draft.power, nozzle: draft.nozzle } },
+                'Save Custom fan curves', 'Saving');
+            savedDraft = { power: draft.power.map(point => point.slice()), nozzle: draft.nozzle.map(point => point.slice()) };
+            dirty = false;
+            setStatus('Custom saved.', 'success');
+        } catch (error) {
+            setStatus(error.message, 'error');
+        }
+    });
+}
+
+function applyProfile() {
+    const errors = validateDraft();
+    if (errors.length) {
+        setStatus(errors.join('; '), 'error');
+        return;
+    }
+    const body = { action: 'apply', profile: selectedProfile };
+    if (selectedProfile === 'custom') body.curves = { power: draft.power, nozzle: draft.nozzle };
+    const label = profileLabel(selectedProfile);
+    showConfirm(`Apply ${label}`,
+        'Applying a fan profile restarts Klipper and may interrupt a print. Continue?', async () => {
+        closeConfirm();
+        try {
+            await post(body, `Apply ${label}`, 'Applying');
+            dirty = false;
+            setStatus(`${label} applied.`, 'success');
+            notifyParent();
+        } catch (error) {
+            setStatus(error.message, 'error');
+        }
+    });
+}
+
+async function load() {
+    try {
+        const payload = await (await apiFetch('api/fan-curves')).json();
+        state = normalize(payload);
+        selectedProfile = state.current;
+        const select = $('profile');
+        select.innerHTML = state.profiles
+            .map(key => `<option value="${escapeHtml(key)}">${escapeHtml(profileLabel(key))}</option>`)
+            .join('');
+        renderAll();
+    } catch (error) {
+        setStatus(`The fan curve API is unavailable: ${error.message}`, 'error');
+    }
+}
+
+// ---------------------------------------------------------------- wiring
+
+$('profile').addEventListener('change', event => {
+    selectedProfile = event.target.value;
+    selectedNode = -1;
+    setStatus('');
+    renderAll();
+});
+$('power-tab').addEventListener('click', () => { activeCurve = 'power'; selectedNode = -1; renderAll(); });
+$('nozzle-tab').addEventListener('click', () => { activeCurve = 'nozzle'; selectedNode = -1; renderAll(); });
+$('copy').addEventListener('click', copyPresetToCustom);
+$('add-point').addEventListener('click', addPointInBiggestGap);
+$('save').addEventListener('click', saveCustom);
+$('apply').addEventListener('click', applyProfile);
+$('point-delete').addEventListener('click', deleteNode);
+$('point-temperature').addEventListener('input', event => {
+    if (!isEditable() || selectedNode < 0) return;
+    const value = Number(event.target.value);
+    if (!Number.isFinite(value)) return;
+    const points = draft[activeCurve] || [];
+    updateNode(selectedNode, value, points[selectedNode][1]);
+});
+$('point-duty').addEventListener('input', event => {
+    if (!isEditable() || selectedNode < 0) return;
+    const value = Number(event.target.value);
+    if (!Number.isFinite(value)) return;
+    const points = draft[activeCurve] || [];
+    updateNode(selectedNode, points[selectedNode][0], value / 100);
+});
+$('confirm-ok').addEventListener('click', () => {
+    const action = confirmAction;
+    closeConfirm();
+    if (action) action();
+});
+$('confirm-cancel').addEventListener('click', closeConfirm);
+$('action-close').addEventListener('click', () => { $('action-backdrop').hidden = true; });
+
+const chart = $('chart');
+chart.addEventListener('pointerdown', onPointerDown);
+chart.addEventListener('keydown', onKeyDown);
+window.addEventListener('pointermove', onPointerMove);
+window.addEventListener('pointerup', onPointerUp);
+
+load();
+</script>
+</body>
+</html>
