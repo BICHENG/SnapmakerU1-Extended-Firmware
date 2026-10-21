@@ -470,7 +470,7 @@ function selectNode(index) {
     renderPointEditor();
 }
 
-function renderPointEditor() {
+function renderPointEditor(force) {
     const editor = $('point-editor');
     const empty = $('point-empty');
     const points = draft[activeCurve] || [];
@@ -488,10 +488,10 @@ function renderPointEditor() {
     empty.hidden = true;
     // A field that is being typed into keeps its text, otherwise the clamp
     // would rewrite the number while the user is still writing it.
-    if (document.activeElement !== $('point-temperature')) {
+    if (force || document.activeElement !== $('point-temperature')) {
         $('point-temperature').value = temperature;
     }
-    if (document.activeElement !== $('point-duty')) {
+    if (force || document.activeElement !== $('point-duty')) {
         $('point-duty').value = (duty * 100).toFixed(1);
     }
     $('point-delete').disabled = points.length <= 2;
@@ -920,10 +920,10 @@ $('point-duty').addEventListener('input', event => {
     updateNode(selectedNode, points[selectedNode][0], value / 100);
 });
 $('point-temperature').addEventListener('change', () => {
-    renderPointEditor();
+    renderPointEditor(true);
 });
 $('point-duty').addEventListener('change', () => {
-    renderPointEditor();
+    renderPointEditor(true);
 });
 $('confirm-ok').addEventListener('click', () => {
     const action = confirmAction;
