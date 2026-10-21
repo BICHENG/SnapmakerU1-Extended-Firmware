@@ -445,8 +445,7 @@
 
         const fanCurvesProfileLabels = {
             stock: 'Stock',
-            quiet: 'Quiet',
-            very_quiet: 'Very Quiet (Experimental)',
+            optimal: 'Optimal',
             custom: 'Custom'
         };
 
@@ -461,10 +460,15 @@
         }
 
         function fanCurvesProfileKey(key) {
-            const normalized = String(key || '').toLowerCase().replace(/[- ]/g, '_');
-            if (normalized === 'very_quiet_experimental' || normalized === 'quiet_experimental') return 'very_quiet';
-            if (normalized === 'veryquiet') return 'very_quiet';
-            return normalized;
+            return String(key || '').toLowerCase().replace(/[- ]/g, '_');
+        }
+
+        // A preset that is not shipped with the firmware keeps its own name.
+        function fanCurvesProfileLabel(key) {
+            const known = fanCurvesProfileLabels[key];
+            if (known) return known;
+            return String(key || '').split('_').filter(Boolean)
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
         }
 
         function fanCurvesPoints(value) {
@@ -492,8 +496,12 @@
             });
             const saved = fanCurvesProfile(payload.custom);
             const dirty = Boolean(oldState?.dirty);
+            const profiles = Array.isArray(payload.profiles) && payload.profiles.length
+                ? payload.profiles.map(fanCurvesProfileKey)
+                : ['stock', ...Object.keys(presets).sort(), 'custom'];
             return {
-                current: fanCurvesProfileKey(payload.current || 'quiet'),
+                current: fanCurvesProfileKey(payload.current || 'stock'),
+                profiles,
                 presets,
                 custom: dirty ? oldState.custom : fanCurvesClone(saved),
                 customSaved: dirty ? oldState.customSaved : fanCurvesClone(saved),
@@ -515,7 +523,7 @@
 
         function fanCurvesMaxDuty() {
             const value = Number(fanCurvesState?.limits?.duty?.[1]);
-            return Number.isFinite(value) ? Math.min(value, 0.6) : 0.6;
+            return Number.isFinite(value) ? Math.min(value, 1) : 1;
         }
 
         function fanCurvesMinCoolTemperature() {
@@ -613,7 +621,7 @@
                 return;
             }
             const editable = fanCurvesEditable();
-            container.innerHTML = points.map(([temperature, duty], index) => `<div class="fan-curves-node"><input id="fan-curves-temp-${index}" data-index="${index}" data-field="temperature" type="number" min="0" max="300" step="1" value="${fanCurvesEscape(temperature)}"${editable ? '' : ' disabled'}><input id="fan-curves-duty-${index}" data-index="${index}" data-field="duty" type="number" min="0" max="60" step="0.1" value="${fanCurvesEscape((duty * 100).toFixed(1))}"${editable ? '' : ' disabled'}><button class="btn btn-secondary fan-curves-delete" data-index="${index}" type="button"${editable && points.length > 2 ? '' : ' disabled'}>Delete</button></div>`).join('');
+            container.innerHTML = points.map(([temperature, duty], index) => `<div class="fan-curves-node"><input id="fan-curves-temp-${index}" data-index="${index}" data-field="temperature" type="number" min="0" max="300" step="1" value="${fanCurvesEscape(temperature)}"${editable ? '' : ' disabled'}><input id="fan-curves-duty-${index}" data-index="${index}" data-field="duty" type="number" min="0" max="${Math.round(fanCurvesMaxDuty() * 100)}" step="0.1" value="${fanCurvesEscape((duty * 100).toFixed(1))}"${editable ? '' : ' disabled'}><button class="btn btn-secondary fan-curves-delete" data-index="${index}" type="button"${editable && points.length > 2 ? '' : ' disabled'}>Delete</button></div>`).join('');
             if (editable) {
                 container.querySelectorAll('input').forEach(input => input.addEventListener('change', fanCurvesInputChanged));
                 container.querySelectorAll('.fan-curves-delete').forEach(button => button.addEventListener('click', () => fanCurvesDelete(Number(button.dataset.index))));
@@ -651,10 +659,13 @@
             const heavyCount = Number(heavy.heater_count) || 3;
             const heavyTemperature = Number(heavy.temperature) || 260;
             const hysteresis = fanCurvesState.hysteresis;
+            const rules = `Non-Stock profiles use ${hysteresis}°C hysteresis. Ordinary duty is limited to ${Math.round(fanCurvesMaxDuty() * 100)}%. A nozzle curve has to start at or below ${fanCurvesMinCoolTemperature()}°C and has to hold at least ${Math.round(fanCurvesMinNozzleDuty() * 100)}% duty from there on, so the heatsink fan never stops while the hotend is hot. Heavy load matches the stock rule: the power fan reaches 100% when ${heavyCount} toolheads heat up and one of them targets more than ${heavyTemperature}°C.`;
             $('fan-curves-help').textContent = profile === 'stock'
                 ? 'Stock uses the original target-temperature and stepped-table semantics. It is read-only here.'
-                : `The first power node sets both the power-fan target trigger and its duty. Non-Stock profiles use ${hysteresis}°C hysteresis. Ordinary duty is limited to ${Math.round(fanCurvesMaxDuty() * 100)}%. A nozzle curve has to start at or below ${fanCurvesMinCoolTemperature()}°C and has to hold at least ${Math.round(fanCurvesMinNozzleDuty() * 100)}% duty from there on, so the heatsink fan never stops while the hotend is hot. Heavy load matches the stock rule: the power fan reaches 100% when ${heavyCount} toolheads heat up and one of them targets more than ${heavyTemperature}°C.`;
-            $('fan-curves-summary').textContent = `Current profile: ${fanCurvesProfileLabels[fanCurvesState.current] || fanCurvesState.current}. Edit opens the curve editor; presets remain available.`;
+                : profile === 'custom'
+                ? `Custom is a curve of your own, so how much it cools the hotend is on your risk. ${rules}`
+                : `${fanCurvesProfileLabel(profile)} is a preset. The first power node sets both the power-fan target trigger and its duty. ${rules}`;
+            $('fan-curves-summary').textContent = `Current profile: ${fanCurvesProfileLabel(fanCurvesState.current)}. Edit opens the curve editor; presets remain available.`;
             fanCurvesRenderNodes();
             fanCurvesRenderChart();
         }
@@ -793,7 +804,7 @@
             }
             const body = { action: 'apply', profile };
             if (profile === 'custom') body.curves = fanCurvesClone(fanCurvesState.custom);
-            const label = fanCurvesProfileLabels[profile] || profile;
+            const label = fanCurvesProfileLabel(profile);
             showConfirmModal(`Apply ${label}`, 'Applying a fan profile will restart Klipper and may interrupt printing. Continue?', () => fanCurvesPost(body, `Apply ${label}`, 'Applying fan curves...'));
         }
 
@@ -803,9 +814,7 @@
                 fanCurvesState = fanCurvesNormalizePayload(payload);
                 fanCurvesState.selected = fanCurvesState.current;
                 const profileSelect = $('fan-curves-profile');
-                if (!profileSelect.options.length) {
-                    profileSelect.innerHTML = Object.entries(fanCurvesProfileLabels).map(([key, label]) => `<option value="${fanCurvesEscape(key)}">${fanCurvesEscape(label)}</option>`).join('');
-                }
+                profileSelect.innerHTML = (fanCurvesState.profiles || []).map(key => `<option value="${fanCurvesEscape(key)}">${fanCurvesEscape(fanCurvesProfileLabel(key))}</option>`).join('');
                 fanCurvesRender();
             } catch (error) {
                 $('fan-curves-summary').textContent = `Fan curve editor unavailable: ${error.message}`;

@@ -6,7 +6,7 @@ title: Klipper Tweaks
 
 Configurable Klipper motion, motor-current, and fan-control tweaks. These settings can **only** be configured via the [Firmware Configuration](firmware_config.md) web interface under **Settings → Tweaks**.
 
-> **Note**: `Max Speed` and `TMC Reduced Current` change motion and motor-current settings. `Quiet` is the production-tested fan profile; `Very Quiet (Experimental)` runs the nozzle fans well below the stock speed.
+> **Note**: `Max Speed` and `TMC Reduced Current` change motion and motor-current settings. `Quiet` is the production-tested fan profile; `Optimal` is the default fan profile and never cools less than stock does once the hotend is past 140°C.
 
 ## TMC AutoTune
 
@@ -110,16 +110,17 @@ This feature can **only** be configured via Firmware Configuration web interface
 
 ## Fan Curves
 
-Selects nonlinear fan curves for the power fan and all four nozzle fans.
+Selects cooling curves for the power fan and all four nozzle fans.
 
 **Options:**
 
-- `Quiet` - the production-tested profile. The power fan starts at 20% when a nozzle target reaches 70°C, then rises nonlinearly to 60%. Nozzle fans start at 50°C at 5% duty and rise gently, so the heatsink keeps cooling from the moment the hotend gets hot. The power fan `heavy load` rule matches the stock rule: it reaches 100% when at least three toolheads heat up and one of them targets more than 260°C.
-- `Very Quiet (Experimental)` - the nozzle fans start at 50°C at 5% duty and stay on from there on, and the power fan starts at 20% at 50°C and rises to 60%. It runs well below the stock fan speed, so it is meant for low-noise experiments and needs a heat-creep check on the printed part, not as the production default.
-- `Custom` - edited in the curve editor. Its first power node supplies both the power-fan target trigger and duty, so a curve beginning at `220°C, 0%` stays off below that target instead of inheriting Quiet's pre-spin. A nozzle curve has to start at or below `50°C` and has to hold at least `5%` duty from there on. All curve profiles use `5°C` hysteresis.
+- `Optimal` - the default profile. Its nozzle curve follows the stock cooling from `140°C` on and only stays below it while the hotend is still warming up. Its power curve reaches the stock 60% from `200°C` on, so a PLA or ABS print gets the stock cooling.
+- `Custom` - a curve of your own, edited in the curve editor. How much it cools the hotend is on your risk. A nozzle curve has to start at or below `50°C` and has to hold at least `5%` duty from there on. Its first power node supplies both the power-fan target trigger and duty, so a curve beginning at `220°C, 0%` stays off below that target instead of inheriting the pre-spin. All curve profiles use `5°C` hysteresis.
 - `Stock` - removes the override and restores the curves from the base printer configuration.
 
-The nozzle fan curves use actual nozzle temperatures for normal table selection, so a 250°C target does not immediately select the 250°C nozzle-fan speed. The power fan follows target temperatures only, the same way the stock `temp_speed_table` does, so a toolhead with a faulty thermistor cannot push the power fan up. The first power node is also the power-fan target trigger and duty. All non-Stock curve profiles use `5°C` hysteresis. Ordinary curve entries stay at or below 60%. Probing still locks the nozzle fans to their `probe_speed`, and the cavity temperature guard still forces the fans to 100% when the chamber leaves its guard range. The original `heater_fan` sections remain the only Klipper sections; the selected profile is stored in `fan-curves-active.json`, which the patched fan driver reads at startup. A nozzle curve has to start at or below `50°C` and has to hold at least `5%` duty from there on, so the heatsink fan never stops while the hotend is hot. The power-fan heavy-load rule matches the stock rule: it reaches 100% when at least three toolheads heat up and one of them targets more than `260°C`.
+Personal curves are not shipped with the firmware. Drop a `fan_curves_<name>.json` file into `/oem/printer_data/config/extended/fan-curves-presets/` and it shows up in the curve editor next to the built-in presets.
+
+The nozzle fan curves use actual nozzle temperatures for normal table selection, so a 250°C target does not immediately select the 250°C nozzle-fan speed. The power fan follows target temperatures only, the same way the stock `temp_speed_table` does, so a toolhead with a faulty thermistor cannot push the power fan up. The first power node is also the power-fan target trigger and duty. All non-Stock curve profiles use `5°C` hysteresis. Ordinary curve entries stay at or below 100%. Probing still locks the nozzle fans to their `probe_speed`, and the cavity temperature guard still forces the fans to 100% when the chamber leaves its guard range. The original `heater_fan` sections remain the only Klipper sections; the selected profile is stored in `fan-curves-active.json`, which the patched fan driver reads at startup. A nozzle curve has to start at or below `50°C` and has to hold at least `5%` duty from there on, so the heatsink fan never stops while the hotend is hot. The power-fan heavy-load rule matches the stock rule: it reaches 100% when at least three toolheads heat up and one of them targets more than `260°C`.
 
 The setting is available under **Settings → Tweaks → Fan Curves**. The mode selector includes an **Edit curves** button that opens the Custom editor below it. Applying an option atomically replaces `/oem/printer_data/config/extended/fan-curves-active.json` and restarts Klipper. Saved Custom points remain in `/oem/printer_data/config/extended/fan-curves.json`, which also preserves Custom data from the earlier editor. `Stock` stores a Stock marker and leaves the original printer configuration in control. A legacy `20_fan_curves.cfg` is renamed before Klipper starts so an older install cannot be loaded accidentally.
 

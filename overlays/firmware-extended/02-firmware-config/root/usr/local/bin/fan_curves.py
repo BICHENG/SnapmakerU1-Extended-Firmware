@@ -11,14 +11,20 @@ ACTIVE_PATH = os.path.join(CONFIG_DIR, 'fan-curves-active.json')
 CUSTOM_PATH = os.path.join(CONFIG_DIR, 'fan-curves.json')
 PRESET_DIR = os.environ.get(
     'FAN_CURVES_PRESET_DIR', '/usr/local/share/firmware-config/tweaks/klipper')
-PRESETS = {
-    'quiet': 'fan_curves_quiet.json',
-    'very_quiet': 'fan_curves_very_quiet.json',
-}
+# Personal curves live in their own directory. The user directory wins over
+# the built-in one, so a personal file can replace a shipped preset.
+USER_PRESET_DIR = os.path.join(CONFIG_DIR, 'fan-curves-presets')
+PRESET_PREFIX = 'fan_curves_'
+PRESET_SUFFIX = '.json'
+STOCK_PROFILE = 'stock'
+CUSTOM_PROFILE = 'custom'
+DEFAULT_PROFILE = 'optimal'
 MAX_POINTS = 16
 MIN_POINTS = 2
 MAX_TEMPERATURE = 300
-MAX_DUTY = 0.60
+# The stock nozzle fan reaches 90%, so an ordinary curve has to be allowed to
+# go that high. The heavy-load rule is what reaches 100%.
+MAX_DUTY = 1.0
 DEFAULT_HYSTERESIS = 5.0
 # A nozzle fan must not be held off once the hotend is warm enough to matter.
 # The stock stepped table starts at 45C, so the first curve node has to be at
@@ -26,12 +32,6 @@ DEFAULT_HYSTERESIS = 5.0
 # turning.
 MIN_COOL_TEMPERATURE = 50
 MIN_NOZZLE_DUTY = 0.05
-PROFILES = ('stock', 'quiet', 'very_quiet', 'custom')
-ALIASES = {
-    'balanced': 'quiet',
-    'lazy': 'very_quiet',
-    'quiet_experimental': 'very_quiet',
-}
 
 
 class FanCurveError(ValueError):
@@ -123,8 +123,7 @@ def _normalize_heavy_load(value):
 
 
 def _canonical_profile(profile):
-    profile = str(profile or '').strip().lower().replace('-', '_')
-    return ALIASES.get(profile, profile)
+    return str(profile or '').strip().lower().replace('-', '_')
 
 
 def _normalize_document(value, profile=None):
@@ -133,10 +132,10 @@ def _normalize_document(value, profile=None):
     if value.get('version') != 1:
         raise FanCurveError('unsupported fan curve version')
     profile = _canonical_profile(profile or value.get('profile'))
-    if profile not in PROFILES:
+    if profile == STOCK_PROFILE:
+        return {'version': 1, 'profile': STOCK_PROFILE}
+    if profile != CUSTOM_PROFILE and profile not in _preset_files():
         raise FanCurveError('unknown fan curve profile: %s' % profile)
-    if profile == 'stock':
-        return {'version': 1, 'profile': 'stock'}
     curves = normalize_curves(value.get('curves'))
     hysteresis = _finite_number(
         value.get('hysteresis', DEFAULT_HYSTERESIS), 'hysteresis')
@@ -179,8 +178,33 @@ def _atomic_json(path, value):
     _atomic_bytes(path, (json.dumps(value, indent=2) + '\n').encode('utf-8'))
 
 
+def _preset_files():
+    """Return the available presets as {profile name: file path}.
+
+    Both the built-in directory and the personal one are scanned. A personal
+    file with the same name replaces the built-in preset.
+    """
+    found = {}
+    for directory in (PRESET_DIR, USER_PRESET_DIR):
+        try:
+            names = sorted(os.listdir(directory))
+        except OSError:
+            continue
+        for name in names:
+            if not name.startswith(PRESET_PREFIX) or not name.endswith(PRESET_SUFFIX):
+                continue
+            profile = name[len(PRESET_PREFIX):-len(PRESET_SUFFIX)]
+            if not profile or profile in (STOCK_PROFILE, CUSTOM_PROFILE):
+                continue
+            found[profile] = os.path.join(directory, name)
+    return found
+
+
 def _preset_path(profile):
-    return os.path.join(PRESET_DIR, PRESETS[profile])
+    files = _preset_files()
+    if profile not in files:
+        raise FanCurveError('unknown fan curve profile: %s' % profile)
+    return files[profile]
 
 
 def _load_preset(profile):
@@ -196,7 +220,7 @@ def load_custom():
     try:
         return normalize_curves(_read_json(CUSTOM_PATH))
     except FileNotFoundError:
-        return _load_preset('quiet')['curves']
+        return _load_preset(DEFAULT_PROFILE)['curves']
     except OSError as error:
         raise FanCurveError('cannot load Custom curves: %s' % error)
     except (TypeError, ValueError, json.JSONDecodeError) as error:
@@ -228,42 +252,41 @@ def current_profile():
 
 
 def get_state():
-    quiet = _load_preset('quiet')
+    files = _preset_files()
+    presets = {}
+    for profile in sorted(files):
+        presets[profile] = {'curves': _load_preset(profile)['curves']}
+    default = _load_preset(DEFAULT_PROFILE)
     return {
         'version': 1,
         'current': current_profile(),
-        'presets': {
-            'stock': {'curves': {'power': [], 'nozzle': []}},
-            'quiet': {'curves': quiet['curves']},
-            'very_quiet': {'curves': _load_preset('very_quiet')['curves']},
-        },
+        'profiles': [STOCK_PROFILE] + sorted(files) + [CUSTOM_PROFILE],
+        'presets': presets,
         'custom': load_custom(),
         'limits': {
             'max_points': MAX_POINTS,
             'temperature': [0, MAX_TEMPERATURE],
             'duty': [0, MAX_DUTY],
         },
-        'hysteresis': quiet['hysteresis'],
-        'heavy_load': quiet['heavy_load'],
+        'hysteresis': default['hysteresis'],
+        'heavy_load': default['heavy_load'],
     }
 
 
 def _active_document(profile, curves=None):
     profile = _canonical_profile(profile)
-    if profile == 'stock':
-        return {'version': 1, 'profile': 'stock'}
-    if profile in ('quiet', 'very_quiet'):
-        return _load_preset(profile)
-    if profile == 'custom':
-        base = _load_preset('quiet')
+    if profile == STOCK_PROFILE:
+        return {'version': 1, 'profile': STOCK_PROFILE}
+    if profile == CUSTOM_PROFILE:
+        base = _load_preset(DEFAULT_PROFILE)
         return _normalize_document({
             'version': 1,
-            'profile': 'custom',
+            'profile': CUSTOM_PROFILE,
             'curves': curves if curves is not None else load_custom(),
             'hysteresis': base['hysteresis'],
             'heavy_load': base['heavy_load'],
-        })
-    raise FanCurveError('unknown fan curve profile: %s' % profile)
+        }, CUSTOM_PROFILE)
+    return _load_preset(profile)
 
 
 def _restart_klipper():
@@ -309,6 +332,12 @@ def apply_profile(profile, curves=None, restart=True):
 def migrate_legacy(profile):
     if os.path.exists(ACTIVE_PATH):
         return current_profile()
+    profile = _canonical_profile(profile)
+    files = _preset_files()
+    if profile not in (STOCK_PROFILE, CUSTOM_PROFILE) and profile not in files:
+        # The preset the old install asked for is not available any more, so
+        # fall back to the shipped default instead of losing the setting.
+        profile = DEFAULT_PROFILE
     document = _active_document(profile)
     _atomic_json(ACTIVE_PATH, document)
     return document['profile']

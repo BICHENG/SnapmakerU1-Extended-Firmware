@@ -7,7 +7,7 @@ settings:
     items:
       fan_curves:
         label: Fan Curves
-        description: Select nonlinear cooling curves for the power and nozzle fans. Quiet is the production-tested profile; Very Quiet (Experimental) runs the nozzle fans well below the stock speed. Stock restores the original Snapmaker curves.
+        description: Select cooling curves for the power fan and all four nozzle fans. Optimal is the default profile, Stock restores the original Snapmaker curves. Personal curves can be dropped into the fan-curves-presets directory.
         help_url: http://snapmakeru1-extended-firmware.pages.dev/tweaks#fan-curves
         get_cmd:
           - bash
@@ -15,29 +15,21 @@ settings:
           - |
             python3 /usr/local/bin/fan_curves.py profile 2>/dev/null || echo stock
         options:
-          quiet:
-            label: Quiet
+          optimal:
+            label: Optimal
             confirm: |-
-              Apply the Quiet fan curves?
-              Quiet is the production-tested profile. Its first power node is 70°C at 20%, and all curve profiles use 5°C hysteresis. The power fan rises nonlinearly to 60%; nozzle fans start at 50°C at 5% duty and keep the heatsink cooling from there on. The power-fan heavy-load rule matches the stock behaviour: it reaches 100% when at least three toolheads heat up and one of them targets more than 260°C.
+              Apply the Optimal fan curves?
+              Optimal is the default profile. Its nozzle curve follows the stock cooling from 140°C on and stays below it only while the hotend is still warming up. Its power curve reaches the stock 60% from 200°C on. The power-fan heavy-load rule matches the stock behaviour: it reaches 100% when at least three toolheads heat up and one of them targets more than 260°C.
             cmd:
               - bash
               - -xc
               - |
-                python3 /usr/local/bin/fan_curves.py apply quiet
-          very_quiet:
-            label: Very Quiet (Experimental)
-            confirm: |-
-              Apply Very Quiet (Experimental)?
-              The nozzle fans start at 50°C at 5% duty and stay on from there on, so the heatsink never runs without cooling. Its first power node is 50°C at 20%, with 5°C hysteresis; the power fan rises to 60%. The power-fan heavy-load rule matches the stock behaviour: it reaches 100% when at least three toolheads heat up and one of them targets more than 260°C. This profile runs well below the stock fan speed, so check the printed part for heat creep. Use Quiet for normal production.
-            cmd:
-              - bash
-              - -xc
-              - |
-                python3 /usr/local/bin/fan_curves.py apply very_quiet
+                python3 /usr/local/bin/fan_curves.py apply optimal
           custom:
             label: Custom
-            confirm: Apply the saved Custom fan curves? The first power node sets its target trigger and duty; curve profiles use 5°C hysteresis.
+            confirm: |-
+              Apply the saved Custom fan curves?
+              Custom is a curve of your own, so how much it cools the hotend is on your risk. A nozzle curve has to start at or below 50°C and has to hold at least 5% duty from there on, so the heatsink fan never stops while the hotend is hot.
             cmd:
               - bash
               - -xc
