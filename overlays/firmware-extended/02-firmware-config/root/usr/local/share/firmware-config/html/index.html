@@ -84,20 +84,11 @@
         .notice { display: none; background: var(--warning); color: #000; padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; }
         .notice.visible { display: block; }
         .notice a { color: #000; font-weight: 600; }
-        .fan-curves-card .card-header { margin-bottom: 0; }
-        .fan-curves-current { color: var(--muted); font-size: 12px; }
-        .fan-curves-summary { color: var(--muted); font-size: 12px; margin: 0 0 12px; line-height: 1.5; }
-        .fan-curves-modal { align-items: center; background: rgba(0, 0, 0, 0.55); display: flex; inset: 0; justify-content: center; padding: 24px; position: fixed; z-index: 40; }
-        .fan-curves-modal[hidden] { display: none; }
-        .fan-curves-modal-panel { background: var(--card); border: 1px solid #444; border-radius: 10px; display: flex; flex-direction: column; max-height: 92vh; max-width: 1280px; overflow: hidden; width: 100%; }
-        .fan-curves-modal-head { align-items: center; border-bottom: 1px solid #444; display: flex; flex: 0 0 auto; justify-content: space-between; padding: 12px 16px; }
-        .fan-curves-modal-title { font-size: 15px; }
-        .fan-curves-modal-frame { border: 0; display: block; height: min(780px, 84vh); max-height: calc(92vh - 53px); width: 100%; }
         @media (max-width: 640px) {
             body { padding: 12px; }
-            .fan-curves-modal { padding: 10px; }
         }
     </style>
+    <link rel="stylesheet" href="fan-curves.css">
 </head>
 <body>
     <div class="container">
@@ -138,25 +129,6 @@
         <div class="card">
             <div class="card-header"><span class="card-title">Settings</span></div>
             <div id="settings-container"><div class="loading"><span class="spinner"></span> Loading...</div></div>
-        </div>
-
-        <div class="card fan-curves-card" id="fan-curves-card">
-            <div class="card-header">
-                <span class="card-title">Fan Curves</span>
-                <span class="fan-curves-current" id="fan-curves-current"></span>
-            </div>
-            <p class="fan-curves-summary" id="fan-curves-summary">Loading fan curve profiles...</p>
-            <button class="btn btn-primary" id="fan-curves-open" type="button">Open curve editor</button>
-        </div>
-
-        <div class="fan-curves-modal" id="fan-curves-modal" hidden>
-            <div class="fan-curves-modal-panel" role="dialog" aria-modal="true" aria-label="Fan curve editor">
-                <div class="fan-curves-modal-head">
-                    <span class="fan-curves-modal-title">Fan curve editor</span>
-                    <button class="btn btn-secondary" id="fan-curves-modal-close" type="button">Close</button>
-                </div>
-                <iframe class="fan-curves-modal-frame" id="fan-curves-frame" title="Fan curve editor" src="about:blank" data-src="fan-curves.html"></iframe>
-            </div>
         </div>
 
         <div class="card">
@@ -209,6 +181,7 @@
         </div>
     </div>
 
+    <script src="fan-curves.js"></script>
     <script>
         // Helper function to get element by ID
         const $ = id => document.getElementById(id);
@@ -394,10 +367,24 @@
                                     ${setting.description ? `<span class="row-desc">${setting.description}</span>` : ''}
                                 </div>
                                 <select data-prev-value="${setting.current}" data-help-url="${setting.help_url || ''}" onchange="updateSetting('${setting.id}', this)">${options}</select>
-                            </div>`;
+                            </div>${setting.id === 'fan_curves' ? '<div data-fan-curves-anchor></div>' : ''}`;
                         }).join('')}
                     </div>`
                 ).join('');
+
+                // The editor goes under the fan curve setting. It keeps its
+                // place when the settings are drawn again, so a refresh does
+                // not throw away an edit that was not saved.
+                const anchor = container.querySelector('[data-fan-curves-anchor]');
+                if (anchor) {
+                    anchor.replaceWith(fanCurvesEditorHost());
+                    if (!fanCurvesEditor) {
+                        fanCurvesEditor = window.FanCurveEditor.create({
+                            onApplied: () => refreshAll()
+                        });
+                        fanCurvesEditor.mount(fanCurvesHost);
+                    }
+                }
             } catch (e) {
                 container.innerHTML = `<div class="loading" style="color:var(--error)">Error: ${e.message}</div>`;
             }
@@ -407,81 +394,18 @@
         // Fan Curves
         // ========================================
 
-        // The curve editor has its own page and opens in a modal, so this page
-        // only shows which profile runs and the way into the editor.
-        function fanCurvesProfileLabel(key, labels) {
-            const known = (labels || {})[key];
-            if (known) return known;
-            return String(key || '').split('_').filter(Boolean)
-                .map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-        }
+        // The editor is a component of this page. It is mounted under the
+        // fan curve setting, so there is no second page to open and no
+        // second copy of the state to keep in step.
+        let fanCurvesEditor = null;
+        let fanCurvesHost = null;
 
-        function fanCurvesModal() {
-            return $('fan-curves-modal');
-        }
-
-        function openFanCurvesModal() {
-            const modal = fanCurvesModal();
-            const frame = $('fan-curves-frame');
-            if (!frame.dataset.loaded) {
-                frame.src = frame.dataset.src;
-                frame.dataset.loaded = 'yes';
+        function fanCurvesEditorHost() {
+            if (!fanCurvesHost) {
+                fanCurvesHost = document.createElement('div');
+                fanCurvesHost.className = 'fc-editor-host';
             }
-            modal.hidden = false;
-            // The keyboard belongs to the editor, so the focus goes there.
-            frame.focus();
-        }
-
-        function closeFanCurvesModal() {
-            fanCurvesModal().hidden = true;
-        }
-
-        // The editor keeps its own copy of the state. Tell it to pick up the
-        // new one when the profile was changed somewhere else.
-        function fanCurvesEditorRefresh() {
-            const frame = $('fan-curves-frame');
-            if (!frame.dataset.loaded || !frame.contentWindow) return;
-            frame.contentWindow.postMessage(
-                { source: 'fan-curves-main', type: 'refresh' },
-                window.location.origin);
-        }
-
-        async function loadFanCurves() {
-            try {
-                const payload = await (await apiFetch('api/fan-curves')).json();
-                const current = String(payload.current || 'stock');
-                const labels = payload.labels || {};
-                $('fan-curves-current').textContent = `Active: ${fanCurvesProfileLabel(current, labels)}`;
-                $('fan-curves-summary').textContent =
-                    'Cooling curves for the power fan and all four nozzle fans. Every profile but the stock one is a file of your own. Open the editor to draw a curve, or use the setting above to switch profile.';
-            } catch (error) {
-                $('fan-curves-summary').textContent = `The fan curve editor is unavailable: ${error.message}`;
-            }
-        }
-
-        function setupFanCurves() {
-            $('fan-curves-open').addEventListener('click', openFanCurvesModal);
-            $('fan-curves-modal-close').addEventListener('click', closeFanCurvesModal);
-            fanCurvesModal().addEventListener('click', event => {
-                if (event.target === fanCurvesModal()) closeFanCurvesModal();
-            });
-            document.addEventListener('keydown', event => {
-                if (event.key === 'Escape' && !fanCurvesModal().hidden) closeFanCurvesModal();
-            });
-            window.addEventListener('message', event => {
-                if (event.origin !== window.location.origin) return;
-                const frame = $('fan-curves-frame');
-                if (!frame.contentWindow || event.source !== frame.contentWindow) return;
-                const data = event.data || {};
-                if (data.source !== 'fan-curves-editor') return;
-                if (data.type === 'close') {
-                    closeFanCurvesModal();
-                    return;
-                }
-                if (data.type !== 'applied') return;
-                closeFanCurvesModal();
-                refreshAll();
-            });
+            return fanCurvesHost;
         }
 
         // ========================================
@@ -953,7 +877,6 @@
                     loadStatus(),
                     loadLinks(),
                     loadSettings(),
-                    loadFanCurves(),
                     loadActions('quick-actions-container', 'api/quick-actions', 'quick-actions-card'),
                     loadActions('actions-container', 'api/actions')
                 ]);
@@ -961,14 +884,13 @@
                 btn.innerHTML = '&#x21bb; Refresh';
                 btn.disabled = false;
             }
-            fanCurvesEditorRefresh();
+            if (fanCurvesEditor) fanCurvesEditor.refresh();
         }
 
         // ========================================
         // Initialize
         // ========================================
 
-        setupFanCurves();
         if (showHidden) $('hidden-notice').classList.add('visible');
         refreshAll();
     </script>
