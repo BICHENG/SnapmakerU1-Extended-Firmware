@@ -64,6 +64,11 @@ start() {
     echo "Copying default config files..."
     cp -rn "$DEFAULT_DIR/." "$EXTENDED_DIR/"
 
+    # The default fan curve profile is installed once. It is a file like any
+    # other profile, so it can be drawn, renamed and removed.
+    python3 /usr/local/bin/fan_curves.py seed ||
+        echo "Unable to install the default fan curve profile"
+
     if [ -n "$LEGACY_PROFILE" ] && [ ! -f "$EXTENDED_DIR/fan-curves-active.json" ]; then
         python3 /usr/local/bin/fan_curves.py migrate "$LEGACY_PROFILE" ||
             echo "Unable to migrate legacy fan curves; using Stock"

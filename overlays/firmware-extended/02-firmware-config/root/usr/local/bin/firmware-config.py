@@ -245,15 +245,46 @@ class FirmwareConfigHandler(SimpleHTTPRequestHandler):
                 raise fan_curves.FanCurveError('request must be an object')
             action = body.get('action')
             if action == 'save':
-                fan_curves.save_custom(body.get('curves'))
-                self.send_json({'success': True, 'message': 'Custom fan curves saved'})
+                profile = fan_curves.save_profile(
+                    body.get('profile'), body.get('curves'))
+                self.send_json({'success': True, 'profile': profile,
+                                'message': '%s fan curves saved'
+                                           % fan_curves.profile_label(profile)})
                 return
             if action == 'apply':
                 profile = body.get('profile')
                 fan_curves.apply_profile(profile, body.get('curves'))
-                self.send_json({'success': True, 'message': '%s fan curves applied' % profile})
+                self.send_json({'success': True, 'profile': profile,
+                                'message': '%s fan curves applied'
+                                           % fan_curves.profile_label(profile)})
                 return
-            raise fan_curves.FanCurveError('action must be save or apply')
+            if action == 'new':
+                profile = fan_curves.create_profile(body.get('name'))
+                self.send_json({'success': True, 'profile': profile,
+                                'message': '%s created'
+                                           % fan_curves.profile_label(profile)})
+                return
+            if action == 'rename':
+                profile = fan_curves.rename_profile(
+                    body.get('profile'), body.get('name'), body.get('curves'))
+                self.send_json({'success': True, 'profile': profile,
+                                'message': 'profile renamed to %s'
+                                           % fan_curves.profile_label(profile)})
+                return
+            if action == 'delete':
+                profile = fan_curves.delete_profile(body.get('profile'))
+                self.send_json({'success': True, 'profile': profile,
+                                'message': '%s deleted'
+                                           % fan_curves.profile_label(profile)})
+                return
+            if action == 'restore':
+                profile = fan_curves.restore_default()
+                self.send_json({'success': True, 'profile': profile,
+                                'message': '%s restored'
+                                           % fan_curves.profile_label(profile)})
+                return
+            raise fan_curves.FanCurveError(
+                'action must be save, apply, new, rename, delete or restore')
         except (fan_curves.FanCurveError, json.JSONDecodeError, TypeError, ValueError) as error:
             self.send_json({'success': False, 'error': str(error)}, 400)
         except Exception as error:
@@ -353,6 +384,21 @@ class FirmwareConfigHandler(SimpleHTTPRequestHandler):
                         if "inputs" in opt_val:
                             opt_info["inputs"] = opt_val["inputs"]
                         options_data[opt_key] = opt_info
+
+                    if setting_id == 'fan_curves':
+                        # Every profile but the stock one is a file, so the
+                        # option list follows the files. They all carry the
+                        # same warning.
+                        for profile in fan_curves.available_profiles():
+                            options_data.setdefault(profile, {
+                                "label": fan_curves.profile_label(profile)
+                            })
+                        for opt_key, opt_info in options_data.items():
+                            if opt_key == 'stock':
+                                continue
+                            opt_info["confirm"] = "%s\n\n%s" % (
+                                fan_curves.RISK_NOTICE,
+                                opt_info.get("confirm", ""))
 
                     settings_list.append({
                         "id": setting_id,
@@ -475,6 +521,14 @@ class FirmwareConfigHandler(SimpleHTTPRequestHandler):
                 return
 
             if value not in config["options"]:
+                # A profile is a file, so it is not in the option list of the
+                # yaml, but it can be applied.
+                if setting_key == 'fan_curves' and value in fan_curves.available_profiles():
+                    fan_curves.apply_profile(value)
+                    self.send_json({'success': True,
+                                    'message': '%s fan curves applied'
+                                               % fan_curves.profile_label(value)})
+                    return
                 self.send_error(400, f"Invalid value. Must be one of: {', '.join(config['options'].keys())}")
                 return
 

@@ -7,7 +7,7 @@ settings:
     items:
       fan_curves:
         label: Fan Curves
-        description: Select cooling curves for the power fan and all four nozzle fans. Optimal is the default profile, Stock restores the original Snapmaker curves. Personal curves can be dropped into the fan-curves-presets directory.
+        description: Select cooling curves for the power fan and all four nozzle fans. Stock restores the original Snapmaker curves. Every other profile is a file in the fan-curves-presets directory, so the fan curve editor can draw it, rename it and remove it.
         help_url: http://snapmakeru1-extended-firmware.pages.dev/tweaks#fan-curves
         get_cmd:
           - bash
@@ -15,26 +15,6 @@ settings:
           - |
             python3 /usr/local/bin/fan_curves.py profile 2>/dev/null || echo stock
         options:
-          optimal:
-            label: Optimal
-            confirm: |-
-              Apply the Optimal fan curves?
-              Optimal is the default profile. Its nozzle curve follows the stock cooling from 140°C on and stays below it only while the hotend is still warming up. Its power curve reaches the stock 60% from 200°C on. The power-fan heavy-load rule matches the stock behaviour: it reaches 100% when at least three toolheads heat up and one of them targets more than 260°C.
-            cmd:
-              - bash
-              - -xc
-              - |
-                python3 /usr/local/bin/fan_curves.py apply optimal
-          custom:
-            label: Custom
-            confirm: |-
-              Apply the saved Custom fan curves?
-              Custom is a curve of your own, so how much it cools the hotend is on your risk. The driver holds a nozzle fan at 5% duty from 50°C on, so the heatsink fan never stops while the hotend is hot.
-            cmd:
-              - bash
-              - -xc
-              - |
-                python3 /usr/local/bin/fan_curves.py apply custom
           stock:
             label: Stock
             confirm: Restore the original Snapmaker fan curves?

@@ -8,16 +8,22 @@ import tempfile
 CONFIG_DIR = os.environ.get(
     'FAN_CURVES_CONFIG_DIR', '/oem/printer_data/config/extended')
 ACTIVE_PATH = os.path.join(CONFIG_DIR, 'fan-curves-active.json')
-CUSTOM_PATH = os.path.join(CONFIG_DIR, 'fan-curves.json')
-PRESET_DIR = os.environ.get(
-    'FAN_CURVES_PRESET_DIR', '/usr/local/share/firmware-config/tweaks/klipper')
-# Personal curves live in their own directory. The user directory wins over
-# the built-in one, so a personal file can replace a shipped preset.
-USER_PRESET_DIR = os.path.join(CONFIG_DIR, 'fan-curves-presets')
-PRESET_PREFIX = 'fan_curves_'
-PRESET_SUFFIX = '.json'
+# The curve the old editor kept for the user. It is imported as a profile.
+LEGACY_PATH = os.path.join(CONFIG_DIR, 'fan-curves.json')
+# Every profile but the stock one is a file in this directory. It is the
+# only place profiles are looked for, so a file the user adds, renames or
+# removes is the one the editor and the driver see.
+PROFILE_DIR = os.path.join(CONFIG_DIR, 'fan-curves-presets')
+# The directory the firmware ships its default profile in. It is the source
+# of that profile, not a second place to look for profiles.
+DEFAULT_DIR = os.environ.get(
+    'FAN_CURVES_DEFAULT_DIR', '/usr/local/share/firmware-config/tweaks/klipper')
+PROFILE_PREFIX = 'fan_curves_'
+PROFILE_SUFFIX = '.json'
+# The record that the default profile was installed. Without it the default
+# would come back after every boot, even after the user removed it.
+DEFAULT_MARKER = os.path.join(PROFILE_DIR, '.default-installed')
 STOCK_PROFILE = 'stock'
-CUSTOM_PROFILE = 'custom'
 DEFAULT_PROFILE = 'optimal'
 MAX_POINTS = 16
 MIN_POINTS = 2
@@ -26,10 +32,20 @@ MAX_TEMPERATURE = 300
 # go that high. The heavy-load rule is what reaches 100%.
 MAX_DUTY = 1.0
 DEFAULT_HYSTERESIS = 5.0
+# The heavy load rule of the stock power fan: 100% when at least three
+# toolheads heat up and one of them targets more than 260C.
+DEFAULT_HEAVY_LOAD = {'temperature': 260, 'heater_count': 3,
+                      'hot_count': 1, 'duty': 1.0}
+# The warning that goes with every profile but the stock one.
+RISK_NOTICE = ('Stock keeps a lot of cooling in reserve, but a profile of your own '
+               'is your own risk. Different materials need different cooling, so test '
+               'it before a long print. Happy printing!')
 # A nozzle fan must not be held off once the hotend is warm enough to matter.
 # The stock stepped table starts at 45C and never drops back to zero, so the
 # driver holds a nozzle fan at least at this duty from this temperature on.
 # The driver enforces it, so a curve file cannot switch the fan off there.
+# These are the values a profile file starts with; the file itself holds the
+# rule, so the driver and the editor read the same one.
 MIN_COOL_TEMPERATURE = 50
 MIN_NOZZLE_DUTY = 0.05
 # The stock nozzle fan and power fan, taken from the Snapmaker U1
@@ -97,10 +113,17 @@ def _normalize_heavy_load(value):
     # The power fan reaches 100% when at least heater_count toolheads heat
     # up and at least hot_count of them target more than temperature.
     # A heater_count of 0 drops the first condition.
-    temperature = _finite_number(value.get('temperature', 260), 'heavy-load temperature')
-    heater_count = _finite_number(value.get('heater_count', 3), 'heavy-load heater count')
-    hot_count = _finite_number(value.get('hot_count', 1), 'heavy-load hot count')
-    duty = _finite_number(value.get('duty', 1), 'heavy-load duty')
+    temperature = _finite_number(
+        value.get('temperature', DEFAULT_HEAVY_LOAD['temperature']),
+        'heavy-load temperature')
+    heater_count = _finite_number(
+        value.get('heater_count', DEFAULT_HEAVY_LOAD['heater_count']),
+        'heavy-load heater count')
+    hot_count = _finite_number(
+        value.get('hot_count', DEFAULT_HEAVY_LOAD['hot_count']),
+        'heavy-load hot count')
+    duty = _finite_number(value.get('duty', DEFAULT_HEAVY_LOAD['duty']),
+                           'heavy-load duty')
     if temperature < 0 or temperature > MAX_TEMPERATURE:
         raise FanCurveError('heavy-load temperature must be from 0 to %d' % MAX_TEMPERATURE)
     if heater_count != int(heater_count) or heater_count < 0:
@@ -121,7 +144,7 @@ def _canonical_profile(profile):
     return str(profile or '').strip().lower().replace('-', '_')
 
 
-def _normalize_document(value, profile=None):
+def _normalize_document(value, profile=None, allow_new=False):
     if not isinstance(value, dict):
         raise FanCurveError('fan curve state must be an object')
     if value.get('version') != 1:
@@ -129,7 +152,7 @@ def _normalize_document(value, profile=None):
     profile = _canonical_profile(profile or value.get('profile'))
     if profile == STOCK_PROFILE:
         return {'version': 1, 'profile': STOCK_PROFILE}
-    if profile != CUSTOM_PROFILE and profile not in _preset_files():
+    if not allow_new and profile not in _profiles():
         raise FanCurveError('unknown fan curve profile: %s' % profile)
     curves = normalize_curves(value.get('curves'))
     hysteresis = _finite_number(
@@ -188,66 +211,220 @@ def _atomic_json(path, value):
     _atomic_bytes(path, (json.dumps(value, indent=2) + '\n').encode('utf-8'))
 
 
-def _preset_files():
-    """Return the available presets as {profile name: file path}.
-
-    Both the built-in directory and the personal one are scanned. A personal
-    file with the same name replaces the built-in preset.
-    """
+def _files_in(directory):
+    """Return the profile files in a directory as {profile name: file path}."""
     found = {}
-    for directory in (PRESET_DIR, USER_PRESET_DIR):
-        try:
-            names = sorted(os.listdir(directory))
-        except OSError:
+    try:
+        names = sorted(os.listdir(directory))
+    except OSError:
+        return found
+    for name in names:
+        if not name.startswith(PROFILE_PREFIX) or not name.endswith(PROFILE_SUFFIX):
             continue
-        for name in names:
-            if not name.startswith(PRESET_PREFIX) or not name.endswith(PRESET_SUFFIX):
-                continue
-            profile = name[len(PRESET_PREFIX):-len(PRESET_SUFFIX)]
-            if not profile or profile in (STOCK_PROFILE, CUSTOM_PROFILE):
-                continue
-            found[profile] = os.path.join(directory, name)
+        profile = name[len(PROFILE_PREFIX):-len(PROFILE_SUFFIX)]
+        if not profile or profile == STOCK_PROFILE:
+            continue
+        found[profile] = os.path.join(directory, name)
     return found
 
 
-def _preset_path(profile):
-    files = _preset_files()
+def _profiles():
+    """Return the profiles that exist as a file."""
+    return _files_in(PROFILE_DIR)
+
+
+def _profile_path(profile):
+    return os.path.join(PROFILE_DIR,
+                        '%s%s%s' % (PROFILE_PREFIX, profile, PROFILE_SUFFIX))
+
+
+def _profile_name(value):
+    """The name of a profile file: no path, no odd characters."""
+    name = _canonical_profile(value)
+    if not name or name == STOCK_PROFILE:
+        raise FanCurveError('invalid profile name')
+    if not all(character.isalnum() or character in '-_' for character in name):
+        raise FanCurveError(
+            'a profile name may only hold letters, digits, - and _')
+    return name
+
+
+def profile_label(name):
+    """The name of a profile as it is shown to the user."""
+    known = {STOCK_PROFILE: 'Stock', DEFAULT_PROFILE: 'Optimal'}
+    if name in known:
+        return known[name]
+    return ' '.join(word.capitalize() for word in name.split('_') if word)
+
+
+def available_profiles():
+    """The profiles that exist as a file."""
+    return sorted(_profiles())
+
+
+def _load_profile(profile):
+    """The document of a profile file."""
+    files = _profiles()
     if profile not in files:
         raise FanCurveError('unknown fan curve profile: %s' % profile)
-    return files[profile]
-
-
-def _load_preset(profile):
     try:
-        return _normalize_document(_read_json(_preset_path(profile)), profile)
+        return _normalize_document(_read_json(files[profile]), profile)
     except OSError as error:
-        raise FanCurveError('cannot load %s preset: %s' % (profile, error))
+        raise FanCurveError('cannot load %s profile: %s' % (profile, error))
     except (TypeError, ValueError, json.JSONDecodeError) as error:
-        raise FanCurveError('invalid %s preset: %s' % (profile, error))
+        raise FanCurveError('invalid %s profile: %s' % (profile, error))
 
 
-def load_custom():
+def _profile_settings(profile):
+    """The settings of a profile that a change of the curve does not touch.
+
+    The hysteresis, the heavy load rule and the cooling floor live in the
+    file, so writing a new curve keeps them.
+    """
     try:
-        return normalize_curves(_read_json(CUSTOM_PATH))
-    except FileNotFoundError:
-        return _load_preset(DEFAULT_PROFILE)['curves']
+        document = _load_profile(profile)
+    except FanCurveError:
+        return {}
+    return {
+        'hysteresis': document['hysteresis'],
+        'heavy_load': document['heavy_load'],
+        'min_cool_temperature': document['min_cool_temperature'],
+        'min_nozzle_duty': document['min_nozzle_duty'],
+    }
+
+
+def _profile_document(name, curves, settings=None):
+    """The document of a profile file."""
+    document = {
+        'version': 1,
+        'profile': name,
+        'curves': curves,
+        'hysteresis': DEFAULT_HYSTERESIS,
+        'heavy_load': DEFAULT_HEAVY_LOAD,
+    }
+    if settings:
+        document.update(settings)
+    return _normalize_document(document, name, allow_new=True)
+
+
+def _starter_curves():
+    """A new profile starts with a short line close to the stock curve."""
+    return {
+        'nozzle': [list(STOCK_NOZZLE[0]), list(STOCK_NOZZLE[-1])],
+        'power': [list(STOCK_POWER[0]), list(STOCK_POWER[-1])],
+    }
+
+
+def create_profile(name):
+    """Create a profile that starts close to the stock curve."""
+    name = _profile_name(name)
+    if name in _profiles():
+        raise FanCurveError('a profile called %s exists already' % name)
+    _atomic_json(_profile_path(name), _profile_document(name, _starter_curves()))
+    return name
+
+
+def save_profile(name, curves):
+    """Write the curves into the file of a profile."""
+    name = _profile_name(name)
+    if name not in _profiles():
+        raise FanCurveError('unknown fan curve profile: %s' % name)
+    _atomic_json(_profile_path(name),
+                 _profile_document(name, curves, _profile_settings(name)))
+    return name
+
+
+def rename_profile(name, new_name, curves=None):
+    """Give a profile another name."""
+    name = _profile_name(name)
+    new_name = _profile_name(new_name)
+    if new_name == name:
+        return new_name
+    if new_name in _profiles():
+        raise FanCurveError('a profile called %s exists already' % new_name)
+    if name not in _profiles():
+        raise FanCurveError('unknown fan curve profile: %s' % name)
+    content = curves if curves is not None else _load_profile(name)['curves']
+    settings = _profile_settings(name)
+    _atomic_json(_profile_path(new_name),
+                 _profile_document(new_name, content, settings))
+    os.unlink(_profile_path(name))
+    _rename_active_profile(name, new_name)
+    return new_name
+
+
+def delete_profile(name):
+    """Remove the file of a profile."""
+    name = _profile_name(name)
+    if name not in _profiles():
+        raise FanCurveError('unknown fan curve profile: %s' % name)
+    if current_profile() == name:
+        raise FanCurveError(
+            '%s is running. Apply another profile before you delete it.'
+            % profile_label(name))
+    os.unlink(_profile_path(name))
+    return name
+
+
+def restore_default():
+    """Write the profile the firmware ships into the profile directory."""
+    source = os.path.join(
+        DEFAULT_DIR,
+        '%s%s%s' % (PROFILE_PREFIX, DEFAULT_PROFILE, PROFILE_SUFFIX))
+    try:
+        document = _read_json(source)
     except OSError as error:
-        raise FanCurveError('cannot load Custom curves: %s' % error)
+        raise FanCurveError('cannot read the default profile: %s' % error)
     except (TypeError, ValueError, json.JSONDecodeError) as error:
-        raise FanCurveError('invalid Custom curves: %s' % error)
+        raise FanCurveError('invalid default profile: %s' % error)
+    _atomic_json(_profile_path(DEFAULT_PROFILE),
+                 _normalize_document(document, DEFAULT_PROFILE, allow_new=True))
+    return DEFAULT_PROFILE
 
 
-def save_custom(curves):
-    normalized = normalize_curves(curves)
-    _atomic_json(CUSTOM_PATH, normalized)
-    return normalized
+def seed_default():
+    """Install the profile the firmware ships, once.
+
+    The marker keeps the default from coming back after the user removed
+    it, so a profile the user does not want stays gone.
+    """
+    if os.path.exists(DEFAULT_MARKER):
+        return None
+    if DEFAULT_PROFILE in _profiles():
+        _atomic_bytes(DEFAULT_MARKER, b'')
+        return None
+    name = restore_default()
+    _atomic_bytes(DEFAULT_MARKER, b'')
+    return name
+
+
+def _rename_active_profile(name, new_name):
+    """Keep the name of the running profile in step with the file."""
+    if current_profile() != name:
+        return
+    # The file of the old name is gone already, so the active file is read
+    # as it is on disk instead of through the checks a profile needs.
+    document = _read_active()
+    if not document:
+        return
+    document['profile'] = new_name
+    _atomic_json(ACTIVE_PATH, document)
+
+
+def _read_active():
+    """The active file as it is on disk."""
+    try:
+        document = _read_json(ACTIVE_PATH)
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return None
+    return document if isinstance(document, dict) else None
 
 
 def _load_active():
     try:
         return _normalize_document(_read_json(ACTIVE_PATH))
     except FileNotFoundError:
-        return {'version': 1, 'profile': 'stock'}
+        return {'version': 1, 'profile': STOCK_PROFILE}
     except OSError as error:
         raise FanCurveError('cannot load active fan curves: %s' % error)
     except (TypeError, ValueError, json.JSONDecodeError) as error:
@@ -255,34 +432,53 @@ def _load_active():
 
 
 def current_profile():
+    """The profile that is running.
+
+    The name is read without the checks a file needs, so a profile whose
+    file was removed by hand is still reported as the running one.
+    """
     try:
-        return _load_active()['profile']
-    except FanCurveError:
-        return 'stock'
+        document = _read_json(ACTIVE_PATH)
+    except (OSError, TypeError, ValueError):
+        return STOCK_PROFILE
+    if not isinstance(document, dict):
+        return STOCK_PROFILE
+    return _canonical_profile(document.get('profile')) or STOCK_PROFILE
 
 
 def get_state():
-    files = _preset_files()
+    """What the editor needs to show the profiles."""
+    profiles = _profiles()
     presets = {}
-    for profile in sorted(files):
-        presets[profile] = {'curves': _load_preset(profile)['curves']}
-    default = _load_preset(DEFAULT_PROFILE)
+    for profile in sorted(profiles):
+        try:
+            document = _load_profile(profile)
+        except FanCurveError as error:
+            # A file that cannot be read stays in the list, so the user can
+            # see that it is there and what is wrong with it.
+            presets[profile] = {'error': str(error)}
+            continue
+        presets[profile] = {
+            'curves': document['curves'],
+            'hysteresis': document['hysteresis'],
+            'heavy_load': document['heavy_load'],
+            'min_cool_temperature': document['min_cool_temperature'],
+            'min_nozzle_duty': document['min_nozzle_duty'],
+        }
+    names = [STOCK_PROFILE] + sorted(profiles)
     return {
         'version': 1,
         'current': current_profile(),
-        'profiles': [STOCK_PROFILE] + sorted(files) + [CUSTOM_PROFILE],
+        'profiles': names,
         'presets': presets,
+        'labels': {profile: profile_label(profile) for profile in names},
+        'notice': RISK_NOTICE,
         'stock': {'nozzle': STOCK_NOZZLE, 'power': STOCK_POWER},
-        'custom': load_custom(),
         'limits': {
             'max_points': MAX_POINTS,
             'temperature': [0, MAX_TEMPERATURE],
             'duty': [0, MAX_DUTY],
-            'min_cool_temperature': MIN_COOL_TEMPERATURE,
-            'min_nozzle_duty': MIN_NOZZLE_DUTY,
         },
-        'hysteresis': default['hysteresis'],
-        'heavy_load': default['heavy_load'],
     }
 
 
@@ -290,16 +486,9 @@ def _active_document(profile, curves=None):
     profile = _canonical_profile(profile)
     if profile == STOCK_PROFILE:
         return {'version': 1, 'profile': STOCK_PROFILE}
-    if profile == CUSTOM_PROFILE:
-        base = _load_preset(DEFAULT_PROFILE)
-        return _normalize_document({
-            'version': 1,
-            'profile': CUSTOM_PROFILE,
-            'curves': curves if curves is not None else load_custom(),
-            'hysteresis': base['hysteresis'],
-            'heavy_load': base['heavy_load'],
-        }, CUSTOM_PROFILE)
-    return _load_preset(profile)
+    if curves is not None:
+        return _profile_document(profile, curves, _profile_settings(profile))
+    return _load_profile(profile)
 
 
 def _restart_klipper():
@@ -321,9 +510,14 @@ def _restore(path, previous):
 
 def apply_profile(profile, curves=None, restart=True):
     profile = _canonical_profile(profile)
-    if profile == 'custom' and curves is not None:
-        curves = save_custom(curves)
-    document = _active_document(profile, curves)
+    if profile == STOCK_PROFILE:
+        document = {'version': 1, 'profile': STOCK_PROFILE}
+    else:
+        if curves is not None:
+            # The curves of the profile are written to its file first, so
+            # the running curve is the one on the screen.
+            save_profile(profile, curves)
+        document = _active_document(profile)
     try:
         with open(ACTIVE_PATH, 'rb') as stream:
             previous = stream.read()
@@ -343,12 +537,13 @@ def apply_profile(profile, curves=None, restart=True):
 
 
 def migrate_legacy(profile):
+    """Bring an older install to the current layout."""
+    _migrate_legacy_curve()
     if os.path.exists(ACTIVE_PATH):
         return current_profile()
     profile = _canonical_profile(profile)
-    files = _preset_files()
-    if profile not in (STOCK_PROFILE, CUSTOM_PROFILE) and profile not in files:
-        # The preset the old install asked for is not available any more, so
+    if profile != STOCK_PROFILE and profile not in _profiles():
+        # The profile the old install asked for is not available any more, so
         # fall back to the shipped default instead of losing the setting.
         profile = DEFAULT_PROFILE
     document = _active_document(profile)
@@ -356,14 +551,35 @@ def migrate_legacy(profile):
     return document['profile']
 
 
+def _migrate_legacy_curve():
+    """The curve of the older editor becomes a profile file."""
+    if not os.path.exists(LEGACY_PATH):
+        return
+    target = _profile_path('custom')
+    if os.path.exists(target):
+        return
+    try:
+        curves = normalize_curves(_read_json(LEGACY_PATH))
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return
+    _atomic_json(target, _profile_document('custom', curves))
+
+
 def main():
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', choices=('apply', 'migrate', 'profile'))
+    parser.add_argument('command', choices=(
+        'apply', 'migrate', 'profile', 'seed', 'restore'))
     parser.add_argument('profile', nargs='?')
     args = parser.parse_args()
     if args.command == 'profile':
         print(current_profile())
+        return
+    if args.command == 'seed':
+        seed_default()
+        return
+    if args.command == 'restore':
+        print(restore_default())
         return
     if args.command == 'migrate':
         migrate_legacy(args.profile)
