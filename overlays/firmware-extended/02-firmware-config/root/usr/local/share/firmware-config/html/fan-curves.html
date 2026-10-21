@@ -850,16 +850,30 @@ function applyProfile() {
     });
 }
 
+async function reloadState(keepDraft) {
+    const payload = await (await apiFetch('api/fan-curves')).json();
+    const keep = keepDraft && dirty;
+    const currentDraft = {
+        power: draft.power.map(point => point.slice()),
+        nozzle: draft.nozzle.map(point => point.slice())
+    };
+    state = normalize(payload);
+    if (keep) {
+        draft = currentDraft;
+        dirty = true;
+    } else {
+        selectedProfile = state.current;
+    }
+    const select = $('profile');
+    select.innerHTML = state.profiles
+        .map(key => `<option value="${escapeHtml(key)}">${escapeHtml(profileLabel(key))}</option>`)
+        .join('');
+    renderAll();
+}
+
 async function load() {
     try {
-        const payload = await (await apiFetch('api/fan-curves')).json();
-        state = normalize(payload);
-        selectedProfile = state.current;
-        const select = $('profile');
-        select.innerHTML = state.profiles
-            .map(key => `<option value="${escapeHtml(key)}">${escapeHtml(profileLabel(key))}</option>`)
-            .join('');
-        renderAll();
+        await reloadState(false);
     } catch (error) {
         setStatus(`The fan curve API is unavailable: ${error.message}`, 'error');
     }
@@ -907,6 +921,16 @@ chart.addEventListener('pointerdown', onPointerDown);
 chart.addEventListener('keydown', onKeyDown);
 window.addEventListener('pointermove', onPointerMove);
 window.addEventListener('pointerup', onPointerUp);
+
+// The main page asks for a fresh state when the profile was changed there.
+window.addEventListener('message', event => {
+    if (event.origin !== window.location.origin) return;
+    const data = event.data || {};
+    if (data.source !== 'fan-curves-main' || data.type !== 'refresh') return;
+    reloadState(true).catch(error => {
+        setStatus(error.message, 'error');
+    });
+});
 
 load();
 </script>

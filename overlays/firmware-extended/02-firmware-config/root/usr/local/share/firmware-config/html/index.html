@@ -423,12 +423,25 @@
         function openFanCurvesModal() {
             const modal = fanCurvesModal();
             const frame = $('fan-curves-frame');
-            if (!frame.src || frame.src === 'about:blank') frame.src = frame.dataset.src;
+            if (!frame.dataset.loaded) {
+                frame.src = frame.dataset.src;
+                frame.dataset.loaded = 'yes';
+            }
             modal.hidden = false;
         }
 
         function closeFanCurvesModal() {
             fanCurvesModal().hidden = true;
+        }
+
+        // The editor keeps its own copy of the state. Tell it to pick up the
+        // new one when the profile was changed somewhere else.
+        function fanCurvesEditorRefresh() {
+            const frame = $('fan-curves-frame');
+            if (!frame.dataset.loaded || !frame.contentWindow) return;
+            frame.contentWindow.postMessage(
+                { source: 'fan-curves-main', type: 'refresh' },
+                window.location.origin);
         }
 
         async function loadFanCurves() {
@@ -938,6 +951,7 @@
                 btn.innerHTML = '&#x21bb; Refresh';
                 btn.disabled = false;
             }
+            fanCurvesEditorRefresh();
         }
 
         // ========================================
