@@ -640,6 +640,13 @@ function onPointerUp(event) {
     addPoint(Math.round(position.temperature), Math.round(position.duty * 1000) / 1000);
 }
 
+// A pointer that leaves the window never sends a pointerup, so the drag has
+// to be released here as well.
+function onPointerCancel() {
+    drag = null;
+    pendingClick = null;
+}
+
 function onKeyDown(event) {
     if (!isEditable()) return;
     const target = event.target.closest('.chart-point');
@@ -938,6 +945,8 @@ chart.addEventListener('pointerdown', onPointerDown);
 chart.addEventListener('keydown', onKeyDown);
 window.addEventListener('pointermove', onPointerMove);
 window.addEventListener('pointerup', onPointerUp);
+window.addEventListener('pointercancel', onPointerCancel);
+window.addEventListener('blur', onPointerCancel);
 
 // The main page asks for a fresh state when the profile was changed there.
 window.addEventListener('message', event => {
