@@ -28,7 +28,7 @@ PRINTER_CFG = os.path.join(HERE, 'printer.cfg')
 DEFAULT_PROFILE = os.path.join(
     REPO, 'overlays', 'firmware-extended', '32-feature-klipper-tweaks', 'root',
     'usr', 'local', 'share', 'firmware-config', 'tweaks', 'klipper',
-    'fan_curves_optimal.json')
+    'fan_curves_default.json')
 CURVE_PATH = os.path.join(tempfile.gettempdir(), 'fan-curves-active-test.json')
 
 os.environ['FAN_CURVES_PATH'] = CURVE_PATH

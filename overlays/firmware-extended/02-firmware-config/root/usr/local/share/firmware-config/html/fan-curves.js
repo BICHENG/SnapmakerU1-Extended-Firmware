@@ -949,7 +949,7 @@
                 closeConfirm();
                 try {
                     const result = await post({ action: 'restore' }, null, true);
-                    const name = result?.profile || 'optimal';
+                    const name = result?.profile || 'default';
                     delete drafts[name];
                     await reloadState();
                     selectProfile(name);

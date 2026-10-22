@@ -22,11 +22,13 @@ DEFAULT_DIR = os.environ.get(
     'FAN_CURVES_DEFAULT_DIR', '/usr/local/share/firmware-config/tweaks/klipper')
 PROFILE_PREFIX = 'fan_curves_'
 PROFILE_SUFFIX = '.json'
-# The record that the default profile was installed. Without it the default
-# would come back after every boot, even after the user removed it.
+# The record that the default profile was installed. It holds the name of
+# the default that was installed, so a firmware that ships a default under
+# another name installs that one too. Without the record the default would
+# come back after every boot, even after the user removed it.
 DEFAULT_MARKER = os.path.join(PROFILE_DIR, '.default-installed')
 STOCK_PROFILE = 'stock'
-DEFAULT_PROFILE = 'optimal'
+DEFAULT_PROFILE = 'default'
 MAX_POINTS = 16
 MIN_POINTS = 2
 MAX_TEMPERATURE = 300
@@ -247,7 +249,7 @@ def _profile_name(value):
 
 def profile_label(name):
     """The name of a profile as it is shown to the user."""
-    known = {STOCK_PROFILE: 'Stock', DEFAULT_PROFILE: 'Optimal'}
+    known = {STOCK_PROFILE: 'Stock', DEFAULT_PROFILE: 'Default'}
     if name in known:
         return known[name]
     return ' '.join(word.capitalize() for word in name.split('_') if word)
@@ -385,19 +387,30 @@ def restore_default():
     return DEFAULT_PROFILE
 
 
+def _installed_default():
+    """The name of the default the firmware installed, if it installed one."""
+    try:
+        with open(DEFAULT_MARKER, 'rb') as stream:
+            return stream.read().decode('utf-8').strip()
+    except (OSError, UnicodeDecodeError):
+        return ''
+
+
 def seed_default():
     """Install the profile the firmware ships, once.
 
     The marker keeps the default from coming back after the user removed
-    it, so a profile the user does not want stays gone.
+    it, so a profile the user does not want stays gone. It holds the name
+    of the default that was installed, so a firmware that ships a default
+    under another name installs that one as well.
     """
-    if os.path.exists(DEFAULT_MARKER):
+    if _installed_default() == DEFAULT_PROFILE:
         return None
     if DEFAULT_PROFILE in _profiles():
-        _atomic_bytes(DEFAULT_MARKER, b'')
+        _atomic_bytes(DEFAULT_MARKER, DEFAULT_PROFILE.encode('utf-8'))
         return None
     name = restore_default()
-    _atomic_bytes(DEFAULT_MARKER, b'')
+    _atomic_bytes(DEFAULT_MARKER, DEFAULT_PROFILE.encode('utf-8'))
     return name
 
 

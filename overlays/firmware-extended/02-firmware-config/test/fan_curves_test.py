@@ -78,14 +78,18 @@ def refuses(module, curves):
 def check_the_default():
     section('the profile the firmware ships')
     name = fan.seed_default()
-    check('the seed installs the default profile', name == 'optimal',
+    check('the seed installs the default profile', name == 'default',
           '(name=%s)' % name)
-    check('the default is the only profile', fan.available_profiles() == ['optimal'],
+    check('the default is the only profile', fan.available_profiles() == ['default'],
           '(profiles=%s)' % fan.available_profiles())
     check('the seed leaves a marker behind',
           os.path.exists(os.path.join(profile_dir, '.default-installed')))
+    with open(os.path.join(profile_dir, '.default-installed'), 'rb') as stream:
+        marker = stream.read().decode('utf-8').strip()
+    check('the marker names the default it installed', marker == 'default',
+          '(marker=%s)' % marker)
 
-    document = read_json(os.path.join(profile_dir, 'fan_curves_optimal.json'))
+    document = read_json(os.path.join(profile_dir, 'fan_curves_default.json'))
     check('the installed default carries no rule under the curve',
           'min_cool_temperature' not in document
           and 'min_nozzle_duty' not in document,
@@ -173,7 +177,7 @@ def check_the_life_of_a_profile():
 
     # Renaming keeps the running profile and its curve.
     fan.rename_profile('my_cool', 'quiet')
-    check('the profile was renamed', fan.available_profiles() == ['optimal', 'quiet'],
+    check('the profile was renamed', fan.available_profiles() == ['default', 'quiet'],
           '(profiles=%s)' % fan.available_profiles())
     check('the running profile follows the rename', fan.current_profile() == 'quiet')
     active = read_json(os.path.join(config_dir, 'fan-curves-active.json'))
@@ -184,7 +188,7 @@ def check_the_life_of_a_profile():
     # A running profile is deleted as well, and the printer goes back to the
     # stock curves.
     fan.delete_profile('quiet', restart=False)
-    check('a running profile is deleted', fan.available_profiles() == ['optimal'],
+    check('a running profile is deleted', fan.available_profiles() == ['default'],
           '(profiles=%s)' % fan.available_profiles())
     check('the printer goes back to the stock curves',
           fan.current_profile() == 'stock')
@@ -248,14 +252,34 @@ def check_two_changes_at_the_same_time():
 
 def check_the_default_comes_back():
     section('the default comes back only on purpose')
-    fan.delete_profile('optimal', restart=False)
+    fan.delete_profile('default', restart=False)
     check('the default was deleted', fan.available_profiles() == [],
           '(profiles=%s)' % fan.available_profiles())
     check('the seed does not bring the default back', fan.seed_default() is None)
     check('the default stays away', fan.available_profiles() == [])
     fan.restore_default()
-    check('the default can be restored', fan.available_profiles() == ['optimal'],
+    check('the default can be restored', fan.available_profiles() == ['default'],
           '(profiles=%s)' % fan.available_profiles())
+
+
+def check_a_default_under_another_name():
+    section('a default the firmware renamed is installed')
+    # A machine that installed the default under an older name keeps the
+    # file of that name, and the new default has to be installed as well.
+    os.remove(os.path.join(profile_dir, 'fan_curves_default.json'))
+    with open(os.path.join(profile_dir, '.default-installed'), 'wb') as stream:
+        stream.write(b'optimal')
+    check('the seed installs the default under its new name',
+          fan.seed_default() == 'default',
+          '(name=%s)' % fan.seed_default())
+    check('the default is installed', 'default' in fan.available_profiles(),
+          '(profiles=%s)' % fan.available_profiles())
+    with open(os.path.join(profile_dir, '.default-installed'), 'rb') as stream:
+        marker = stream.read().decode('utf-8').strip()
+    check('the marker names the new default', marker == 'default',
+          '(marker=%s)' % marker)
+    check('the seed runs only once after the rename',
+          fan.seed_default() is None)
 
 
 def check_an_older_install():
@@ -273,7 +297,7 @@ def check_an_older_install():
     os.remove(os.path.join(config_dir, 'fan-curves-active.json'))
     fan.migrate_legacy('something_else')
     check('an unknown old profile falls back to the default',
-          fan.current_profile() == 'optimal',
+          fan.current_profile() == 'default',
           '(profile=%s)' % fan.current_profile())
 
 
@@ -291,6 +315,7 @@ def main():
         check_the_life_of_a_profile()
         check_two_changes_at_the_same_time()
         check_the_default_comes_back()
+        check_a_default_under_another_name()
         check_an_older_install()
     finally:
         shutil.rmtree(config_dir, ignore_errors=True)
