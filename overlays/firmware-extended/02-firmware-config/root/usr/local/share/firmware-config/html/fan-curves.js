@@ -521,9 +521,18 @@
             const svg = $('chart');
             const matrix = typeof svg.getScreenCTM === 'function' ? svg.getScreenCTM() : null;
             if (matrix) {
-                const local = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
-                const geometry = chartGeometry();
-                return { x: local.x, y: local.y, temperature: geometry.fromX(local.x), duty: geometry.fromY(local.y) };
+                // The transform is undone by hand. A browser without DOMPoint
+                // would throw here, and the editor would go dead in the middle
+                // of a drag.
+                const determinant = matrix.a * matrix.d - matrix.b * matrix.c;
+                if (determinant) {
+                    const dx = event.clientX - matrix.e;
+                    const dy = event.clientY - matrix.f;
+                    const x = (matrix.d * dx - matrix.c * dy) / determinant;
+                    const y = (matrix.a * dy - matrix.b * dx) / determinant;
+                    const geometry = chartGeometry();
+                    return { x, y, temperature: geometry.fromX(x), duty: geometry.fromY(y) };
+                }
             }
             const rect = svg.getBoundingClientRect();
             const scaleX = chartSize.width / rect.width;
