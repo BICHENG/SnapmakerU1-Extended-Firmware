@@ -128,8 +128,9 @@ The nozzle curve follows the effective toolhead temperature, the same as the sto
 
 The setting is available under **Settings → Tweaks → Fan Curves**. The curve editor belongs to that setting: it sits under the dropdown, draws the profile that is running, and is the only place where a curve is drawn.
 
-- Click empty space in the chart to add a point, drag a point to move it, right click a point to remove it.
+- Click empty space in the chart to add a point, drag a point to move it, remove it with **Delete point** or the right mouse button.
 - Click a point to select it, then edit its temperature and duty in the fields under the chart.
+- A press takes hold of the point that is nearest to it, so a point is easy to grab even when the press lands beside the dot.
 - The profile menu creates a new profile, renames one, deletes one, and restores the default profile.
 - **Save** writes the curve into the profile file. **Apply** makes that profile the running one and restarts Klipper.
 

@@ -79,6 +79,9 @@
 .fc-editor .chart-reference { fill: none; stroke: #6a6a6a; stroke-dasharray: 5 4; stroke-width: 1.5; }
 .fc-editor .chart-guide { stroke: #555; stroke-dasharray: 2 3; stroke-width: 1; }
 .fc-editor .chart-guide-dot { fill: var(--accent); }
+/* The readout floats over the chart, so it must not take the press that was
+   meant for a point underneath it. */
+.fc-editor .chart-readout { pointer-events: none; }
 .fc-editor .chart-readout-bg { fill: #111; opacity: 0.9; }
 .fc-editor .chart-readout-text { fill: var(--text); font-size: 11px; }
 .fc-editor .chart-dot { fill: #7a7a7a; }
@@ -99,6 +102,7 @@
 .fc-editor .strip-fields[hidden] { display: none; }
 .fc-editor .strip-field { align-items: center; color: var(--muted); display: flex; font-size: 12px; gap: 6px; }
 .fc-editor .strip-field input { width: 84px; }
+.fc-editor .strip-button { font-size: 12px; padding: 5px 10px; }
 .fc-editor .unit { color: var(--muted); font-size: 12px; }
 .fc-editor .strip-hint { color: var(--muted); font-size: 12px; }
 .fc-editor .strip-hint[hidden] { display: none; }

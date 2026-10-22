@@ -56,6 +56,7 @@
             <span>Duty</span>
             <input id="fc-point-duty" type="number" step="0.1" min="0"><span class="unit">%</span>
         </label>
+        <button class="btn btn-secondary strip-button" id="fc-point-delete" type="button">Delete point</button>
     </div>
     <span class="strip-hint" id="fc-point-empty"></span>
     <span class="strip-hint" id="fc-hint"></span>
@@ -101,6 +102,9 @@
         const CHART_MARGIN = { left: 52, right: 18, top: 18, bottom: 34 };
         const CHART_MIN = { width: 320, height: 200 };
         const MAX_TEMPERATURE = 300;
+        // How far from a point a press still takes hold of it. The point is
+        // drawn small, so the grab area is bigger than the dot.
+        const POINT_GRAB_RADIUS = 14;
 
         let state = null;
         // The profile that is shown. It starts empty, so the editor opens on the
@@ -372,7 +376,7 @@
             $('legend-selected').textContent = profileLabel(selectedProfile);
             $('legend-stock').hidden = !referencePoints.length;
             $('hint').textContent = editable
-                ? 'Click empty space to add a point, drag a point to move it, right-click a point to remove it.'
+                ? 'Click empty space to add a point, drag a point to move it, and remove it with Delete point or the right mouse button.'
                 : (profileError()
                     ? 'The file of this profile cannot be read.'
                     : 'The stock curve is the original Snapmaker behaviour.');
@@ -431,6 +435,8 @@
             editor.hidden = false;
             empty.hidden = true;
             $('point-title').textContent = `Point ${selectedNode + 1} of ${points.length}`;
+            // A curve keeps two points, so the last one of them cannot go.
+            $('point-delete').disabled = points.length <= 2;
             // A field that is being typed into keeps its text, otherwise the clamp
             // would rewrite the number while the user is still writing it.
             if (force || document.activeElement !== $('point-temperature')) {
@@ -464,7 +470,11 @@
 
         function deleteNode() {
             const points = currentDraft()[activeCurve] || [];
-            if (!isEditable() || selectedNode < 0 || points.length <= 2) return;
+            if (!isEditable() || selectedNode < 0 || !points[selectedNode]) return;
+            if (points.length <= 2) {
+                setStatus('A curve keeps at least two points.', 'error');
+                return;
+            }
             points.splice(selectedNode, 1);
             selectedNode = Math.min(selectedNode, points.length - 1);
             currentDraft().dirty = true;
@@ -503,8 +513,18 @@
 
         // ---------------------------------------------------------------- pointer
 
+        // Where the pointer is, in the coordinates the chart is drawn in. The
+        // chart keeps its own aspect ratio, so the drawing can be smaller than
+        // the element it sits in. The transform of the chart is the truth about
+        // that, so it is used instead of a division of two rectangles.
         function chartCoordinates(event) {
             const svg = $('chart');
+            const matrix = typeof svg.getScreenCTM === 'function' ? svg.getScreenCTM() : null;
+            if (matrix) {
+                const local = new DOMPoint(event.clientX, event.clientY).matrixTransform(matrix.inverse());
+                const geometry = chartGeometry();
+                return { x: local.x, y: local.y, temperature: geometry.fromX(local.x), duty: geometry.fromY(local.y) };
+            }
             const rect = svg.getBoundingClientRect();
             const scaleX = chartSize.width / rect.width;
             const scaleY = chartSize.height / rect.height;
@@ -512,6 +532,29 @@
             const y = (event.clientY - rect.top) * scaleY;
             const geometry = chartGeometry();
             return { x, y, temperature: geometry.fromX(x), duty: geometry.fromY(y) };
+        }
+
+        // The point a press takes hold of. The dot is drawn small, so the grab
+        // area around it is bigger, and the closest point wins, so two points
+        // that are near each other are still the right one to take hold of.
+        function pointAt(event) {
+            if (!isEditable()) return -1;
+            const points = shownPoints();
+            if (!points.length) return -1;
+            const position = chartCoordinates(event);
+            const geometry = chartGeometry();
+            let best = -1;
+            let bestDistance = POINT_GRAB_RADIUS;
+            points.forEach(([temperature, duty], index) => {
+                const dx = geometry.toX(temperature) - position.x;
+                const dy = geometry.toY(duty) - position.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance <= bestDistance) {
+                    bestDistance = distance;
+                    best = index;
+                }
+            });
+            return best;
         }
 
         // A point is only added when the pointer was released on the chart, so a
@@ -522,22 +565,46 @@
                    event.clientY >= rect.top && event.clientY <= rect.bottom;
         }
 
+        // Holding the capture on the chart keeps the drag alive. Selecting the
+        // point redraws the chart, which replaces the element the pointer
+        // pressed, and a finger that lifts outside the window still reports.
+        function capturePointer(pointerId) {
+            const chart = $('chart');
+            if (!chart || typeof chart.setPointerCapture !== 'function') return;
+            try {
+                chart.setPointerCapture(pointerId);
+            } catch (error) {
+                // The browser did not take the capture. The drag still works,
+                // it only ends on the release outside the window.
+            }
+        }
+
+        function releasePointer(pointerId) {
+            const chart = $('chart');
+            if (!chart || typeof chart.releasePointerCapture !== 'function') return;
+            try {
+                if (chart.hasPointerCapture(pointerId)) chart.releasePointerCapture(pointerId);
+            } catch (error) {
+                // The pointer is already gone.
+            }
+        }
+
         function onPointerDown(event) {
             if (!isEditable()) return;
-            const target = event.target.closest('.chart-point');
-            if (target) {
+            const index = pointAt(event);
+            if (index >= 0) {
                 event.preventDefault();
-                const index = Number(target.dataset.index);
+                capturePointer(event.pointerId);
                 selectNode(index);
-                startDrag(index);
+                startDrag(index, event.pointerId);
                 return;
             }
             pendingClick = { x: event.clientX, y: event.clientY };
         }
 
-        function startDrag(index) {
+        function startDrag(index, pointerId) {
             const point = (currentDraft()[activeCurve] || [])[index];
-            drag = { index, before: point ? point.slice() : null };
+            drag = { index, pointerId, before: point ? point.slice() : null };
         }
 
         function onPointerMove(event) {
@@ -548,9 +615,11 @@
                 showReadout(pointerOnChart(event) ? chartCoordinates(event).temperature : null);
                 return;
             }
+            if (drag.pointerId !== undefined && event.pointerId !== drag.pointerId) return;
             // A pointer that was released outside the window sends no pointerup.
             // The button state says that the drag is over.
             if (event.buttons === 0) {
+                releasePointer(drag.pointerId);
                 drag = null;
                 showReadout(null);
                 return;
@@ -572,6 +641,7 @@
             if (drag) {
                 const moved = drag;
                 drag = null;
+                releasePointer(moved.pointerId);
                 const point = (currentDraft()[activeCurve] || [])[moved.index];
                 if (point && moved.before && (point[0] !== moved.before[0] || point[1] !== moved.before[1])) {
                     setStatus('Point moved. Save the profile to keep it.');
@@ -587,18 +657,20 @@
 
         // A pointer that leaves the window never sends a pointerup, so the drag has
         // to be released here as well.
-        function onPointerCancel() {
+        function onPointerCancel(event) {
+            if (drag) releasePointer(drag.pointerId);
             drag = null;
             pendingClick = null;
             showReadout(null);
         }
 
-        // The right mouse button removes the point under it.
+        // The right mouse button removes the point under it. A press that is
+        // not on a point keeps the menu of the browser.
         function onContextMenu(event) {
+            const index = pointAt(event);
+            if (index < 0 || !isEditable()) return;
             event.preventDefault();
-            const target = event.target.closest('.chart-point');
-            if (!target || !isEditable()) return;
-            selectNode(Number(target.dataset.index));
+            selectNode(index);
             deleteNode();
         }
 
@@ -1058,6 +1130,9 @@
             });
             $('point-duty').addEventListener('change', () => {
                 renderPointEditor(true);
+            });
+            $('point-delete').addEventListener('click', () => {
+                deleteNode();
             });
             $('confirm-ok').addEventListener('click', () => {
                 const action = confirmAction;
