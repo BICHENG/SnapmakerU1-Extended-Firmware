@@ -286,7 +286,7 @@ class FirmwareConfigHandler(SimpleHTTPRequestHandler):
                                            % fan_curves.profile_label(profile)})
                 return
             if action == 'restore':
-                profile = fan_curves.restore_default()
+                profile = fan_curves.restore_shipped()
                 self.send_json({'success': True, 'profile': profile,
                                 'message': '%s restored'
                                            % fan_curves.profile_label(profile)})

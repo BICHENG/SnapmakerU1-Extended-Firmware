@@ -16,19 +16,17 @@ LEGACY_PATH = os.path.join(CONFIG_DIR, 'fan-curves.json')
 # only place profiles are looked for, so a file the user adds, renames or
 # removes is the one the editor and the driver see.
 PROFILE_DIR = os.path.join(CONFIG_DIR, 'fan-curves-presets')
-# The directory the firmware ships its default profile in. It is the source
-# of that profile, not a second place to look for profiles.
-DEFAULT_DIR = os.environ.get(
-    'FAN_CURVES_DEFAULT_DIR', '/usr/local/share/firmware-config/tweaks/klipper')
+# The directory the firmware ships its profile in. It is the source of that
+# profile, not a second place to look for profiles.
+SHIPPED_DIR = os.environ.get(
+    'FAN_CURVES_SHIPPED_DIR', '/usr/local/share/firmware-config/tweaks/klipper')
 PROFILE_PREFIX = 'fan_curves_'
 PROFILE_SUFFIX = '.json'
-# The record that the default profile was installed. It holds the name of
-# the default that was installed, so a firmware that ships a default under
-# another name installs that one too. Without the record the default would
-# come back after every boot, even after the user removed it.
-DEFAULT_MARKER = os.path.join(PROFILE_DIR, '.default-installed')
 STOCK_PROFILE = 'stock'
-DEFAULT_PROFILE = 'default'
+# The profile the firmware ships. It is a configuration like any other: it
+# can be drawn, renamed and removed. It is the placeholder for a machine
+# that has no configuration of its own.
+CUSTOM_PROFILE = 'custom'
 MAX_POINTS = 16
 MIN_POINTS = 2
 MAX_TEMPERATURE = 300
@@ -249,7 +247,7 @@ def _profile_name(value):
 
 def profile_label(name):
     """The name of a profile as it is shown to the user."""
-    known = {STOCK_PROFILE: 'Stock', DEFAULT_PROFILE: 'Default'}
+    known = {STOCK_PROFILE: 'Stock', CUSTOM_PROFILE: 'Custom'}
     if name in known:
         return known[name]
     return ' '.join(word.capitalize() for word in name.split('_') if word)
@@ -370,48 +368,40 @@ def delete_profile(name, restart=True):
     return name
 
 
-@one_change_at_a_time
-def restore_default():
-    """Write the profile the firmware ships into the profile directory."""
+def _shipped_document():
+    """The document of the profile the firmware ships."""
     source = os.path.join(
-        DEFAULT_DIR,
-        '%s%s%s' % (PROFILE_PREFIX, DEFAULT_PROFILE, PROFILE_SUFFIX))
+        SHIPPED_DIR,
+        '%s%s%s' % (PROFILE_PREFIX, CUSTOM_PROFILE, PROFILE_SUFFIX))
     try:
-        document = _read_json(source)
+        return _read_json(source)
     except OSError as error:
-        raise FanCurveError('cannot read the default profile: %s' % error)
+        raise FanCurveError('cannot read the shipped profile: %s' % error)
     except (TypeError, ValueError, json.JSONDecodeError) as error:
-        raise FanCurveError('invalid default profile: %s' % error)
-    _atomic_json(_profile_path(DEFAULT_PROFILE),
-                 _normalize_document(document, DEFAULT_PROFILE, allow_new=True))
-    return DEFAULT_PROFILE
+        raise FanCurveError('invalid shipped profile: %s' % error)
 
 
-def _installed_default():
-    """The name of the default the firmware installed, if it installed one."""
-    try:
-        with open(DEFAULT_MARKER, 'rb') as stream:
-            return stream.read().decode('utf-8').strip()
-    except (OSError, UnicodeDecodeError):
-        return ''
+@one_change_at_a_time
+def restore_shipped():
+    """Write the profile the firmware ships into the profile directory."""
+    document = _shipped_document()
+    _atomic_json(_profile_path(CUSTOM_PROFILE),
+                 _normalize_document(document, CUSTOM_PROFILE, allow_new=True))
+    return CUSTOM_PROFILE
 
 
-def seed_default():
-    """Install the profile the firmware ships, once.
+def seed_placeholder():
+    """Put the profile the firmware ships in when there is no profile.
 
-    The marker keeps the default from coming back after the user removed
-    it, so a profile the user does not want stays gone. It holds the name
-    of the default that was installed, so a firmware that ships a default
-    under another name installs that one as well.
+    The profile directory is the only place profiles live, so a machine
+    that has no profile of its own gets the one the firmware ships. The
+    directory being empty is the condition, so nothing has to remember
+    whether the profile was installed before, and a profile the user
+    keeps is never touched.
     """
-    if _installed_default() == DEFAULT_PROFILE:
+    if _profiles():
         return None
-    if DEFAULT_PROFILE in _profiles():
-        _atomic_bytes(DEFAULT_MARKER, DEFAULT_PROFILE.encode('utf-8'))
-        return None
-    name = restore_default()
-    _atomic_bytes(DEFAULT_MARKER, DEFAULT_PROFILE.encode('utf-8'))
-    return name
+    return restore_shipped()
 
 
 def _rename_active_profile(name, new_name):
@@ -560,8 +550,10 @@ def migrate_legacy(profile):
     profile = _canonical_profile(profile)
     if profile != STOCK_PROFILE and profile not in _profiles():
         # The profile the old install asked for is not available any more, so
-        # fall back to the shipped default instead of losing the setting.
-        profile = DEFAULT_PROFILE
+        # fall back to the profile the firmware ships instead of losing the
+        # setting.
+        profile = CUSTOM_PROFILE if CUSTOM_PROFILE in _profiles() \
+            else STOCK_PROFILE
     document = _active_document(profile)
     _atomic_json(ACTIVE_PATH, document)
     return document['profile']
@@ -592,10 +584,10 @@ def main():
         print(current_profile())
         return
     if args.command == 'seed':
-        seed_default()
+        seed_placeholder()
         return
     if args.command == 'restore':
-        print(restore_default())
+        print(restore_shipped())
         return
     if args.command == 'migrate':
         migrate_legacy(args.profile)

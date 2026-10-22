@@ -6,7 +6,7 @@ title: Klipper Tweaks
 
 Configurable Klipper motion, motor-current, and fan-control tweaks. These settings can **only** be configured via the [Firmware Configuration](firmware_config.md) web interface under **Settings → Tweaks**.
 
-> **Note**: `Max Speed` and `TMC Reduced Current` change motion and motor-current settings. `Default` is the fan profile the firmware ships, and its curves never cool less than the stock fans do at any temperature.
+> **Note**: `Max Speed` and `TMC Reduced Current` change motion and motor-current settings. `Custom` is the fan profile the firmware ships, and its curves never cool less than the stock fans do at any temperature.
 
 ## TMC AutoTune
 
@@ -115,10 +115,12 @@ Selects cooling curves for the power fan and all four nozzle fans.
 **Options:**
 
 - `Stock` - the printer's own stepped fan table. It has no file, the editor shows it read only, and it is what the printer runs when no curve file is active.
-- `Default` - the profile the firmware ships. It is the stock cooling drawn as a curve: its nozzle curve passes through every step of the stock nozzle table, and its power curve holds the stock 60% from `45°C` on, so the shipped profile never cools less than the printer's own fans do. Between two steps the curve is a line, so it runs a little above the stock step there, never below it.
+- `Custom` - the profile the firmware ships. It is the stock cooling drawn as a curve: its nozzle curve passes through every step of the stock nozzle table, and its power curve holds the stock 60% from `45°C` on, so the shipped profile never cools less than the printer's own fans do. Between two steps the curve is a line, so it runs a little above the stock step there, never below it.
 - Every other profile is a curve of your own. How much it cools the hotend is on your risk.
 
-Every profile except `Stock` is a file named `fan_curves_<name>.json` in `/oem/printer_data/config/extended/fan-curves-presets/`. That directory is the only place profiles are looked for, so a file you add, rename or remove is the one the editor and the driver see. The firmware installs its default profile `Default` into that directory once, when the printer boots. If you delete or rename it, it stays gone, and the editor can write it back with **Restore the default profile**.
+Every profile except `Stock` is a file named `fan_curves_<name>.json` in `/oem/printer_data/config/extended/fan-curves-presets/`. That directory is the only place profiles are looked for, so a file you add, rename or remove is the one the editor and the driver see. A profile is a configuration like any other: it can be drawn, renamed and removed, and the editor writes the shipped version back with **Restore the shipped profile**.
+
+A printer that has no profile of its own gets the profile the firmware ships: when the printer boots and the profile directory holds no profile file, the shipped one is put in as `Custom`. The printer only does that while the directory is empty, so a profile of your own is never overwritten. Remove your last profile and the shipped one takes the empty place at the next boot.
 
 The duty between two points of a curve is the line between them, so the fan follows the temperature instead of jumping from step to step. The stock tables stay stepped tables, the curves do not. The profile the firmware ships puts a point at every step of the stock nozzle table, so its duty at a step is the stock duty and it only runs above it in between.
 
@@ -131,7 +133,7 @@ The setting is available under **Settings → Tweaks → Fan Curves**. The curve
 - Click empty space in the chart to add a point, drag a point to move it, remove it with **Delete point** or the right mouse button.
 - Click a point to select it, then edit its temperature and duty in the fields under the chart.
 - A press takes hold of the point that is nearest to it, so a point is easy to grab even when the press lands beside the dot.
-- The profile menu creates a new profile, renames one, deletes one, and restores the default profile.
+- The profile menu creates a new profile, renames one, deletes one, and puts the shipped profile back.
 - **Save** writes the curve into the profile file. **Apply** makes that profile the running one and restarts Klipper.
 
 The editor draws the selected curve next to the stock curve. A profile that is running can be deleted: the printer goes back to the stock curves first, so the running curve always has a file behind it.
@@ -145,7 +147,7 @@ Applying an option atomically replaces `/oem/printer_data/config/extended/fan-cu
 - The power fan heavy-load rule is part of the profile: it reaches 100% when at least three toolheads heat up and one of them targets more than `260°C`
 
 **Recommendation:**
-- Start with `Default`, it runs the stock cooling. Use `Stock` when you want the printer's own stepped tables, and a curve of your own when you want it quieter
+- Start with `Custom`, it runs the stock cooling. Use `Stock` when you want the printer's own stepped tables, and a curve of your own when you want it quieter
 - Test a profile of your own with a short print before a long one
 
 **Configuration:**

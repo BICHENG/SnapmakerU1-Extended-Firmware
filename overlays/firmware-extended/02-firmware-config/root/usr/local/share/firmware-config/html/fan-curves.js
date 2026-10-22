@@ -20,7 +20,7 @@
                 <button type="button" data-action="new">New profile</button>
                 <button type="button" data-action="rename">Rename</button>
                 <button type="button" data-action="delete">Delete</button>
-                <button type="button" data-action="restore">Restore the default profile</button>
+                <button type="button" data-action="restore">Restore the shipped profile</button>
                 <button type="button" data-action="discard">Discard changes</button>
             </div>
         </div>
@@ -943,13 +943,13 @@
             });
         }
 
-        function restoreDefaultProfile() {
-            showConfirm('Restore the default profile',
-                'The profile the firmware ships is written over the file of the default profile. Your own version of it is lost.', async () => {
+        function restoreShippedProfile() {
+            showConfirm('Restore the shipped profile',
+                'The profile the firmware ships is written over your file. Your own version of it is lost.', async () => {
                 closeConfirm();
                 try {
                     const result = await post({ action: 'restore' }, null, true);
-                    const name = result?.profile || 'default';
+                    const name = result?.profile || 'custom';
                     delete drafts[name];
                     await reloadState();
                     selectProfile(name);
@@ -1113,7 +1113,7 @@
                 if (action === 'new') startNaming('new');
                 else if (action === 'rename') startNaming('rename');
                 else if (action === 'delete') deleteProfile();
-                else if (action === 'restore') restoreDefaultProfile();
+                else if (action === 'restore') restoreShippedProfile();
                 else if (action === 'discard') discardChanges();
             });
             $('power-tab').addEventListener('click', () => { activeCurve = 'power'; selectedNode = -1; renderAll(); });

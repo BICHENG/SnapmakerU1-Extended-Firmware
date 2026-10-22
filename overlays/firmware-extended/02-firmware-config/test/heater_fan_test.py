@@ -25,10 +25,10 @@ PATCH_FILE = os.path.join(
     'home', 'lava', 'klipper', '09_heater_fan_fan_curves.patch')
 STOCK_FILE = os.path.join(HERE, 'stock_heater_fan.py')
 PRINTER_CFG = os.path.join(HERE, 'printer.cfg')
-DEFAULT_PROFILE = os.path.join(
+SHIPPED_PROFILE = os.path.join(
     REPO, 'overlays', 'firmware-extended', '32-feature-klipper-tweaks', 'root',
     'usr', 'local', 'share', 'firmware-config', 'tweaks', 'klipper',
-    'fan_curves_default.json')
+    'fan_curves_custom.json')
 CURVE_PATH = os.path.join(tempfile.gettempdir(), 'fan-curves-active-test.json')
 
 os.environ['FAN_CURVES_PATH'] = CURVE_PATH
@@ -544,12 +544,12 @@ def check_the_curve_is_what_runs():
     check('a rule under the curve in the file is ignored',
           abs(speed_of(fan)) < 1e-9, '(speed=%s)' % speed_of(fan))
 
-    with open(DEFAULT_PROFILE, 'r', encoding='utf-8') as stream:
-        default = json.load(stream)
+    with open(SHIPPED_PROFILE, 'r', encoding='utf-8') as stream:
+        shipped = json.load(stream)
     check('the profile the firmware ships carries no rule under the curve',
-          'min_cool_temperature' not in default
-          and 'min_nozzle_duty' not in default,
-          '(document=%s)' % default)
+          'min_cool_temperature' not in shipped
+          and 'min_nozzle_duty' not in shipped,
+          '(document=%s)' % shipped)
     remove_curve()
 
 
@@ -636,10 +636,10 @@ def check_the_stock_rules():
 
 def check_the_shipped_profile():
     section('the profile the firmware ships')
-    with open(DEFAULT_PROFILE, 'r', encoding='utf-8') as stream:
-        default = json.load(stream)
-    nozzle = [(int(t), float(d)) for t, d in default['curves']['nozzle']]
-    power = [(int(t), float(d)) for t, d in default['curves']['power']]
+    with open(SHIPPED_PROFILE, 'r', encoding='utf-8') as stream:
+        shipped = json.load(stream)
+    nozzle = [(int(t), float(d)) for t, d in shipped['curves']['nozzle']]
+    power = [(int(t), float(d)) for t, d in shipped['curves']['power']]
 
     table = [(45, 0.3), (60, 0.35), (70, 0.4), (100, 0.45), (140, 0.5),
              (160, 0.6), (180, 0.65), (200, 0.7), (220, 0.75), (230, 0.8),

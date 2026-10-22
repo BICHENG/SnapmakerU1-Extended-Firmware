@@ -15,11 +15,12 @@ instead, and the run ends with a non zero exit code.
 `fan_curves_test.py` drives the real `fan_curves.py` of this repository
 against a temporary config directory:
 
-- the default profile is installed once, leaves a marker behind and does not
-  come back after the user removed it
+- the profile the firmware ships takes the place of an empty profile
+  directory, and a profile of the user is never touched
+- the shipped profile is a profile like any other: it can be renamed
 - a new profile starts close to the stock curve
 - saving a curve keeps the settings a change of the curve does not touch: the
-  heavy load rule and the cooling floor of the profile
+  heavy load rule of the profile
 - the state the editor reads carries the rule, the label and the warning of
   every profile
 - applying a profile writes the curve and its rule to the file the driver
@@ -30,7 +31,7 @@ against a temporary config directory:
 - the rules a curve has to follow: two to sixteen points, temperatures that
   ascend and stay below 300C, duties between 0% and 100%
 - an older install keeps the curve it drew, and an unknown profile of an
-  older install falls back to the default
+  older install falls back to the profile the firmware ships
 
 `heater_fan_test.py` builds the patched driver by applying the patch of this
 repository to the `heater_fan.py` of the Klipper release the firmware ships
@@ -40,8 +41,8 @@ with, and drives both drivers with the fan tables of the printer's own
 - the stock profile gives the same duty as the Klipper release at every
   temperature, for the nozzle fan and for the power fan, with four
   toolheads and with the cavity sensor of the printer
-- a curve that asks for 0% still gets the cooling floor, and the floor
-  follows the profile file
+- a curve that asks for 0% gets 0%, the driver runs the curve as it is
+  written
 - the duty between two points is the line between them
 - the faulty toolhead bypass keeps its fan on the stock stepped table
 - a bogus toolhead reading does not raise the power fan
