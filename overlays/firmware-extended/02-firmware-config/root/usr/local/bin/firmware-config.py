@@ -67,6 +67,14 @@ class FirmwareConfigHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=self.html_dir, **kwargs)
 
+    def end_headers(self):
+        # The firmware can be replaced while a browser holds the page, and a
+        # browser that keeps the old script from its cache shows the old
+        # interface after an upgrade. Every answer is checked with the
+        # printer, and the printer answers 304 when nothing changed.
+        self.send_header("Cache-Control", "no-cache")
+        super().end_headers()
+
     def log_message(self, _format, *_args):
         pass
 
