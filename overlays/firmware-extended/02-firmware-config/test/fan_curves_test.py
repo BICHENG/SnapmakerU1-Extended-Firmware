@@ -17,6 +17,8 @@ import os
 import shutil
 import sys
 import tempfile
+import threading
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..', '..', '..'))
@@ -188,6 +190,62 @@ def check_the_life_of_a_profile():
           fan.current_profile() == 'stock')
 
 
+def check_two_changes_at_the_same_time():
+    section('two changes at the same time')
+    # The init script of Klipper refuses a restart that runs next to another
+    # one. The module has to let the second change wait instead of running
+    # two restarts at once, or the second change fails and takes the running
+    # profile back with it.
+    curves = {'power': [[45, 0.6], [260, 0.6]], 'nozzle': [[45, 0.3], [260, 0.9]]}
+    fan.create_profile('busy')
+    fan.save_profile('busy', curves)
+
+    running = []
+    overlaps = []
+
+    def restart():
+        running.append(1)
+        if len(running) > 1:
+            overlaps.append(len(running))
+        time.sleep(0.3)
+        running.pop()
+        return 0
+
+    original = fan._restart_klipper
+    fan._restart_klipper = restart
+    results = {}
+
+    def work(name, function):
+        try:
+            results[name] = ('ok', function())
+        except Exception as error:
+            results[name] = ('error', str(error))
+
+    first = threading.Thread(target=work,
+                              args=('apply', lambda: fan.apply_profile('busy', curves)))
+    second = threading.Thread(target=work,
+                               args=('delete', lambda: fan.delete_profile('busy')))
+    try:
+        first.start()
+        time.sleep(0.05)
+        second.start()
+        first.join()
+        second.join()
+    finally:
+        fan._restart_klipper = original
+
+    check('the change that came first succeeded', results.get('apply', ('error',))[0] == 'ok',
+          '(result=%s)' % (results.get('apply'),))
+    check('the change that came second succeeded', results.get('delete', ('error',))[0] == 'ok',
+          '(result=%s)' % (results.get('delete'),))
+    check('the two changes did not run at the same time', not overlaps,
+          '(overlaps=%s)' % overlaps)
+    check('the profile is gone', 'busy' not in fan.available_profiles(),
+          '(profiles=%s)' % fan.available_profiles())
+    check('the printer is back on the stock curves', fan.current_profile() == 'stock',
+          '(profile=%s)' % fan.current_profile())
+
+
 def check_the_default_comes_back():
     section('the default comes back only on purpose')
     fan.delete_profile('optimal', restart=False)
@@ -231,6 +289,7 @@ def main():
         check_the_default()
         check_the_rules()
         check_the_life_of_a_profile()
+        check_two_changes_at_the_same_time()
         check_the_default_comes_back()
         check_an_older_install()
     finally:

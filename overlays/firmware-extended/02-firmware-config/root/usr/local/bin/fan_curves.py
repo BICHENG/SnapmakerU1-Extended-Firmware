@@ -1,8 +1,10 @@
+import functools
 import json
 import math
 import os
 import subprocess
 import tempfile
+import threading
 
 
 CONFIG_DIR = os.environ.get(
@@ -48,6 +50,23 @@ STOCK_NOZZLE = [
     [180, 0.65], [200, 0.7], [220, 0.75], [230, 0.8], [240, 0.85], [260, 0.9],
 ]
 STOCK_POWER = [[45, 0.6], [260, 0.6]]
+
+# The profile files, the active file and the restart of Klipper belong to one
+# change. The init script of Klipper refuses a restart that runs next to
+# another one, so two changes that arrive at the same time would leave the
+# running profile and the file behind it out of step: the second restart
+# fails, and the rollback of the failed restart puts the running profile back.
+# One change at a time keeps them in step.
+STATE_LOCK = threading.RLock()
+
+
+def one_change_at_a_time(function):
+    """Hold the fan curves while the function reads or changes them."""
+    @functools.wraps(function)
+    def wrapper(*args, **kwargs):
+        with STATE_LOCK:
+            return function(*args, **kwargs)
+    return wrapper
 
 
 class FanCurveError(ValueError):
@@ -290,6 +309,7 @@ def _starter_curves():
     }
 
 
+@one_change_at_a_time
 def create_profile(name):
     """Create a profile that starts close to the stock curve."""
     name = _profile_name(name)
@@ -299,6 +319,7 @@ def create_profile(name):
     return name
 
 
+@one_change_at_a_time
 def save_profile(name, curves):
     """Write the curves into the file of a profile."""
     name = _profile_name(name)
@@ -309,6 +330,7 @@ def save_profile(name, curves):
     return name
 
 
+@one_change_at_a_time
 def rename_profile(name, new_name, curves=None):
     """Give a profile another name."""
     name = _profile_name(name)
@@ -328,6 +350,7 @@ def rename_profile(name, new_name, curves=None):
     return new_name
 
 
+@one_change_at_a_time
 def delete_profile(name, restart=True):
     """Remove the file of a profile.
 
@@ -345,6 +368,7 @@ def delete_profile(name, restart=True):
     return name
 
 
+@one_change_at_a_time
 def restore_default():
     """Write the profile the firmware ships into the profile directory."""
     source = os.path.join(
@@ -425,6 +449,7 @@ def current_profile():
     return _canonical_profile(document.get('profile')) or STOCK_PROFILE
 
 
+@one_change_at_a_time
 def get_state():
     """What the editor needs to show the profiles."""
     profiles = _profiles()
@@ -485,6 +510,7 @@ def _restore(path, previous):
         _atomic_bytes(path, previous)
 
 
+@one_change_at_a_time
 def apply_profile(profile, curves=None, restart=True):
     profile = _canonical_profile(profile)
     if profile == STOCK_PROFILE:
