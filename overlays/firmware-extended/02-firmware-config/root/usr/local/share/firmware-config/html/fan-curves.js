@@ -215,7 +215,7 @@
                 files[profileKey(key)] = {
                     curves: profile(entry),
                     error: String(entry.error || ''),
-                    hysteresis: Number.isFinite(Number(entry.hysteresis)) ? Number(entry.hysteresis) : 5,
+                    hysteresis: entry.hysteresis,
                     heavyLoad: entry.heavy_load && typeof entry.heavy_load === 'object' ? entry.heavy_load : {}
                 };
             });
@@ -823,17 +823,14 @@
 
         // ---------------------------------------------------------------- rules
 
-        function number(value, fallback) {
-            const parsed = Number(value);
-            return Number.isFinite(parsed) ? parsed : fallback;
-        }
-
         function heavyLoadText() {
+            // The rule is in the file, so it comes from the state. The
+            // editor does not hold a copy of it.
             const heavy = state?.files?.[selectedProfile]?.heavyLoad || {};
-            const temperature = number(heavy.temperature, 260);
-            const heaterCount = number(heavy.heater_count, 0);
-            const hotCount = number(heavy.hot_count, 1);
-            const duty = Math.round(number(heavy.duty, 1) * 100);
+            const temperature = heavy.temperature;
+            const heaterCount = heavy.heater_count;
+            const hotCount = heavy.hot_count;
+            const duty = Math.round(heavy.duty * 100);
             const heaters = heaterCount > 0
                 ? `at least ${heaterCount} toolhead${heaterCount === 1 ? '' : 's'} heat up and `
                 : '';
@@ -847,7 +844,13 @@
                 return 'Stock is the printer\'s own stepped fan table. It has no file, so there is nothing to draw: the duty comes from the printer\'s own configuration.';
             }
             const entry = state?.files?.[selectedProfile];
-            const hysteresis = number(entry?.hysteresis, 5);
+            if (!entry || entry.error) {
+                // A file that cannot be read carries no rules. The state
+                // says what is wrong with it, and the editor does not
+                // invent the rest.
+                return 'The file of this profile cannot be read, so it has no rules.';
+            }
+            const hysteresis = entry.hysteresis;
             return `The duty is the line between the points. A curve uses ${hysteresis}°C hysteresis, so a falling temperature waits for the band before the duty follows. The fan is off below the first point, and the duty is what the curve says it is, up to ${Math.round(maxDuty() * 100)}%. ${heavyLoadText()}`;
         }
 
