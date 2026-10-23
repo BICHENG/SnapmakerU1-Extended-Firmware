@@ -15,7 +15,7 @@ LEGACY_PATH = os.path.join(CONFIG_DIR, 'fan-curves.json')
 # Every profile but the stock one is a file in this directory. It is the
 # only place profiles are looked for, so a file the user adds, renames or
 # removes is the one the editor and the driver see.
-PROFILE_DIR = os.path.join(CONFIG_DIR, 'fan-curves-presets')
+PROFILE_DIR = os.path.join(CONFIG_DIR, 'fan-curves-profiles')
 # The directory the firmware ships its profile in. It is the source of that
 # profile, not a second place to look for profiles.
 SHIPPED_DIR = os.environ.get(
@@ -456,16 +456,16 @@ def current_profile():
 def get_state():
     """What the editor needs to show the profiles."""
     profiles = _profiles()
-    presets = {}
+    files = {}
     for profile in sorted(profiles):
         try:
             document = _load_profile(profile)
         except FanCurveError as error:
             # A file that cannot be read stays in the list, so the user can
             # see that it is there and what is wrong with it.
-            presets[profile] = {'error': str(error)}
+            files[profile] = {'error': str(error)}
             continue
-        presets[profile] = {
+        files[profile] = {
             'curves': document['curves'],
             'hysteresis': document['hysteresis'],
             'heavy_load': document['heavy_load'],
@@ -475,7 +475,7 @@ def get_state():
         'version': 1,
         'current': current_profile(),
         'profiles': names,
-        'presets': presets,
+        'files': files,
         'labels': {profile: profile_label(profile) for profile in names},
         'notice': RISK_NOTICE,
         'stock': {'nozzle': STOCK_NOZZLE, 'power': STOCK_POWER},

@@ -118,7 +118,7 @@ Selects cooling curves for the power fan and all four nozzle fans.
 - `Custom` - the profile the firmware ships. It is the stock cooling drawn as a curve: its nozzle curve passes through every step of the stock nozzle table, and its power curve holds the stock 60% from `45°C` on, so the shipped profile never cools less than the printer's own fans do. Between two steps the curve is a line, so it runs a little above the stock step there, never below it.
 - Every other profile is a curve of your own. How much it cools the hotend is on your risk.
 
-Every profile except `Stock` is a file named `fan_curves_<name>.json` in `/oem/printer_data/config/extended/fan-curves-presets/`. That directory is the only place profiles are looked for, so a file you add, rename or remove is the one the editor and the driver see. A profile is a configuration like any other: it can be drawn, renamed and removed, and the editor writes the shipped version back with **Restore the shipped profile**.
+Every profile except `Stock` is a file named `fan_curves_<name>.json` in `/oem/printer_data/config/extended/fan-curves-profiles/`. That directory is the only place profiles are looked for, so a file you add, rename or remove is the one the editor and the driver see. A profile is a configuration like any other: it can be drawn, renamed and removed, and the editor writes the shipped version back with **Restore the shipped profile**.
 
 A printer that has no profile of its own gets the profile the firmware ships: when the printer boots and the profile directory holds no profile file, the shipped one is put in as `Custom`. The printer only does that while the directory is empty, so a profile of your own is never overwritten. Remove your last profile and the shipped one takes the empty place at the next boot.
 
@@ -203,7 +203,7 @@ These tweaks work by adding or removing configuration files from `/oem/printer_d
 - `klipper/tmc_current.cfg` - Reduced current settings
 - `klipper/10_max_speed.cfg` - Max Speed motion limits and tool change speeds (either tier installs to this one file)
 - `fan-curves-active.json` - Selected profile and curves read by the patched fan driver
-- `fan-curves-presets/` - The profile files, one per profile, that the editor draws and the driver reads
+- `fan-curves-profiles/` - The profile files, one per profile, that the editor draws and the driver reads
 - `moonraker/object_processing.cfg` - Moonraker object processing settings
 
 The JSON files are read by the patched fan driver; the remaining files are included by the main printer configuration when present. Manual editing is not recommended while the Firmware Configuration interface is running.

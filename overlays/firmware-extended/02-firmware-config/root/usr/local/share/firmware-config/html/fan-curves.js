@@ -209,10 +209,10 @@
         // ---------------------------------------------------------------- state
 
         function normalize(payload) {
-            const presets = {};
-            Object.entries(payload.presets || {}).forEach(([key, value]) => {
+            const files = {};
+            Object.entries(payload.files || {}).forEach(([key, value]) => {
                 const entry = value && typeof value === 'object' ? value : {};
-                presets[profileKey(key)] = {
+                files[profileKey(key)] = {
                     curves: profile(entry),
                     error: String(entry.error || ''),
                     hysteresis: Number.isFinite(Number(entry.hysteresis)) ? Number(entry.hysteresis) : 5,
@@ -227,8 +227,8 @@
                 current: profileKey(payload.current || 'stock'),
                 profiles: (Array.isArray(payload.profiles) && payload.profiles.length
                     ? payload.profiles
-                    : ['stock', ...Object.keys(presets)]).map(profileKey),
-                presets,
+                    : ['stock', ...Object.keys(files)]).map(profileKey),
+                files,
                 labels,
                 notice: String(payload.notice || ''),
                 stock: profile(payload.stock),
@@ -241,7 +241,7 @@
             if (!drafts[name]) {
                 const source = name === 'stock'
                     ? state.stock
-                    : ((state.presets[name] || {}).curves || { power: [], nozzle: [] });
+                    : ((state.files[name] || {}).curves || { power: [], nozzle: [] });
                 drafts[name] = {
                     power: source.power.map(point => point.slice()),
                     nozzle: source.nozzle.map(point => point.slice()),
@@ -254,13 +254,13 @@
         // Every profile but the stock one is a file, so it can be edited, renamed
         // and deleted.
         function isEditable() {
-            const entry = state?.presets?.[selectedProfile];
+            const entry = state?.files?.[selectedProfile];
             return selectedProfile !== 'stock' && !!entry && !entry.error;
         }
 
         // What is wrong with the file of the selected profile, if anything.
         function profileError() {
-            return state?.presets?.[selectedProfile]?.error || '';
+            return state?.files?.[selectedProfile]?.error || '';
         }
 
         function currentDraft() {
@@ -829,7 +829,7 @@
         }
 
         function heavyLoadText() {
-            const heavy = state?.presets?.[selectedProfile]?.heavyLoad || {};
+            const heavy = state?.files?.[selectedProfile]?.heavyLoad || {};
             const temperature = number(heavy.temperature, 260);
             const heaterCount = number(heavy.heater_count, 0);
             const hotCount = number(heavy.hot_count, 1);
@@ -846,7 +846,7 @@
                 // tables and its own rules are in control.
                 return 'Stock is the printer\'s own stepped fan table. It has no file, so there is nothing to draw: the duty comes from the printer\'s own configuration.';
             }
-            const entry = state?.presets?.[selectedProfile];
+            const entry = state?.files?.[selectedProfile];
             const hysteresis = number(entry?.hysteresis, 5);
             return `The duty is the line between the points. A curve uses ${hysteresis}°C hysteresis, so a falling temperature waits for the band before the duty follows. The fan is off below the first point, and the duty is what the curve says it is, up to ${Math.round(maxDuty() * 100)}%. ${heavyLoadText()}`;
         }

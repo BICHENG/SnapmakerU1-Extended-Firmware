@@ -157,8 +157,8 @@ def check_the_life_of_a_profile():
 
     state = fan.get_state()
     check('the state carries no rule under the curve',
-          'min_cool_temperature' not in state['presets']['my_cool']
-          and 'min_nozzle_duty' not in state['presets']['my_cool'])
+          'min_cool_temperature' not in state['files']['my_cool']
+          and 'min_nozzle_duty' not in state['files']['my_cool'])
     check('the state carries the label of the profile',
           state['labels']['my_cool'] == 'My Cool',
           '(label=%s)' % state['labels'].get('my_cool'))
@@ -308,7 +308,7 @@ def check_an_older_install():
 def main():
     global fan, config_dir, profile_dir
     config_dir = tempfile.mkdtemp(prefix='fan-curves-test-')
-    profile_dir = os.path.join(config_dir, 'fan-curves-presets')
+    profile_dir = os.path.join(config_dir, 'fan-curves-profiles')
     try:
         fan = load_module(config_dir)
         check('there is no profile before the seed', fan.available_profiles() == [],
