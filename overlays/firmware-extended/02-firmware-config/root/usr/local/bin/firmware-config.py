@@ -404,9 +404,10 @@ class FirmwareConfigHandler(SimpleHTTPRequestHandler):
                         for opt_key, opt_info in options_data.items():
                             if opt_key == 'stock':
                                 continue
-                            opt_info["confirm"] = "%s\n\n%s" % (
-                                fan_curves.RISK_NOTICE,
-                                opt_info.get("confirm", ""))
+                            confirm = opt_info.get("confirm", "")
+                            opt_info["confirm"] = (
+                                "%s\n\n%s" % (fan_curves.RISK_NOTICE, confirm)
+                                if confirm else fan_curves.RISK_NOTICE)
 
                     settings_list.append({
                         "id": setting_id,
