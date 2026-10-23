@@ -544,6 +544,25 @@ def check_the_curve_is_what_runs():
     check('a rule under the curve in the file is ignored',
           abs(speed_of(fan)) < 1e-9, '(speed=%s)' % speed_of(fan))
 
+    # The first node of the power curve is a point of the curve. It is not a
+    # trigger that keeps the power fan above it.
+    write_curve('custom', [[45, 0.9], [260, 0.1]], [[50, 0.0], [260, 0.6]])
+    falling = four_heaters(100)
+    fan = make_power_fan(PATCHED, falling)
+    expected = 0.9 + (0.1 - 0.9) * (100 - 45) / (260 - 45)
+    check('a power curve that falls is followed as it is written',
+          abs(speed_of(fan) - expected) < 1e-9,
+          '(speed=%.3f expected=%.3f)' % (speed_of(fan), expected))
+
+    # A file that lost the heavy load rule still runs the curve: the module
+    # fills the rule in, so the driver does the same.
+    write_curve('custom', [[70, 0.2], [260, 0.6]], [[50, 0.0], [260, 0.6]],
+                heavy_load={})
+    warm = {'extruder': FakeHeater(190, 190)}
+    fan = make_nozzle_fan(PATCHED, warm)
+    check('a file without the heavy load rule still runs the curve',
+          abs(speed_of(fan) - 0.4) < 1e-9, '(speed=%s)' % speed_of(fan))
+
     with open(SHIPPED_PROFILE, 'r', encoding='utf-8') as stream:
         shipped = json.load(stream)
     check('the profile the firmware ships carries no rule under the curve',

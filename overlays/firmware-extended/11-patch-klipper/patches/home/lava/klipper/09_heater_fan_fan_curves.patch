@@ -15,14 +15,14 @@
  
 +# Fan curve support. The active profile is written to a JSON file by
 +# firmware-config's fan_curves.py, which owns the user facing validation.
-+# The checks below repeat the rules that keep a profile safe, so a file that
-+# was edited by hand cannot disable the heatsink cooling.
++# The checks below repeat the shape rules of that module: a file that was
++# edited by hand is refused and the stock behaviour runs.
 +FAN_CURVES_PATH = os.environ.get(
 +    'FAN_CURVES_PATH', '/oem/printer_data/config/extended/fan-curves-active.json')
 +FAN_CURVE_MAX_POINTS = 16
 +FAN_CURVE_MAX_TEMPERATURE = 300
 +# The stock nozzle fan reaches 90%, so an ordinary curve has to be allowed to
-+# go that high. The heavy-load rule is what reaches 100%.
++# go that high. The heavy-load rule reaches 100% as well.
 +FAN_CURVE_MAX_DUTY = 1.0
 +FAN_CURVE_DEFAULT_HYSTERESIS = 5.0
 +# The Faulty Toolhead Bypass raises the heater_temp of the affected nozzle
@@ -69,6 +69,8 @@
 +        if not math.isfinite(hysteresis) or not 0 <= hysteresis <= FAN_CURVE_MAX_TEMPERATURE:
 +            raise ValueError('hysteresis is out of range')
 +        heavy_load = document.get('heavy_load')
++        if heavy_load is None:
++            heavy_load = {}
 +        if not isinstance(heavy_load, dict):
 +            raise ValueError('heavy-load values must be an object')
 +        # The power fan reaches heavy_duty when at least heavy_count toolheads
@@ -86,11 +88,8 @@
 +                or not 0 <= heavy_temperature <= FAN_CURVE_MAX_TEMPERATURE
 +                or not 0 <= heavy_duty <= 1):
 +            raise ValueError('heavy-load trigger is out of range')
-+        target_temperature, target_duty = normalized[0]
 +        return {
 +            'points': normalized,
-+            'target_temperature': target_temperature,
-+            'target_duty': target_duty,
 +            'hysteresis': hysteresis,
 +            'heavy_temperature': heavy_temperature,
 +            'heavy_count': int(heavy_heaters),
@@ -207,9 +206,6 @@
 +                                 default=0.)
 +            speed = self.calculate_curve_fan_speed(curve_temp)
 +            if self.fan_name == 'power_fan':
-+                if any(target >= self.fan_curve['target_temperature']
-+                       for _, target in heater_temps):
-+                    speed = max(speed, self.fan_curve['target_duty'])
 +                active_heaters = sum(1 for _, target in heater_temps
 +                                     if target > 0)
 +                hot_heaters = sum(1 for _, target in heater_temps
