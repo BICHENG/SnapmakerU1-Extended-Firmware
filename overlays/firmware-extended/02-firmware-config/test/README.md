@@ -78,5 +78,5 @@ These need the machine:
 - deleting the profile that is running and watching the printer fall back to
   the stock curves
 
-The checks that drive the curve editor in a headless browser need a browser
-and live with the checks of the author of the pull request.
+The checks that drive the curve editor in a headless browser need a browser.
+They are not part of this run.

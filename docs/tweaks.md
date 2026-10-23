@@ -124,7 +124,7 @@ A printer that has no profile of its own gets the profile the firmware ships: wh
 
 The duty between two points of a curve is the line between them, so the fan follows the temperature instead of jumping from step to step. The stock tables stay stepped tables, the curves do not. The profile the firmware ships puts a point at every step of the stock nozzle table, so its duty at a step is the stock duty and it only runs above it in between.
 
-The nozzle curve follows the effective toolhead temperature, the same as the stock table, so a print that sets 240°C selects the 240°C speed right away. The power fan follows target temperatures only, the same way the stock `temp_speed_table` does, so a toolhead with a faulty thermistor cannot push the power fan up. The first power node is also the power-fan target trigger and duty. All curve profiles use `5°C` hysteresis, ordinary duty stays at or below 100%, probing still locks the nozzle fans to their `probe_speed`, and the cavity temperature guard still forces the fans to 100% when the chamber leaves its guard range.
+The nozzle curve follows the effective toolhead temperature, the same as the stock table, so a print that sets 240°C selects the 240°C speed right away. The power fan follows target temperatures only, the same way the stock `temp_speed_table` does, so a toolhead with a faulty thermistor cannot push the power fan up. Every curve profile carries its own hysteresis in its file, and the profile the firmware ships uses `5°C`. Ordinary duty stays at or below 100%, probing still locks the nozzle fans to their `probe_speed`, and the cavity temperature guard still forces the fans to 100% when the chamber leaves its guard range.
 
 **Drawing a curve:**
 
@@ -138,12 +138,12 @@ The setting is available under **Settings → Tweaks → Fan Curves**. The curve
 
 The editor draws the selected curve next to the stock curve. A profile that is running can be deleted: the printer goes back to the stock curves first, so the running curve always has a file behind it.
 
-Applying an option atomically replaces `/oem/printer_data/config/extended/fan-curves-active.json` and restarts Klipper. When the printer is upgraded from the older editor, the curve it kept in `fan-curves.json` is imported as a profile file named `custom`, so nothing you drew is lost. `Stock` stores a Stock marker and leaves the original printer configuration in control. A legacy `20_fan_curves.cfg` is renamed before Klipper starts so an older install cannot be loaded accidentally.
+Applying an option atomically replaces `/oem/printer_data/config/extended/fan-curves-active.json` and restarts Klipper. When the printer is upgraded from the older editor, the curve it kept in `fan-curves.json` is imported as a profile file named `custom`, so nothing you drew is lost. `Stock` names the printer's own stepped tables in the active file and leaves the original printer configuration in control. A legacy `20_fan_curves.cfg` is renamed before Klipper starts so an older install cannot be loaded accidentally.
 
 **Risks:**
 
 - A profile of your own is your own risk. Different materials need different cooling, so test it before a long print
-- The driver runs the curve as it is written. Below the first point the fan is off, and a curve that asks for less gets less, so a profile of your own can leave the nozzle fan below the duty the stock table would run. The curve is the only thing that decides the duty
+- The driver runs the curve as it is written. Below the first point the fan is off, and a curve that asks for less gets less, so a profile of your own can leave the nozzle fan below the duty the stock table would run. Apart from the heavy load rule, probing and the cavity temperature guard, the curve decides the duty
 - The power fan heavy-load rule is part of the profile: it reaches 100% when at least three toolheads heat up and one of them targets more than `260°C`
 
 **Recommendation:**

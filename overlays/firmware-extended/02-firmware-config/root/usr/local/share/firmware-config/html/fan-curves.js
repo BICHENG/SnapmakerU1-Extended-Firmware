@@ -137,18 +137,16 @@
 
         function pointsOf(value) {
             const list = Array.isArray(value) ? value : [];
-            return list.map(point => {
-                if (Array.isArray(point)) return [Number(point[0]), Number(point[1])];
-                return [Number(point.temperature ?? point.temp), Number(point.duty ?? point.speed ?? point.value)];
-            }).filter(point => point.every(Number.isFinite));
+            return list.map(point => [Number(point[0]), Number(point[1])])
+                .filter(point => point.every(Number.isFinite));
         }
 
         function profile(value) {
             const source = value && typeof value === 'object' ? value : {};
             const curves = source.curves && typeof source.curves === 'object' ? source.curves : source;
             return {
-                power: pointsOf(curves.power || curves.power_fan),
-                nozzle: pointsOf(curves.nozzle || curves.nozzle_fans)
+                power: pointsOf(curves.power),
+                nozzle: pointsOf(curves.nozzle)
             };
         }
 
@@ -189,9 +187,6 @@
             const value = Number(state?.limits?.duty?.[1]);
             return Number.isFinite(value) ? Math.min(value, 1) : 1;
         }
-
-        // The duty the driver runs at a temperature is the curve itself.
-        // A curve that asks for less gets less; there is no rule under it.
 
         function setStatus(message, kind = '') {
             const status = $('status');
@@ -815,12 +810,17 @@
 
         // ---------------------------------------------------------------- rules
 
+        function number(value, fallback) {
+            const parsed = Number(value);
+            return Number.isFinite(parsed) ? parsed : fallback;
+        }
+
         function heavyLoadText() {
             const heavy = state?.presets?.[selectedProfile]?.heavyLoad || {};
-            const temperature = Number(heavy.temperature) || 260;
-            const heaterCount = Number(heavy.heater_count) || 0;
-            const hotCount = Number(heavy.hot_count) || 1;
-            const duty = Math.round((Number(heavy.duty) || 1) * 100);
+            const temperature = number(heavy.temperature, 260);
+            const heaterCount = number(heavy.heater_count, 0);
+            const hotCount = number(heavy.hot_count, 1);
+            const duty = Math.round(number(heavy.duty, 1) * 100);
             const heaters = heaterCount > 0
                 ? `at least ${heaterCount} toolhead${heaterCount === 1 ? '' : 's'} heat up and `
                 : '';
@@ -828,9 +828,14 @@
         }
 
         function rulesText() {
+            if (selectedProfile === 'stock') {
+                // The stock profile has no file: the printer's own stepped
+                // tables and its own rules are in control.
+                return 'Stock is the printer\'s own stepped fan table. It has no file, so there is nothing to draw: the duty comes from the printer\'s own configuration.';
+            }
             const entry = state?.presets?.[selectedProfile];
-            const hysteresis = Number.isFinite(Number(entry?.hysteresis)) ? Number(entry.hysteresis) : 5;
-            return `The duty is the line between the points. A curve uses ${hysteresis}°C hysteresis, so a falling temperature waits for the band before the duty follows. The fan is off below the first point, and the duty is what the curve says it is. Ordinary duty goes up to ${Math.round(maxDuty() * 100)}%. ${heavyLoadText()}`;
+            const hysteresis = number(entry?.hysteresis, 5);
+            return `The duty is the line between the points. A curve uses ${hysteresis}°C hysteresis, so a falling temperature waits for the band before the duty follows. The fan is off below the first point, and the duty is what the curve says it is, up to ${Math.round(maxDuty() * 100)}%. ${heavyLoadText()}`;
         }
 
         // ---------------------------------------------------------------- profiles
@@ -929,7 +934,7 @@
             if (!isEditable()) return;
             const name = selectedProfile;
             showConfirm(`Delete ${profileLabel(name)}?`,
-                'The file is removed from the profile directory. A profile that is running cannot be deleted; apply another profile first.', async () => {
+                'The file is removed from the profile directory. A profile that is running is removed as well: the printer goes back to the stock curves first, so the running curve always has a file behind it.', async () => {
                 closeConfirm();
                 try {
                     await post({ action: 'delete', profile: name }, null, true);
@@ -945,7 +950,7 @@
 
         function restoreShippedProfile() {
             showConfirm('Restore the shipped profile',
-                'The profile the firmware ships is written over your file. Your own version of it is lost.', async () => {
+                'The profile the firmware ships is written to the profile directory as Custom. A profile of your own named Custom is replaced by it.', async () => {
                 closeConfirm();
                 try {
                     const result = await post({ action: 'restore' }, null, true);
