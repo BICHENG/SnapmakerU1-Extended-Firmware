@@ -1,6 +1,6 @@
 --- a/klippy/extras/heater_fan.py
 +++ b/klippy/extras/heater_fan.py
-@@ -3,10 +3,106 @@
+@@ -3,10 +3,105 @@
  # Copyright (C) 2016-2020  Kevin O'Connor <kevin@koconnor.net>
  #
  # This file may be distributed under the terms of the GNU GPLv3 license.
@@ -106,7 +106,7 @@
  class PrinterHeaterFan:
      def __init__(self, config):
          self.printer = config.get_printer()
-@@ -35,6 +131,8 @@ class PrinterHeaterFan:
+@@ -35,6 +130,8 @@ class PrinterHeaterFan:
                  if current_temp <= prev_temp:
                      raise config.error(f"Temperature values must be ascending. Found {prev_temp} then {current_temp}")
          self.current_stepped_index = -1
@@ -115,7 +115,7 @@
          # Currently uses a fixed value, could be optimized in the future to use half the difference
          # between adjacent temperature points for more precise hysteresis control
          self.temp_hysteresis = config.getfloat("temp_hysteresis", 5, minval=0.)
-@@ -57,6 +155,13 @@ class PrinterHeaterFan:
+@@ -57,6 +154,13 @@ class PrinterHeaterFan:
          # Register SET_HEATER_FAN command
          gcode = self.printer.lookup_object('gcode')
          self.fan_name = config.get_name().split()[1]
@@ -129,7 +129,7 @@
          gcode.register_mux_command("SET_HEATER_FAN", "FAN", self.fan_name,
                                   self.cmd_SET_HEATER_FAN,
                                   desc=self.cmd_SET_HEATER_FAN_help)
-@@ -80,6 +185,7 @@ class PrinterHeaterFan:
+@@ -80,6 +184,7 @@ class PrinterHeaterFan:
              self.original_fan_speed = self.fan_speed
          self.fan_speed = self.probe_speed
          self.last_speed = self.current_stepped_index = -1  # Force update in next callback
@@ -137,7 +137,7 @@
          if self.fan_timer is not None:
              self.reactor.update_timer(self.fan_timer, self.reactor.NOW)
      def restore_fan_speed(self):
-@@ -88,6 +194,7 @@ class PrinterHeaterFan:
+@@ -88,6 +193,7 @@ class PrinterHeaterFan:
                  self.fan_speed = self.original_fan_speed
              self.original_fan_speed = None
              self.last_speed = self.current_stepped_index = -1  # Force update in next callback
@@ -145,7 +145,7 @@
              if self.fan_timer is not None:
                  self.reactor.update_timer(self.fan_timer, self.reactor.NOW)
      def calculate_stepped_fan_speed(self, temp):
-@@ -123,9 +230,78 @@ class PrinterHeaterFan:
+@@ -123,9 +229,75 @@ class PrinterHeaterFan:
              return max(self.min_speed, min(speed, 1.0)), 'in_range'
          else:
              return 0.0, 'below_min'
@@ -222,7 +222,7 @@
              for rule in self.temp_speed_table:
                  temp_threshold, target_temp_threshold, satisfied_heater_threshold, heater_count_threshold, rule_speed = rule
                  satisfied_heaters = 0
-@@ -159,7 +335,9 @@ class PrinterHeaterFan:
+@@ -159,7 +331,9 @@ class PrinterHeaterFan:
                          speed = max(self.min_speed, min(self.fan_speed, 1.0))
                          break
  
@@ -233,7 +233,7 @@
              current_temp, target_temp = self.external_temp_sensor.get_temp(eventtime)
              min_temp, max_temp = self.external_temp_guard_range[0]
              if not self.external_temp_in_guard_mode:
-@@ -198,6 +376,7 @@ class PrinterHeaterFan:
+@@ -198,6 +372,7 @@ class PrinterHeaterFan:
              return
          self.fan_speed = speed
          self.last_speed = self.current_stepped_index = -1  # Force update in next callback
