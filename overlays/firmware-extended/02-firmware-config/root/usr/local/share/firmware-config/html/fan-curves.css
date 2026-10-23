@@ -113,7 +113,6 @@
 .fc-editor .strip-hint[hidden] { display: none; }
 .fc-editor .status { color: var(--muted); flex: 1 1 0; font-size: 12px; line-height: 1.4; min-width: 0; }
 .fc-editor .status.error { color: var(--error); }
-.fc-editor .status.warning { color: var(--warning); }
 .fc-editor .status.success { color: var(--success); }
 .fc-editor .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
 
