@@ -96,7 +96,12 @@
 .fc-editor .swatch { border-top: 2px solid var(--accent); display: inline-block; height: 0; width: 24px; }
 .fc-editor .swatch.stock { border-top: 1.5px dashed #6a6a6a; }
 
-.fc-editor .editor-strip { align-items: center; display: flex; flex-wrap: wrap; gap: 8px 16px; }
+/* The chart, its legend and the manual that belongs to the chart. */
+.fc-editor .chart-note { color: var(--muted); font-size: 12px; margin: 0; padding: 6px 4px 0; }
+
+/* The point being edited, the message and the buttons are one row. The
+   message takes the room that is left between the point and the buttons. */
+.fc-editor .editor-toolbar { align-items: center; display: flex; flex-wrap: wrap; gap: 8px 16px; }
 .fc-editor .strip-title { color: var(--muted); font-size: 11px; letter-spacing: 0.5px; text-transform: uppercase; }
 .fc-editor .strip-fields { align-items: center; display: flex; flex-wrap: wrap; gap: 8px 16px; }
 .fc-editor .strip-fields[hidden] { display: none; }
@@ -106,14 +111,11 @@
 .fc-editor .unit { color: var(--muted); font-size: 12px; }
 .fc-editor .strip-hint { color: var(--muted); font-size: 12px; }
 .fc-editor .strip-hint[hidden] { display: none; }
-.fc-editor #fc-hint { margin-left: auto; text-align: right; }
-
-.fc-editor .editor-foot { align-items: center; display: flex; flex-wrap: wrap; gap: 12px; }
-.fc-editor .status { color: var(--muted); flex: 1 1 200px; font-size: 12px; min-height: 18px; }
+.fc-editor .status { color: var(--muted); flex: 1 1 180px; font-size: 12px; line-height: 1.4; min-width: 0; }
 .fc-editor .status.error { color: var(--error); }
 .fc-editor .status.warning { color: var(--warning); }
 .fc-editor .status.success { color: var(--success); }
-.fc-editor .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.fc-editor .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
 
 .fc-editor .backdrop {
     align-items: center; background: rgba(0, 0, 0, 0.6); display: flex;
@@ -126,6 +128,8 @@
 .fc-editor .dialog-log { color: var(--muted); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.6; margin: 0; max-height: 220px; overflow: auto; white-space: pre-wrap; }
 .fc-editor .dialog-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
 
-@media (max-width: 860px) {
-    .fc-editor #fc-hint { margin-left: 0; text-align: left; }
+/* A narrow card has no room for the message beside the buttons, so the
+   message takes a line of its own below them. */
+@media (max-width: 900px) {
+    .fc-editor .status { flex: 1 1 100%; order: 10; }
 }

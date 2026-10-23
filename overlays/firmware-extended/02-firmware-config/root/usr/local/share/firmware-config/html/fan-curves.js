@@ -42,10 +42,11 @@
             <span class="legend-item"><span class="swatch"></span><span id="fc-legend-selected">Curve</span></span>
             <span class="legend-item" id="fc-legend-stock" hidden><span class="swatch stock"></span>Stock</span>
         </div>
+        <p class="chart-note" id="fc-hint"></p>
     </section>
 </main>
 
-<div class="editor-strip">
+<div class="editor-toolbar">
     <span class="strip-title" id="fc-point-title">Selected point</span>
     <div class="strip-fields" id="fc-point-editor" hidden>
         <label class="strip-field">
@@ -59,16 +60,12 @@
         <button class="btn btn-secondary strip-button" id="fc-point-delete" type="button">Delete point</button>
     </div>
     <span class="strip-hint" id="fc-point-empty"></span>
-    <span class="strip-hint" id="fc-hint"></span>
-</div>
-
-<footer class="editor-foot">
     <div class="status" id="fc-status" aria-live="polite"></div>
     <div class="actions">
         <button class="btn btn-secondary" id="fc-save" type="button">Save</button>
         <button class="btn btn-primary" id="fc-apply" type="button">Apply</button>
     </div>
-</footer>
+</div>
 
 <div class="backdrop" id="fc-confirm-backdrop" hidden>
     <div class="dialog">
@@ -474,7 +471,7 @@
             selectedNode = Math.min(selectedNode, points.length - 1);
             currentDraft().dirty = true;
             renderAll();
-            setStatus('Point removed. Save the profile to keep it.');
+            setStatus('Point removed. Save the profile.');
         }
 
         // Adds a point at a free temperature. Returns the new index or -1.
@@ -502,7 +499,7 @@
             selectedNode = index;
             currentDraft().dirty = true;
             renderAll();
-            setStatus('Point added. Save the profile to keep it.');
+            setStatus('Point added. Save the profile.');
             return index;
         }
 
@@ -648,7 +645,7 @@
                 releasePointer(moved.pointerId);
                 const point = (currentDraft()[activeCurve] || [])[moved.index];
                 if (point && moved.before && (point[0] !== moved.before[0] || point[1] !== moved.before[1])) {
-                    setStatus('Point moved. Save the profile to keep it.');
+                    setStatus('Point moved. Save the profile.');
                 }
                 return;
             }
