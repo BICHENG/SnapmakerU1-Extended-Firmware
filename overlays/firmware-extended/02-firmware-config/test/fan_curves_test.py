@@ -84,8 +84,9 @@ def check_the_shipped_profile():
     check('the shipped profile is the only profile',
           fan.available_profiles() == ['custom'],
           '(profiles=%s)' % fan.available_profiles())
-    check('the seed leaves no marker behind',
-          not os.path.exists(os.path.join(profile_dir, '.default-installed')))
+    check('the seed leaves nothing but the profile in the directory',
+          os.listdir(profile_dir) == ['fan_curves_custom.json'],
+          '(files=%s)' % os.listdir(profile_dir))
 
     document = read_json(os.path.join(profile_dir, 'fan_curves_custom.json'))
     check('the shipped profile carries no rule under the curve',

@@ -31,7 +31,7 @@ MAX_POINTS = 16
 MIN_POINTS = 2
 MAX_TEMPERATURE = 300
 # The stock nozzle fan reaches 90%, so an ordinary curve has to be allowed to
-# go that high. The heavy-load rule is what reaches 100%.
+# go that high. The heavy-load rule reaches 100% as well.
 MAX_DUTY = 1.0
 DEFAULT_HYSTERESIS = 5.0
 # The heavy load rule of the stock power fan: 100% when at least three
@@ -239,9 +239,9 @@ def _profile_name(value):
     name = _canonical_profile(value)
     if not name or name == STOCK_PROFILE:
         raise FanCurveError('invalid profile name')
-    if not all(character.isalnum() or character in '-_' for character in name):
+    if not all(character.isalnum() or character == '_' for character in name):
         raise FanCurveError(
-            'a profile name may only hold letters, digits, - and _')
+            'a profile name may only hold letters, digits and _')
     return name
 
 
@@ -274,8 +274,8 @@ def _load_profile(profile):
 def _profile_settings(profile):
     """The settings of a profile that a change of the curve does not touch.
 
-    The hysteresis, the heavy load rule and the cooling floor live in the
-    file, so writing a new curve keeps them.
+    The hysteresis and the heavy load rule live in the file, so writing a
+    new curve keeps them.
     """
     try:
         document = _load_profile(profile)
@@ -563,14 +563,14 @@ def _migrate_legacy_curve():
     """The curve of the older editor becomes a profile file."""
     if not os.path.exists(LEGACY_PATH):
         return
-    target = _profile_path('custom')
+    target = _profile_path(CUSTOM_PROFILE)
     if os.path.exists(target):
         return
     try:
         curves = normalize_curves(_read_json(LEGACY_PATH))
     except (OSError, TypeError, ValueError, json.JSONDecodeError):
         return
-    _atomic_json(target, _profile_document('custom', curves))
+    _atomic_json(target, _profile_document(CUSTOM_PROFILE, curves))
 
 
 def main():
@@ -592,6 +592,8 @@ def main():
     if args.command == 'migrate':
         migrate_legacy(args.profile)
         return
+    if not args.profile:
+        parser.error('apply needs the name of a profile')
     apply_profile(args.profile)
 
 
