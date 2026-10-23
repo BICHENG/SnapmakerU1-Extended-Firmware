@@ -51,7 +51,7 @@
     <div class="strip-fields" id="fc-point-editor" hidden>
         <label class="strip-field">
             <span>Temperature</span>
-            <input id="fc-point-temperature" type="number" step="1" min="0" max="300"><span class="unit">°C</span>
+            <input id="fc-point-temperature" type="number" step="1"><span class="unit">°C</span>
         </label>
         <label class="strip-field">
             <span>Duty</span>
@@ -98,7 +98,6 @@
 
         const CHART_MARGIN = { left: 52, right: 18, top: 18, bottom: 34 };
         const CHART_MIN = { width: 320, height: 200 };
-        const MAX_TEMPERATURE = 300;
         // How far from a point a press still takes hold of it. The point is
         // drawn small, so the grab area is bigger than the dot.
         const POINT_GRAB_RADIUS = 14;
@@ -183,6 +182,22 @@
         function maxDuty() {
             const value = Number(state?.limits?.duty?.[1]);
             return Number.isFinite(value) ? Math.min(value, 1) : 1;
+        }
+
+        // The range of temperature the printer accepts. The printer sends it
+        // with the state, so the editor does not carry a number of its own.
+        function temperatureRange() {
+            const limits = state?.limits?.temperature;
+            const low = Number(limits?.[0]);
+            const high = Number(limits?.[1]);
+            return {
+                min: Number.isFinite(low) ? low : 0,
+                max: Number.isFinite(high) ? high : 300
+            };
+        }
+
+        function maxTemperature() {
+            return temperatureRange().max;
         }
 
         function setStatus(message, kind = '') {
@@ -277,10 +292,10 @@
             const plotHeight = height - margin.top - margin.bottom;
             return {
                 width, height, margin, plotWidth, plotHeight,
-                toX: temperature => margin.left + (temperature / MAX_TEMPERATURE) * plotWidth,
+                toX: temperature => margin.left + (temperature / maxTemperature()) * plotWidth,
                 toY: duty => margin.top + (1 - duty) * plotHeight,
-                fromX: x => Math.max(0, Math.min(MAX_TEMPERATURE,
-                    ((x - margin.left) / plotWidth) * MAX_TEMPERATURE)),
+                fromX: x => Math.max(0, Math.min(maxTemperature(),
+                    ((x - margin.left) / plotWidth) * maxTemperature())),
                 fromY: y => Math.max(0, Math.min(1, 1 - ((y - margin.top) / plotHeight)))
             };
         }
@@ -294,7 +309,7 @@
         // the driver follows.
         function sampleCurve(points, evaluate) {
             const samples = [];
-            for (let temperature = curveStart(points); temperature <= MAX_TEMPERATURE; temperature++) {
+            for (let temperature = curveStart(points); temperature <= maxTemperature(); temperature++) {
                 samples.push([temperature, evaluate(points, temperature)]);
             }
             return samples;
@@ -329,7 +344,8 @@
                 return `<line class="chart-grid" x1="${geometry.margin.left}" y1="${y}" x2="${geometry.width - geometry.margin.right}" y2="${y}"/>` +
                        `<text x="${geometry.margin.left - 8}" y="${y + 4}" text-anchor="end">${Math.round(duty * 100)}%</text>`;
             }).join('');
-            const xLabels = [0, 100, 200, 300].map(temperature => {
+            const xLabels = [0, 1 / 3, 2 / 3, 1].map(part => {
+                const temperature = Math.round(maxTemperature() * part);
                 const x = geometry.toX(temperature);
                 return `<line class="chart-grid" x1="${x}" y1="${geometry.margin.top}" x2="${x}" y2="${geometry.height - geometry.margin.bottom}"/>` +
                        `<text x="${x}" y="${geometry.height - 12}" text-anchor="middle">${temperature}°C</text>`;
@@ -443,7 +459,7 @@
         function nodeBounds(index) {
             const points = currentDraft()[activeCurve] || [];
             const previous = index > 0 ? points[index - 1][0] : -1;
-            const next = index < points.length - 1 ? points[index + 1][0] : MAX_TEMPERATURE + 1;
+            const next = index < points.length - 1 ? points[index + 1][0] : maxTemperature() + 1;
             return { min: previous + 1, max: next - 1 };
         }
 
@@ -485,7 +501,7 @@
             let index = points.findIndex(point => point[0] > temperature);
             if (index === -1) index = points.length;
             const previous = index > 0 ? points[index - 1][0] : -1;
-            const next = index < points.length ? points[index][0] : MAX_TEMPERATURE + 1;
+            const next = index < points.length ? points[index][0] : maxTemperature() + 1;
             // The clicked temperature can land on a neighbour, which is one degree
             // away from a free spot. Move it there instead of refusing.
             let spot = temperature;
@@ -856,6 +872,9 @@
             $('power-tab').className = `btn ${activeCurve === 'power' ? 'btn-primary' : 'btn-secondary'}`;
             $('nozzle-tab').className = `btn ${activeCurve === 'nozzle' ? 'btn-primary' : 'btn-secondary'}`;
             $('info').title = rulesText();
+            const range = temperatureRange();
+            $('point-temperature').min = String(range.min);
+            $('point-temperature').max = String(range.max);
             const editable = isEditable();
             $('save').disabled = !editable || !currentDraft().dirty;
             $('apply').disabled = false;
@@ -979,7 +998,9 @@
                 if (points.length < 2) errors.push(`${name} needs at least two points`);
                 if (points.length > maxPoints()) errors.push(`${name} has too many points`);
                 points.forEach(([temperature, duty], index) => {
-                    if (!Number.isInteger(temperature) || temperature < 0 || temperature > MAX_TEMPERATURE) {
+                    const range = temperatureRange();
+                    if (!Number.isInteger(temperature) || temperature < range.min
+                            || temperature > range.max) {
                         errors.push(`${name} point ${index + 1} has an invalid temperature`);
                     }
                     if (!Number.isFinite(duty) || duty < 0 || duty > maxDuty()) {
