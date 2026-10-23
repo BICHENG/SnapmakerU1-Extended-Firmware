@@ -7,7 +7,7 @@ settings:
     items:
       fan_curves:
         label: Fan Curves
-        description: Select cooling curves for the power fan and all four nozzle fans. Stock runs the printer's own stepped fan tables. Custom is the profile the firmware ships; it starts out as the original Snapmaker curves. Every profile except Stock is a file in the fan-curves-presets directory, so the fan curve editor can draw it, rename it and remove it.
+        description: Select cooling curves for the power fan and all four nozzle fans. Stock runs the printer's own stepped fan tables. Every profile except Stock is a file in the fan-curves-presets directory, so the fan curve editor can draw it, rename it and remove it. A printer with no profile of its own starts with the profile the firmware ships, which never cools less than the printer's own fans do.
         help_url: http://snapmakeru1-extended-firmware.pages.dev/tweaks#fan-curves
         get_cmd:
           - bash

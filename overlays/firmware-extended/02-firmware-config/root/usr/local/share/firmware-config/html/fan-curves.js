@@ -985,7 +985,7 @@
             delete drafts[selectedProfile];
             selectedNode = -1;
             renderAll();
-            setStatus('The profile is back to the file.');
+            setStatus('The changes are discarded.');
         }
 
         // ---------------------------------------------------------------- actions

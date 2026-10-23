@@ -147,7 +147,7 @@ Applying an option atomically replaces `/oem/printer_data/config/extended/fan-cu
 - The power fan heavy-load rule is part of the profile: it reaches 100% when at least three toolheads heat up and one of them targets more than `260°C`
 
 **Recommendation:**
-- Start with `Custom`, it runs the stock cooling. Use `Stock` when you want the printer's own stepped tables, and a curve of your own when you want it quieter
+- Start from the profile the firmware ships: it never cools less than the stock tables do. Use `Stock` when you want the printer's own stepped tables, and a curve of your own when you want it quieter
 - Test a profile of your own with a short print before a long one
 
 **Configuration:**
