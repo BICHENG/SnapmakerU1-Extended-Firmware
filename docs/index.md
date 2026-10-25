@@ -57,6 +57,10 @@ Heavily expanded firmware with extensive features and customization:
 - Timelapse Support - Record print timelapses with automatic cleanup
 - [Timelapse Recovery Tool](https://github.com/horzadome/snapmaker-u1-timelapse-recovery) - Recover unplayable timelapse videos
 
+**Audio:**
+
+- [Phone Microphone](auxmic.md) - Use a phone's microphone as a sound card the printer can record from
+
 **Klipper Customization:**
 
 - [Klipper and Moonraker Custom Includes](klipper_includes.md) - Add custom configuration files via Fluidd/Mainsail
