@@ -1,0 +1,9 @@
+#!/bin/sh
+case "$1" in
+  start)
+    [ -e /dev/mali0 ] || insmod /lib/modules/bifrost_kbase.ko || exit 1
+    # Keep the GPU within the lowest two existing operating points.
+    echo 400000000 > /sys/class/devfreq/ff320000.gpu/max_freq
+    ;;
+  stop) ;;
+esac

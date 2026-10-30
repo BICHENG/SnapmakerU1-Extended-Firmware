@@ -114,6 +114,10 @@ int main(int argc, char **argv) {
         }
         next.tv_nsec += 1000000000L / fps;
         if (next.tv_nsec >= 1000000000L) { next.tv_sec++; next.tv_nsec -= 1000000000L; }
+        struct timespec now;
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        if (now.tv_sec > next.tv_sec ||
+            (now.tv_sec == next.tv_sec && now.tv_nsec > next.tv_nsec)) next = now;
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next, NULL);
     }
     result = 0;

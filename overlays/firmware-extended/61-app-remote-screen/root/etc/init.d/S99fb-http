@@ -12,7 +12,7 @@ PIDFILE="/var/run/$NAME.pid"
 
 FB_DEVICE="/dev/fb0"
 TOUCH_DEVICE="/dev/input/event0"
-HTML_DIR="/usr/share/fb-http/html"
+HTML_DIR="/usr/local/share/fb-http/html"
 PORT=8092
 BIND=127.0.0.1
 
@@ -35,7 +35,7 @@ start() {
         "$DAEMON" --bind "$BIND" --port "$PORT" --fb "$FB_DEVICE" \
         --touch "$TOUCH_DEVICE" --html-dir "$HTML_DIR"
     start-stop-daemon -S -b -m -p /var/run/screen-capture.pid -x /usr/local/bin/fake-service -- \
-        --retry 3 /usr/local/bin/fb-mpp /dev/fb0 /tmp/screen-h264.sock 30
+        --retry 3 /usr/local/bin/fb-mpp /dev/fb0 /tmp/screen-h264.sock 45
     SCREEN_TOUCH_DEVICE="$TOUCH_DEVICE" start-stop-daemon -S -b -m \
         -p /var/run/screen-webrtc.pid -x /usr/local/bin/fake-service -- \
         --retry 3 /usr/local/bin/stream-screen-webrtc --h264-sock /tmp/screen-h264.sock \
