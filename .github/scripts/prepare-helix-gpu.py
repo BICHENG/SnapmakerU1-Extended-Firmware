@@ -9,6 +9,15 @@ anchor='    libdrm-dev:arm64 \\\n'
 assert s.count(anchor)==1
 s=s.replace(anchor,anchor+'    libegl-dev:arm64 \\\n    libgles-dev:arm64 \\\n    libgbm-dev:arm64 \\\n')
 path.write_text(s,encoding='utf-8',newline='\n')
+path=root/'src/ui/ui_gcode_viewer.cpp';s=path.read_text(encoding='utf-8')
+anchor='    builder.set_budget_tube_sides(budget_config.tube_sides);'
+assert s.count(anchor)==1
+s=s.replace(anchor,'''    // On the U1, 16-sided tubes exhaust the shared memory before the GPU budget notices.
+    // Four sides resolve the subpixel-width extrusions on its 480x320 display.
+    budget_config.tube_sides = std::min(budget_config.tube_sides, 4);
+    budget_config.simplification_tolerance = std::max(budget_config.simplification_tolerance, 0.05f);
+    builder.set_budget_tube_sides(budget_config.tube_sides);''')
+path.write_text(s,encoding='utf-8',newline='\n')
 path=root/'Makefile';s=path.read_text(encoding='utf-8')
 anchor='    # DRM backend requires libdrm for display; libinput for LVGL input drivers'
 assert s.count(anchor)==1

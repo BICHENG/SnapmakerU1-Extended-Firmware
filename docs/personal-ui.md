@@ -12,6 +12,8 @@ The personal build uses HelixScreen 1.0.7 (`faed4e35010e970ba5612e9b2e109c52a119
 
 The panel is 480 × 320, with a measured/configured 45 Hz timing (7,840,125 / 505 / 345). The build uses a 22 ms LVGL refresh period. This sets a refresh ceiling, not a promise that every complex screen renders at 45 fps.
 
+The U1 build caps extrusion tubes at four sides and uses at least 0.05 mm simplification tolerance. Upstream's RAM-based budget otherwise overrides the configured four sides with sixteen: the test file produced 2.84 million vertices and reached the UI's 480 MB memory-pressure limit, causing its preview to be discarded. Increasing the refresh rate without reducing this geometry does not solve that problem.
+
 ## GPU
 
 The original device tree disables the Mali-G52. The personal overlay enables that node, connects its existing `vdd_gpu` regulator, builds the matching `bifrost_kbase` module and installs the pinned Mali g24p0 userspace library with its licence. No clock/voltage table is overclocked. The init script caps the GPU at 400 MHz; runtime power management can suspend it when unused.
