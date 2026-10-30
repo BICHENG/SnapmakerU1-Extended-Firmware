@@ -1,144 +1,115 @@
 # Auxmic
 
-The printer has no microphone of its own.  This mod makes a phone into one:
-the phone's microphone arrives as a sound card that the machine can record
-from like any other device.
-
-The point of the card is to hear the machine.  A fan curve says how fast a
-fan runs; it cannot say how loud the result is.  Feeding the noise back in
-through a capture device is what makes the difference measurable: the
-recording is taken on the printer, so it is timed by the same clock as the
-print, and the motion noise can be told apart from the fan noise.
-
-Nothing in the printing path changes.  The service listens on the LAN, the
-phone sends its audio over the network, and the printer plays that audio
-into a loopback card.  A program that wants the phone's microphone opens
-the card.
-
-## How it works
-
-Three pieces:
-
-| Piece | Where | What it does |
-| --- | --- | --- |
-| `auxmic-transport.py` | mod, runs as `lava` | Serves the phone page over https, holds the pairing code, hands the audio to the device half |
-| `auxmic-pacer.py` | mod, runs as root | Holds the loopback card and feeds it the audio that arrives on the link |
-| `snd-aloop.ko` | firmware | The loopback card itself |
-
-The transport and the pacer talk over a local TCP socket.  The audio on
-that socket is raw PCM: 48 kHz, mono, signed 16-bit little endian, no
-headers.  Both ends know the format, so the byte count is the sample count
-times two.
-
-The pacer opens `hw:Loopback,0` once and keeps it open.  The phone coming
-and going changes what the card carries, not the card itself: sound while a
-phone is sending, silence otherwise.  A program reading the card never sees
-a device error, an underrun, or a card that was reopened underneath it.
-
-The link is the source.  While the phone is connected the audio is live; when
-the phone goes away the card turns to silence on its own, with no timeout
-and no cleanup step.
-
-## Using it
-
-The firmware config page shows the address of the phone page and the pairing
-code:
+Expose a phone's network microphone as an ALSA capture device on the printer.
+The existing phone page sends 48 kHz mono signed 16-bit PCM over HTTPS. Consumers
+open `auxmic`; they do not need to implement the phone protocol.
 
 ```text
-https://<printer-address>:9443/#pair=<pairing code>
+Phone page → HTTPS :9443 → auxmic.py → hw:Loopback,0,0
+                                      snd-aloop
+Recording application ← auxmic ← hw:Loopback,1,0
 ```
 
-Open that address on the phone.  The page takes the pairing code from the
-address, so there is nothing to type.  The phone asks for the microphone,
-and the audio starts.
+## Runtime
 
-The browser only hands out the microphone on a secure origin, so the page
-has to come over https.  The certificate is the printer's own, so the phone
-shows a warning the first time and has to be told to continue.  Installing
-the certificate on the phone instead is also fine.
+One Python process owns the current session, one bounded PCM buffer and the ALSA
+playback handle. `auxmic_pcm.py` contains the ALSA binding and a local WAV output
+for development. There is no local TCP relay or status file.
 
-The page has a start button and a stop button.  Stopping ends the session
-and the card goes quiet.  Leaving the page ends the session too, so a
-phone that loses its connection does not leave the printer making noise.
+The service accepts one source at a time. A replacement clears queued samples
+and invalidates the old session. The buffer holds at most two seconds; overflow drops
+the oldest samples. Playback starts after one second has accumulated. This leaves
+room for delayed uploads arriving in a burst. A smaller
+buffer is released after a two-second priming timeout measured from the first
+queued sample, so time spent granting microphone permission does not bypass
+priming. A short final block
+does not remain queued indefinitely. Underruns refill the buffer while writing
+silence. This is a latency-bounded live input, not a lossless recorder.
 
-## Recording from it
+With no source, the process continues writing silence to keep the device open.
+Stop clears the application buffer; samples already submitted to ALSA may still
+be captured briefly. A disconnected source drains its buffer and then produces
+silence. Its session expires after ten seconds without a chunk. The playback
+format is 48 kHz stereo S16_LE, with the mono source duplicated into both channels.
 
-The card is a normal ALSA capture device.  The alias `auxmic` opens it:
+`S99auxmic` loads the module and starts the process as `lava:audio`, using the
+firmware's existing `fake-service` supervisor and a 64 MiB memory limit. A fatal
+output error exits the process; the supervisor retries after three seconds.
+Recovery can interrupt capture, so applications may need to reopen the device.
 
-```sh
-ffmpeg -f alsa -i auxmic -t 10 -ar 48000 -ac 2 phone.wav
-```
+## Requirements and operation
 
-The card fixes its format when the first side opens it, and the pacer opens
-the playback side in 48 kHz stereo signed 16-bit, so a consumer asks for the
-same.  The alias is a plug, so a consumer that asks for another rate or
-another channel count still gets the audio.
+The firmware must contain `/lib/modules/snd-aloop.ko`, Python 3, libasound,
+`fake-service`, an `audio` group with access to the loopback device nodes, and
+the mod files. The kernel build step uses `CONFIG_SND_ALOOP=m` and the target
+`sound/drivers/snd-aloop.ko`. The compiled module must match the running kernel.
 
-`hw:Loopback,1` is the same device without the alias.
-
-## The service
+Package these files into the firmware image. Copying them into the running root
+filesystem is temporary: the normal U1 boot sequence clears its writable overlay.
+Do not rely on a successful live-copy test as evidence of boot persistence.
 
 ```sh
 /etc/init.d/S99auxmic start
-/etc/init.d/S99auxmic stop
-/etc/init.d/S99auxmic restart
 /etc/init.d/S99auxmic status
+/etc/init.d/S99auxmic restart
+/etc/init.d/S99auxmic stop
 ```
 
-`status` prints the address of the page and the pairing code.
+Firmware Config shows the phone URL and pairing code. Credentials and the TLS
+certificate persist in `/home/lava/printer_data/config/extended/auxmic/`. Logs go
+to syslog through the supervisor. Normal chunk uploads are not logged.
 
-The logs are in `/userdata/auxmic/`, the pairing code and the certificate
-are in `/home/lava/printer_data/config/extended/auxmic/`, and the status of
-the device half is in `/run/auxmic/pacer.json`.
-
-The service loads the loopback module itself.  The module belongs to the
-firmware, not to this mod, so nothing happens until the mod is started.
-
-The certificate is made again when it is close to expiring or when the
-printer's address has changed.  The printer has no mDNS, so the phone can
-only reach it by address, and a certificate that does not name that address
-is one the phone will not open.  After the address changes, restarting the
-service is what makes the page work again.
-
-## What it needs
-
-The loopback module has to be in the firmware.  It is built by the firmware
-build:
-
-```text
-overlays/firmware-extended/10-patch-kernel-modules/scripts/01_compile_kernel_modules.sh
-```
-
-and lands in `/lib/modules/snd-aloop.ko`.  The mod loads it at boot.
-
-## Checking it
-
-The card shows up like any other:
+The default capture alias uses the fixed loopback subdevice `hw:Loopback,1,0`.
+Use one direct capture client at a time:
 
 ```sh
-cat /proc/asound/cards
+ffmpeg -f alsa -ar 48000 -ac 2 -i auxmic -t 10 phone.wav
+curl -k https://127.0.0.1:9443/v1/auxmic/source
 ```
 
-The service reports what is feeding the card:
+The source endpoint reports session state, device readiness, buffer occupancy,
+discarded frames and output frames. `dropped_frames` includes queued samples
+discarded on stop/replacement/expiry. `underrun_frames` counts padding in the
+block that exhausted a primed buffer; it is not total silence duration. Counters
+reset when the service restarts. An open session alone does not prove sound is
+arriving; also inspect its chunk counters or record from the card.
+
+## Local development
 
 ```sh
-curl -k https://<printer-address>:9443/v1/auxmic/source
+python3 -m unittest discover -s overlays/mods/BICHENG/70-app-auxmic/test -v
 ```
 
-The answer names the source that is live, the format, the frames counted so
-far, the bytes that had to be dropped and whether the link to the device half
-is up.  A phone that is streaming shows a live source and a rising frame
-count; a phone that is gone shows the card carrying silence.  The printer's
-own settings page shows the same numbers, together with the address of the
-phone page and the pairing code.
+To run the same phone protocol without an ALSA device:
 
-## Limits
+```sh
+python3 overlays/mods/BICHENG/70-app-auxmic/root/usr/local/bin/auxmic.py \
+  --insecure-http --config-dir /tmp/auxmic-debug --output-wav /tmp/auxmic.wav \
+  --phone-html overlays/mods/BICHENG/70-app-auxmic/root/usr/local/share/auxmic/phone.html
+```
 
-- The phone has to accept the printer's certificate once.
-- The card holds one format.  A consumer that asks for something else than
-  48 kHz stereo signed 16-bit may be refused by the card; the `auxmic`
-  alias converts what it can.
-- The service holds one phone at a time.  A second phone takes over the
-  session and the first one goes quiet.
-- The audio is not recorded.  The service keeps the pairing code, and the
-  session lives in memory for as long as the process does.
+HTTP debug mode is restricted to localhost. A computer microphone can publish
+the same PCM chunk requests; it checks reception and buffering, not printer
+noise or the printer's sound driver. The service records only when `--output-wav`
+is explicitly selected.
+
+## Acceptance on the printer
+
+For each firmware build, confirm the packaged module loads,
+`lava:audio` can open the card, and one capture client receives phone audio.
+Then check stop/disconnect, source replacement and supervisor recovery. If an old
+two-process development version is running, use a clean boot into the candidate
+firmware rather than mixing old and new processes.
+
+Copy `test/check_device.py` to the printer and run it with Python 3 as a user
+that can read the pairing file and open `auxmic`. For example,
+`python3 /tmp/check_device.py --seconds 60` compares every generated PCM packet
+with the real ALSA capture and checks the silent tail. Use `--seconds 1800` for
+an endurance check. It refuses to replace an active phone session and stores
+no audio recording.
+
+Network delay, browser processing and separate source/device clocks affect the
+signal. This implementation does not synchronize audio with printer motion,
+compensate clock drift, guarantee uninterrupted capture across crashes, or measure
+calibrated sound pressure. Those are separate capabilities, not prerequisites for
+exposing a usable microphone device.

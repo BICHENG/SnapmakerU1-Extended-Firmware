@@ -2,198 +2,99 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # SPDX-PackageHomePage: https://github.com/BICHENG/SnapmakerU1-Extended-Firmware
 # SPDX-FileCopyrightText: Copyright (c) 2026 BICHENG
-#
-# auxmic: the phone microphone as a sound card.
-#
-# Two processes make up the device side:
-#
-#   auxmic-pacer      holds hw:Loopback,0 and feeds it the audio that
-#                     arrives on the link.  It runs as root, because the
-#                     sound devices belong to the audio group.
-#   auxmic-transport  serves the phone page over https and hands the audio
-#                     to the pacer over a local socket.  It runs as lava,
-#                     because it only writes into the printer's own
-#                     configuration directory.
-#
-# The loopback module belongs to the firmware, not to this mod, but nothing
-# loads it until this script says so.
 
-umask 022
-
-NAME="auxmic"
-RUN_DIR="/run/auxmic"
-DATA_DIR="/userdata/auxmic"
-CONFIG_DIR="/home/lava/printer_data/config/extended/auxmic"
-PACER_PIDFILE="$RUN_DIR/pacer.pid"
-TRANSPORT_PIDFILE="$RUN_DIR/transport.pid"
-PACER_LOG="$DATA_DIR/pacer.log"
-TRANSPORT_LOG="$DATA_DIR/transport.log"
-ALSA_DEVICE="hw:Loopback,0"
-LINK_PORT="9444"
-HTTP_PORT="9443"
-MODULE="/lib/modules/snd-aloop.ko"
-CERT_SCRIPT="/usr/local/bin/auxmic-cert.sh"
-PYTHON="/usr/bin/python3"
+NAME=auxmic
+PIDFILE=/run/auxmic.pid
+CONFIG_DIR=/home/lava/printer_data/config/extended/auxmic
+SUPERVISOR=/usr/local/bin/fake-service
+PROGRAM=/usr/local/bin/auxmic.py
 
 . /usr/local/share/auxmic/common.sh
 
 pid_alive() {
-    [ -f "$1" ] || return 1
-    pid=$(cat "$1" 2>/dev/null) || return 1
-    case "$pid" in
-        ''|*[!0-9]*) return 1 ;;
-    esac
-    kill -0 "$pid" 2>/dev/null
+    [ -r "$PIDFILE" ] || return 1
+    pid=$(cat "$PIDFILE")
+    case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+    kill -0 "$pid" 2>/dev/null || return 1
+    # A stale pidfile must not target a process that reused the PID.
+    tr '\000' '\n' < "/proc/$pid/cmdline" 2>/dev/null | grep -Fxq "$PROGRAM"
 }
 
-card_ready() {
-    grep -q Loopback /proc/asound/cards 2>/dev/null
-}
-
-load_loopback() {
-    if card_ready; then
-        return 0
-    fi
-    if [ ! -f "$MODULE" ]; then
-        echo "$NAME: $MODULE is missing from the firmware" >&2
-        return 1
-    fi
-    if ! insmod "$MODULE"; then
-        echo "$NAME: the loopback module did not load" >&2
-        return 1
-    fi
-    attempt=0
-    while [ "$attempt" -lt 25 ]; do
-        card_ready && return 0
-        sleep 0.2
-        attempt=$((attempt + 1))
-    done
-    echo "$NAME: the loopback card did not show up" >&2
-    return 1
-}
-
-# The storage is a partition that may still be mounting when this runs.
-prepare_storage() {
-    attempt=0
-    while [ "$attempt" -lt 30 ]; do
-        if grep -q ' /userdata ' /proc/mounts 2>/dev/null; then
-            mkdir -p "$DATA_DIR" "$CONFIG_DIR" "$RUN_DIR" || return 1
-            chown -R lava:lava "$DATA_DIR" "$CONFIG_DIR" 2>/dev/null || true
-            return 0
-        fi
-        sleep 1
-        attempt=$((attempt + 1))
-    done
-    echo "$NAME: /userdata did not show up" >&2
-    return 1
-}
-
-start_pacer() {
-    if pid_alive "$PACER_PIDFILE"; then
-        echo "$NAME: the device half is already running"
-        return 0
-    fi
-    : > "$PACER_LOG"
-    if [ -r /usr/local/sbin/limits-helper.sh ]; then
-        . /usr/local/sbin/limits-helper.sh
-        limits_enter auxmic-pacer 32M
-    fi
-    start-stop-daemon -S -b -m -q -p "$PACER_PIDFILE" -x /bin/sh -- -c \
-        "exec $PYTHON /usr/local/bin/auxmic-pacer.py --sink alsa --device $ALSA_DEVICE --host 127.0.0.1 --port $LINK_PORT --status $RUN_DIR/pacer.json >> $PACER_LOG 2>&1"
-    attempt=0
-    while [ "$attempt" -lt 15 ]; do
-        if pid_alive "$PACER_PIDFILE" && [ -s "$RUN_DIR/pacer.json" ]; then
-            echo "$NAME: the device half is running"
-            return 0
-        fi
-        sleep 1
-        attempt=$((attempt + 1))
-    done
-    echo "$NAME: the device half did not come up; see $PACER_LOG" >&2
-    return 1
-}
-
-start_transport() {
-    if pid_alive "$TRANSPORT_PIDFILE"; then
-        echo "$NAME: the transport is already running"
-        return 0
-    fi
-    : > "$TRANSPORT_LOG"
-    chown lava:lava "$TRANSPORT_LOG" 2>/dev/null || true
-    "$CERT_SCRIPT" "$CONFIG_DIR" || return 1
-    start-stop-daemon -S -b -m -q -p "$TRANSPORT_PIDFILE" -c lava -x /bin/sh -- -c \
-        "exec $PYTHON /usr/local/bin/auxmic-transport.py --host 0.0.0.0 --port $HTTP_PORT --config-dir $CONFIG_DIR --link-host 127.0.0.1 --link-port $LINK_PORT >> $TRANSPORT_LOG 2>&1"
-    attempt=0
-    while [ "$attempt" -lt 15 ]; do
-        if pid_alive "$TRANSPORT_PIDFILE" && [ -s "$CONFIG_DIR/pairing.token" ]; then
-            echo "$NAME: the transport is running"
-            return 0
-        fi
-        sleep 1
-        attempt=$((attempt + 1))
-    done
-    echo "$NAME: the transport did not come up; see $TRANSPORT_LOG" >&2
-    return 1
-}
-
-stop_process() {
-    pidfile="$1"
-    label="$2"
-    printf "Stopping %s: " "$label"
-    if pid_alive "$pidfile"; then
-        start-stop-daemon -K -p "$pidfile" -s TERM >/dev/null 2>&1
-        attempt=0
-        while [ "$attempt" -lt 10 ] && pid_alive "$pidfile"; do
-            sleep 1
-            attempt=$((attempt + 1))
-        done
-        if pid_alive "$pidfile"; then
-            start-stop-daemon -K -p "$pidfile" -s KILL >/dev/null 2>&1
-        fi
-        rm -f "$pidfile"
-        echo "OK"
-    else
-        rm -f "$pidfile"
-        echo "not running"
-    fi
+healthy() {
+    curl -kfsS --max-time 2 https://127.0.0.1:9443/healthz 2>/dev/null \
+        | grep -q '"status":"ok"'
 }
 
 start() {
-    load_loopback || return 1
-    prepare_storage || return 1
-    start_pacer || return 1
-    start_transport || return 1
-    address=$(auxmic_address)
-    echo "$NAME: the phone page is at https://$address:$HTTP_PORT/"
-    if [ -r "$CONFIG_DIR/pairing.token" ]; then
-        echo "$NAME: the pairing code is $(cat "$CONFIG_DIR/pairing.token")"
+    if pid_alive; then
+        healthy && return 0
+        echo "$NAME: supervisor is running, but the device service is not ready" >&2
+        return 1
     fi
-    return 0
+    [ -x "$SUPERVISOR" ] || { echo "$NAME: fake-service is missing" >&2; return 1; }
+    grep -q '^audio:' /etc/group || { echo "$NAME: audio group is missing" >&2; return 1; }
+    if ! grep -q Loopback /proc/asound/cards 2>/dev/null; then
+        insmod /lib/modules/snd-aloop.ko || return 1
+    fi
+    attempt=0
+    until grep -q ' /userdata ' /proc/mounts; do
+        [ "$attempt" -lt 30 ] || return 1
+        sleep 1
+        attempt=$((attempt + 1))
+    done
+    mkdir -p "$CONFIG_DIR" || return 1
+    chown lava:lava "$CONFIG_DIR" || return 1
+    /usr/local/bin/auxmic-cert.sh "$CONFIG_DIR" || return 1
+    . /usr/local/sbin/limits-helper.sh
+    limits_enter auxmic 64M
+    start-stop-daemon -S -b -m -q -p "$PIDFILE" -c lava:audio \
+        -x "$SUPERVISOR" -- --retry 3 --syslog \
+        /usr/bin/python3 "$PROGRAM" \
+        --host 0.0.0.0 --config-dir "$CONFIG_DIR" || return 1
+    attempt=0
+    while [ "$attempt" -lt 15 ]; do
+        if pid_alive && healthy; then
+            echo "$NAME: ready at https://$(auxmic_address):9443/"
+            return 0
+        fi
+        sleep 1
+        attempt=$((attempt + 1))
+    done
+    echo "$NAME: startup failed; see syslog" >&2
+    stop
+    return 1
 }
 
 stop() {
-    stop_process "$TRANSPORT_PIDFILE" "the transport"
-    stop_process "$PACER_PIDFILE" "the device half"
+    if pid_alive; then
+        start-stop-daemon -K -p "$PIDFILE" -s TERM
+        attempt=0
+        while pid_alive && [ "$attempt" -lt 10 ]; do
+            sleep 1
+            attempt=$((attempt + 1))
+        done
+        if pid_alive; then
+            echo "$NAME: has not stopped; retaining its pidfile" >&2
+            return 1
+        fi
+    fi
+    rm -f "$PIDFILE"
 }
 
 status() {
-    if pid_alive "$PACER_PIDFILE" && pid_alive "$TRANSPORT_PIDFILE"; then
-        echo "$NAME is running (device half pid $(cat "$PACER_PIDFILE"), transport pid $(cat "$TRANSPORT_PIDFILE"))"
-        address=$(auxmic_address)
-        echo "phone page: https://$address:$HTTP_PORT/"
-        if [ -r "$CONFIG_DIR/pairing.token" ]; then
-            echo "pairing code: $(cat "$CONFIG_DIR/pairing.token")"
-        fi
+    if pid_alive && healthy; then
+        echo "$NAME is running"
+        echo "phone page: https://$(auxmic_address):9443/"
         return 0
     fi
-    echo "$NAME is not running"
+    echo "$NAME is not ready"
     return 1
 }
 
 case "$1" in
     start) start ;;
     stop) stop ;;
-    restart|reload) stop; sleep 1; start ;;
+    restart|reload) stop && start ;;
     status) status ;;
     *) echo "Usage: $0 {start|stop|restart|status}" >&2; exit 1 ;;
 esac
