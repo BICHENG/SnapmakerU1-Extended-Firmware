@@ -17,6 +17,8 @@ RUN apt-get update -y && \
       flex \
       bison \
       libssl-dev \
+      libegl-dev \
+      libgles-dev \
       dos2unix \
       sudo \
       sshpass \

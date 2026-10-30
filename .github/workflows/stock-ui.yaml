@@ -1,30 +1,21 @@
-name: Personal UI firmware
+name: Original UI firmware
 on:
   push:
-    branches: [personal-ui]
+    branches: [stock-ui]
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: personal-ui-${{ github.ref }}
+  group: stock-ui-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  ui:
-    uses: ./.github/workflows/helix-gpu.yaml
   firmware:
-    needs: ui
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: recursive
-      - uses: actions/download-artifact@v4
-        with:
-          name: helix-u1-gpu
-          path: tmp/helix-gpu
-      - name: Verify screen binary
-        run: cd tmp/helix-gpu && sha256sum -c SHA256SUMS
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         with:
@@ -48,18 +39,18 @@ jobs:
           path: |
             tmp/ccache/
             tmp/cache/
-          key: personal-ui-build-${{ github.sha }}
-          restore-keys: personal-ui-build-
+          key: stock-ui-build-${{ github.sha }}
+          restore-keys: stock-ui-build-
       - name: Build personal firmware
         run: |
           ./dev.sh make firmware
-          ./dev.sh make build PROFILE=extended-BICHENG OUTPUT_FILE=U1_personal-ui_${GITHUB_SHA}_upgrade.bin
-          sha256sum U1_personal-ui_*_upgrade.bin > SHA256SUMS
+          ./dev.sh make build PROFILE=extended-BICHENG OUTPUT_FILE=U1_stock-ui_${GITHUB_SHA}_upgrade.bin
+          sha256sum U1_stock-ui_*_upgrade.bin > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: personal-ui-firmware
+          name: stock-ui-firmware
           path: |
-            U1_personal-ui_*_upgrade.bin
+            U1_stock-ui_*_upgrade.bin
             SHA256SUMS
           if-no-files-found: error
           retention-days: 14

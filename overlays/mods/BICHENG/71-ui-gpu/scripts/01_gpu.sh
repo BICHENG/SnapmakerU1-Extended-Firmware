@@ -40,7 +40,3 @@ for name in libEGL.so.1 libGLESv2.so.2 libgbm.so.1; do
 done
 mkdir -p "$ROOTFS_DIR/usr/share/licenses/libmali"
 wget -O "$ROOTFS_DIR/usr/share/licenses/libmali/END_USER_LICENCE_AGREEMENT.txt" "$base/END_USER_LICENCE_AGREEMENT.txt"
-
-# The workflow builds this ELF from the pinned Helix source, with its matching assets.
-test -s "$ROOT_DIR/tmp/helix-gpu/helix-screen"
-install -Dm755 "$ROOT_DIR/tmp/helix-gpu/helix-screen" "$ROOTFS_DIR/usr/libexec/helix-screen-gpu"

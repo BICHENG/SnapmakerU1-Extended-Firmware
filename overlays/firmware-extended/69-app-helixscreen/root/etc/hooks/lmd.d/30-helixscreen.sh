@@ -46,13 +46,7 @@ if [ "$1" = start ]; then
 		fi
 
 		HELIX_BINARY="$HELIX_ROOT/bin/helix-screen"
-		if [ -x /usr/libexec/helix-screen-gpu ] && [ -e /dev/mali0 ]; then
-			HELIX_BINARY=/usr/libexec/helix-screen-gpu
-			# This build presents directly through fbdev; a second mirror is unnecessary.
-			unset HELIX_REMOTE_SCREEN_FB0
-		else
-			export HELIX_REMOTE_SCREEN_FB0=/dev/fb0
-		fi
+		export HELIX_REMOTE_SCREEN_FB0=/dev/fb0
 
 		if [ -z "$HELIX_BOUND" ]; then
 			if mount -o ro --bind "$HELIX_BINARY" "$HELIX_GUI"; then
