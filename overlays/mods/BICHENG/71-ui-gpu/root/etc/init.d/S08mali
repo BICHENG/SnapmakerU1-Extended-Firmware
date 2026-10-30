@@ -1,6 +1,9 @@
 #!/bin/sh
 case "$1" in
   start)
+    config=/oem/printer_data/config/extended/extended2.cfg
+    enabled=$(/usr/local/bin/extended-config.py get "$config" components mali_gpu false)
+    [ "$enabled" = true ] || exit 0
     [ -e /dev/mali0 ] || insmod /lib/modules/bifrost_kbase.ko || exit 1
     # Keep the GPU within the lowest two existing operating points.
     echo 400000000 > /sys/class/devfreq/ff320000.gpu/max_freq

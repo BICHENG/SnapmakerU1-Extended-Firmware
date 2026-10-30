@@ -18,6 +18,8 @@ The original device tree disables the Mali-G52. The personal overlay enables tha
 
 The library is pinned to `tsukumijima/libmali-rockchip` commit `ec78b74adc038f97cf173f4061fe3856efc0dc74`, SHA-256 `bc6be2fd5d8b46bb9d4cb22118a3ff77af1ca46cee1ac12bc78e27f89ba3ea3d`.
 
+GPU startup is opt-in through `[components] mali_gpu = true` in the existing extended configuration. Without it, the release UI remains available with its 2D G-code renderer. Leave this setting off until the individual printer passes runtime and reboot validation. A successful first rendered frame alone is insufficient: during this development session, network access disappeared after the temporary GPU test, and the cause had not yet been established.
+
 ## Remote screen
 
 `fb-mpp` maps the framebuffer, copies pixels into a reusable MPP input buffer and encodes H.264. `stream-screen-webrtc` sends it through the existing libdatachannel implementation. Encoding stops when there are no viewers. The authenticated `/screen/webrtc` endpoint handles signalling. Browser pointer events travel through the WebRTC data channel and are written to the touchscreen input device; disconnect/timeout releases a held touch.
