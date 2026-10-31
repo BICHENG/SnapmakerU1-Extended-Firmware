@@ -29,7 +29,6 @@ static const StockAbi *abi;
 #define FN(off,ret,...) ((ret(*)(__VA_ARGS__))(base+abi->off))
 typedef struct {void *target,*original;uint32_t code;void *user,*param,*prev;uint8_t flags;} Event;
 typedef struct {uint8_t magic,cf;uint16_t flags,w,h,stride,reserved;uint32_t size;const uint8_t *data;void *r1,*r2;} Image;
-static int (*real_usleep)(useconds_t);
 static pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cond=PTHREAD_COND_INITIALIZER;
 static atomic_uint generation;
@@ -177,6 +176,7 @@ static void *worker(void *unused) {
         if(g&&redraw&&atomic_load(&generation)==seq) {
             uint64_t start=milliseconds();
             int rc=gpu_render(g,&m,&view,pixels);
+            if(rc){gpu_destroy(g);g=NULL;}
             pthread_mutex_lock(&mutex);
             if(atomic_load(&generation)==seq){
                 if(rc){
@@ -288,8 +288,6 @@ static void open_preview(Event *e){
     atomic_fetch_add(&generation,1);request_frame();
     start_worker();
     pthread_mutex_unlock(&mutex);
-    void *indev=FN(lv_event_get_indev,void*,Event*)(e);
-    if(indev){void *t=FN(lv_indev_get_read_timer,void*,void*)(indev);if(t)FN(lv_timer_set_period,void,void*,unsigned)(t,22);}
 }
 static void clear_thumbnail(void){
     pthread_mutex_lock(&mutex);
@@ -395,17 +393,10 @@ static void scan(void *o,unsigned depth){
     for(unsigned i=0;i<n&&i<256;i++)scan(FN(lv_obj_get_child,void*,void*,int)(o,i),depth+1);
 }
 static void pump(void){
-    static uint64_t last,scanned,time_scanned;static int refresh_set;
+    static uint64_t last,scanned,time_scanned;
     uint64_t now=milliseconds();if(now-last<22)return;last=now;
     FN(lv_lock,void,void)();
     void *current=FN(lv_display_get_screen_active,void*,void*)(NULL);
-    if(current&&!refresh_set){
-        void *global=*(void**)(base+abi->stock_global_got);
-        void *disp=*(void**)((char*)global+abi->global_display_offset);
-        void *timer=*(void**)((char*)disp+abi->display_refresh_timer_offset);
-        stock_log("refresh period %u -> 22 ms\n",*(unsigned*)timer);
-        FN(lv_timer_set_period,void,void*,unsigned)(timer,22);refresh_set=1;
-    }
     if(preview&&current!=screen)close_pending=1;
     if(close_pending){
         close_pending=0;
@@ -474,7 +465,6 @@ static int locate(struct dl_phdr_info *i,size_t n,void *v){
     (void)n;(void)v;if(!i->dlpi_name[0]){base=i->dlpi_addr;return 1;}return 0;
 }
 __attribute__((constructor)) static void init(void){
-    real_usleep=dlsym(RTLD_NEXT,"usleep");
     char path[128]={0};if(readlink("/proc/self/exe",path,sizeof(path)-1)<0||strcmp(path,"/usr/bin/gui"))return;
     int fd=open("/proc/self/exe",O_RDONLY|O_CLOEXEC);struct stat st;
     if(fd<0)return;
@@ -496,11 +486,8 @@ __attribute__((constructor)) static void init(void){
     dl_iterate_phdr(locate,NULL);
     stock_log("supported original GUI %s verified, base=%lx\n",abi->version,base);
 }
-int usleep(useconds_t usec){
-    if(!real_usleep)real_usleep=dlsym(RTLD_NEXT,"usleep");
-    uintptr_t ra=(uintptr_t)__builtin_return_address(0)-base;
-    if(base&&(ra==abi->stock_main_sleep||ra==abi->stock_main_short_sleep)){
-        pump();useconds_t cap=preview||inline_show?22000:500000;if(usec>cap)usec=cap;
-    }
-    return real_usleep(usec);
+unsigned stock_ui_tick(unsigned sleep_us){
+    if(!base)return sleep_us;
+    pump();unsigned cap=preview||inline_show?22000:500000;
+    return sleep_us>cap?cap:sleep_us;
 }

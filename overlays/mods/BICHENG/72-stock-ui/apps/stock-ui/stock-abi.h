@@ -20,8 +20,6 @@ typedef struct {
     uintptr_t lv_image_set_src;
     uintptr_t lv_obj_add_flag;
     uintptr_t lv_obj_remove_flag;
-    uintptr_t lv_indev_get_read_timer;
-    uintptr_t lv_timer_set_period;
     uintptr_t lv_obj_is_visible;
     uintptr_t lv_label_get_text;
     uintptr_t lv_obj_get_style_prop;
@@ -35,12 +33,7 @@ typedef struct {
     uintptr_t stock_label_class;
     uintptr_t stock_button_class;
     uintptr_t stock_image_class;
-    uintptr_t stock_global_got;
     size_t object_parent_offset;
-    size_t global_display_offset;
-    size_t display_refresh_timer_offset;
-    uintptr_t stock_main_sleep;
-    uintptr_t stock_main_short_sleep;
 } StockAbi;
 
 static const StockAbi stock_abis[]={
@@ -60,8 +53,6 @@ static const StockAbi stock_abis[]={
      .lv_image_set_src=0xd1560,
      .lv_obj_add_flag=0x8e930,
      .lv_obj_remove_flag=0x8d240,
-     .lv_indev_get_read_timer=0x3dbf0,
-     .lv_timer_set_period=0x7a130,
      .lv_obj_is_visible=0x8ac20,
      .lv_label_get_text=0xe4080,
      .lv_obj_get_style_prop=0x913e0,
@@ -75,12 +66,7 @@ static const StockAbi stock_abis[]={
      .stock_label_class=0x69e7b8,
      .stock_button_class=0x69e2b8,
      .stock_image_class=0x69e538,
-     .stock_global_got=0x69ff40,
-     .object_parent_offset=0x8,
-     .global_display_offset=0x28,
-     .display_refresh_timer_offset=0x380,
-     .stock_main_sleep=0x3bb78,
-     .stock_main_short_sleep=0x3bb90},
+     .object_parent_offset=0x8},
     {.version="2.1.0.157", .executable_size=6563736, .sha256="2cf51b704a1d750f269f4132f108197ea7ec3b4b0865b070b87e150bf9d0e472",
      .lv_obj_set_local_style_prop=0x65800,
      .lv_obj_set_pos=0x5b1f0,
@@ -97,8 +83,6 @@ static const StockAbi stock_abis[]={
      .lv_image_set_src=0xa4290,
      .lv_obj_add_flag=0x61660,
      .lv_obj_remove_flag=0x5ff80,
-     .lv_indev_get_read_timer=0x10930,
-     .lv_timer_set_period=0x4ce70,
      .lv_obj_is_visible=0x5d960,
      .lv_label_get_text=0xb6db0,
      .lv_obj_get_style_prop=0x64110,
@@ -112,10 +96,5 @@ static const StockAbi stock_abis[]={
      .stock_label_class=0x63f7b0,
      .stock_button_class=0x63f2b0,
      .stock_image_class=0x63f530,
-     .stock_global_got=0x640f38,
-     .object_parent_offset=0x8,
-     .global_display_offset=0x28,
-     .display_refresh_timer_offset=0x380,
-     .stock_main_sleep=0xe8b8,
-     .stock_main_short_sleep=0xe8d0},
+     .object_parent_offset=0x8},
 };
