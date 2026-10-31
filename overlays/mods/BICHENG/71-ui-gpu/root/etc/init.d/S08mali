@@ -6,7 +6,11 @@ case "$1" in
     [ "$enabled" = true ] || exit 0
     [ -e /dev/mali0 ] || insmod /lib/modules/bifrost_kbase.ko || exit 1
     # Keep the GPU within the lowest two existing operating points.
-    echo 400000000 > /sys/class/devfreq/ff320000.gpu/max_freq
+    limit=/sys/class/devfreq/ff320000.gpu/max_freq
+    if ! echo 400000000 > "$limit" || [ "$(cat "$limit")" != 400000000 ]; then
+        echo 'Mali GPU: could not confirm the 400 MHz frequency limit' >&2
+        exit 1
+    fi
     ;;
   stop) ;;
 esac
