@@ -1,0 +1,29 @@
+settings:
+  snapmaker_components:
+    items:
+      mali_gpu:
+        label: Touchscreen GPU acceleration
+        description: Use GPU acceleration in supported touchscreen interfaces. Changing this setting reboots the printer and keeps your selected interface.
+        get_cmd:
+          - /usr/local/bin/extended-config.py
+          - get
+          - /oem/printer_data/config/extended/extended2.cfg
+          - components
+          - mali_gpu
+          - "false"
+        options:
+          "false":
+            label: Disabled
+            confirm: "Disable touchscreen GPU acceleration and reboot? The printer must be idle with all heaters turned off."
+            cmd:
+              - /usr/bin/python3
+              - /usr/local/bin/ui-gpu-setting.py
+              - "false"
+          "true":
+            label: Enabled
+            confirm: "Enable touchscreen GPU acceleration and reboot? The printer must be idle with all heaters turned off."
+            cmd:
+              - /usr/bin/python3
+              - /usr/local/bin/ui-gpu-setting.py
+              - "true"
+        default: "false"

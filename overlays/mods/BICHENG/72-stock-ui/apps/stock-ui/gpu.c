@@ -1,4 +1,5 @@
 #include "gpu.h"
+#include "gpu_output.h"
 #include <EGL/egl.h>
 #include <GLES3/gl3.h>
 #include <stdlib.h>
@@ -27,7 +28,8 @@ struct Gpu {
     EGLContext context;
     GLuint program,color,fbo,depth,vbo,grid,resolve_fbo,resolve_color,background;
     GLint center,scale,rotation,brightness,opacity;
-    uint8_t readback[WIDTH*HEIGHT*4];
+    UiGpuOutput *output;
+    uint8_t *readback;
 #ifdef STOCK_GPU_PROFILE
     GpuProfile *profile;
 #endif
@@ -40,10 +42,21 @@ static GLuint shader(GLenum kind,const char *source) {
     GLint ok=0;glGetShaderiv(s,GL_COMPILE_STATUS,&ok);
     if(!ok){glDeleteShader(s);return 0;}return s;
 }
+static int create_output(Gpu *g) {
+    g->output=ui_gpu_output_create(WIDTH,HEIGHT);
+    if(!g->output)return 0;
+    glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,
+                          ui_gpu_output_texture(g->output),0);
+    GLenum error=glGetError();
+    if(error==GL_NO_ERROR&&glCheckFramebufferStatus(GL_FRAMEBUFFER)==GL_FRAMEBUFFER_COMPLETE)return 1;
+    glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,0,0);
+    ui_gpu_output_destroy(g->output);g->output=NULL;return 0;
+}
 void gpu_destroy(Gpu *g) {
     if(!g)return;
     if(g->display&&g->context){
         if(g->current){
+            ui_gpu_output_destroy(g->output);
             glDeleteBuffers(1,&g->vbo);glDeleteBuffers(1,&g->grid);
             glDeleteRenderbuffers(1,&g->depth);glDeleteRenderbuffers(1,&g->color);
             glDeleteFramebuffers(1,&g->fbo);glDeleteProgram(g->program);
@@ -56,6 +69,7 @@ void gpu_destroy(Gpu *g) {
     if(g->display)eglTerminate(g->display);
     if(g->gbm)gbm_device_destroy(g->gbm);
     if(g->fd>=0)close(g->fd);
+    free(g->readback);
     free(g);
 }
 Gpu *gpu_create(const Model *m,char *error,size_t size) {
@@ -113,9 +127,12 @@ Gpu *gpu_create(const Model *m,char *error,size_t size) {
     glFramebufferRenderbuffer(GL_FRAMEBUFFER,GL_DEPTH_ATTACHMENT,GL_RENDERBUFFER,g->depth);
     if(glCheckFramebufferStatus(GL_FRAMEBUFFER)!=GL_FRAMEBUFFER_COMPLETE)goto fail;
     glGenFramebuffers(1,&g->resolve_fbo);glBindFramebuffer(GL_FRAMEBUFFER,g->resolve_fbo);
-    glGenRenderbuffers(1,&g->resolve_color);glBindRenderbuffer(GL_RENDERBUFFER,g->resolve_color);
-    glRenderbufferStorage(GL_RENDERBUFFER,GL_RGBA8,WIDTH,HEIGHT);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_RENDERBUFFER,g->resolve_color);
+    if(!create_output(g)){
+        g->readback=malloc(WIDTH*HEIGHT*4);if(!g->readback)goto fail;
+        glGenRenderbuffers(1,&g->resolve_color);glBindRenderbuffer(GL_RENDERBUFFER,g->resolve_color);
+        glRenderbufferStorage(GL_RENDERBUFFER,GL_RGBA8,WIDTH,HEIGHT);
+        glFramebufferRenderbuffer(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_RENDERBUFFER,g->resolve_color);
+    }
     if(glCheckFramebufferStatus(GL_FRAMEBUFFER)!=GL_FRAMEBUFFER_COMPLETE)goto fail;
     glGenBuffers(1,&g->vbo);glBindBuffer(GL_ARRAY_BUFFER,g->vbo);
     glBufferData(GL_ARRAY_BUFFER,m->count*sizeof(Vertex),m->vertices,GL_STATIC_DRAW);
@@ -131,7 +148,8 @@ Gpu *gpu_create(const Model *m,char *error,size_t size) {
     glGenBuffers(1,&g->grid);glBindBuffer(GL_ARRAY_BUFFER,g->grid);
     glBufferData(GL_ARRAY_BUFFER,sizeof(grid),grid,GL_STATIC_DRAW);
     if(glGetError()!=GL_NO_ERROR)goto fail;
-    stock_log("renderer=%s vertices=%zu layers=%u\n",glGetString(GL_RENDERER),m->count,m->layers);
+    stock_log("renderer=%s output=%s vertices=%zu layers=%u\n",glGetString(GL_RENDERER),
+              g->output?"dma-buf":"readback",m->count,m->layers);
     return g;
 fail:
     snprintf(error,size,"GPU 预览初始化失败");
@@ -200,15 +218,23 @@ int gpu_render(Gpu *g,const Model *m,const RenderView *v,uint8_t *pixels) {
     glBindFramebuffer(GL_READ_FRAMEBUFFER,g->fbo);glBindFramebuffer(GL_DRAW_FRAMEBUFFER,g->resolve_fbo);
     glBlitFramebuffer(0,0,w*SAMPLES,h*SAMPLES,0,0,w,h,GL_COLOR_BUFFER_BIT,GL_LINEAR);
     glBindFramebuffer(GL_FRAMEBUFFER,g->resolve_fbo);
-    glReadPixels(0,0,w,h,GL_RGBA,GL_UNSIGNED_BYTE,g->readback);
-    if(glGetError()!=GL_NO_ERROR)return -1;
+    const uint8_t *result=g->readback;
+    size_t row_stride=(size_t)w*4;
+    if(g->output){
+        result=ui_gpu_output_begin_read(g->output);if(!result)return -1;
+        row_stride=ui_gpu_output_stride(g->output);
+    }else{
+        glReadPixels(0,0,w,h,GL_RGBA,GL_UNSIGNED_BYTE,g->readback);
+        if(glGetError()!=GL_NO_ERROR)return -1;
+    }
 #ifdef STOCK_GPU_PROFILE
     if(g->profile){
         copy_start=clock_ms();
         g->profile->resolve_readback_ms=copy_start-readback_start;
     }
 #endif
-    for(int y=0;y<h;y++)memcpy(pixels+y*w*4,g->readback+(h-1-y)*w*4,w*4);
+    for(int y=0;y<h;y++)memcpy(pixels+y*w*4,result+(h-1-y)*row_stride,w*4);
+    if(g->output&&ui_gpu_output_end_read(g->output))return -1;
     if(!v->compact){
         int fill=12+(m->layers>1?(int)(456ull*layer/(m->layers-1)):456);
         for(int y=308;y<312;y++)for(int x=12;x<=468;x++){

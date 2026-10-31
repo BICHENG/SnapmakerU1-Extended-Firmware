@@ -1,0 +1,564 @@
+diff --git a/Makefile b/Makefile
+index 8c370cc..f3da877 100644
+--- a/Makefile
++++ b/Makefile
+@@ -416,6 +416,9 @@ ENABLE_SCREENSAVER ?= yes
+ 
+ # Application C sources
+ APP_C_SRCS := $(wildcard $(SRC_DIR)/*.c)
++ifneq ($(PLATFORM_TARGET)-$(ENABLE_GLES_3D),snapmaker-u1-yes)
++    APP_C_SRCS := $(filter-out $(SRC_DIR)/gpu_output.c,$(APP_C_SRCS))
++endif
+ APP_C_OBJS := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(APP_C_SRCS))
+ 
+ # Application C++ sources (exclude test binaries, splash binary, and lvgl-demo)
+@@ -850,6 +853,10 @@ else ifneq ($(CROSS_COMPILE)$(filter x86 x86-fbdev x86-both,$(PLATFORM_TARGET)),
+     endif
+     # Add target-specific linker flags (e.g., -lstdc++fs for GCC 8)
+     LDFLAGS += $(TARGET_LDFLAGS)
++    # The offscreen G-code renderer also needs EGL when the display uses fbdev.
++    ifeq ($(ENABLE_GLES_3D),yes)
++        LDFLAGS += -lEGL -lGLESv2 -lgbm
++    endif
+     # DRM backend requires libdrm for display; libinput for LVGL input drivers
+     ifeq ($(DISPLAY_BACKEND),drm)
+         LDFLAGS += -ldrm
+diff --git a/docker/Dockerfile.snapmaker-u1 b/docker/Dockerfile.snapmaker-u1
+index 5efc6ff..9156624 100644
+--- a/docker/Dockerfile.snapmaker-u1
++++ b/docker/Dockerfile.snapmaker-u1
+@@ -56,6 +56,9 @@ RUN dpkg --add-architecture arm64 && apt-get update && apt-get install -y --no-i
+     zlib1g-dev:arm64 \
+     libzstd-dev:arm64 \
+     libdrm-dev:arm64 \
++    libegl1-mesa-dev:arm64 \
++    libgles2-mesa-dev:arm64 \
++    libgbm-dev:arm64 \
+     libinput-dev:arm64 \
+     libudev-dev:arm64 \
+     libevdev-dev:arm64 \
+diff --git a/include/display_manager.h b/include/display_manager.h
+index 407c5f1..e043807 100644
+--- a/include/display_manager.h
++++ b/include/display_manager.h
+@@ -680,6 +680,10 @@ class DisplayManager : public helix::ICalibrationSink {
+ 
+     std::unique_ptr<DisplayBackend> m_backend;
+     lv_display_t* m_display = nullptr;
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    uint32_t m_render_report_start = 0;
++    uint32_t m_render_frames = 0;
++#endif
+     lv_indev_t* m_pointer = nullptr;
+     lv_indev_t* m_keyboard = nullptr;
+     lv_group_t* m_input_group = nullptr;
+diff --git a/include/gcode_gles_renderer.h b/include/gcode_gles_renderer.h
+index 7db5b8b..86f665c 100644
+--- a/include/gcode_gles_renderer.h
++++ b/include/gcode_gles_renderer.h
+@@ -13,6 +13,9 @@
+ #include "gcode_render_memory.h"
+ #include "gcode_selection_state.h"
+ #include "gcode_selection_style.h"
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++#include "gpu_output.h"
++#endif
+ 
+ #include <lvgl/lvgl.h>
+ 
+@@ -133,6 +136,8 @@ struct GLRenderbufferHandle {
+ /// Renders to FBO, reads pixels back into lv_draw_buf_t for LVGL compositing.
+ /// Requires DRM+EGL display backend.
+ class GCodeGLESRenderer {
++    friend struct GCodeGLESSelfTestAccess;
++
+   public:
+     GCodeGLESRenderer();
+     ~GCodeGLESRenderer();
+@@ -163,13 +168,13 @@ class GCodeGLESRenderer {
+         return geometry_ != nullptr;
+     }
+ 
+-    /// True once a fatal GL error (out-of-memory / invalid-operation) was seen
+-    /// during a draw batch. The viewer polls this after render() and switches
++    /// True when GL initialization failed or a fatal draw error was seen.
++    /// The viewer polls this after render() and switches
+     /// to the pure-CPU 2D renderer for the rest of the session rather than
+     /// risk a driver-side crash on constrained GPUs (e.g. Mali-G31 on CB1).
+     /// Sticky: once set it stays set until the renderer is destroyed.
+     bool render_failed() const {
+-        return gl_render_failed_;
++        return gl_init_failed_ || gl_render_failed_;
+     }
+ 
+     // ====== Color / Material ======
+@@ -438,6 +443,9 @@ class GCodeGLESRenderer {
+     GLFramebufferHandle fbo_;
+     GLRenderbufferHandle color_rbo_;
+     GLRenderbufferHandle depth_rbo_;
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    UiGpuOutput* gpu_output_ = nullptr;
++#endif
+     int fbo_width_ = 0;
+     int fbo_height_ = 0;
+ 
+diff --git a/mk/rules.mk b/mk/rules.mk
+index 7ce022c..3089672 100644
+--- a/mk/rules.mk
++++ b/mk/rules.mk
+@@ -172,7 +172,8 @@ endif
+ 
+ # Link binary (SDL2_LIB is empty if using system SDL2)
+ # Keep broad filtering so non-object prerequisites can be added safely later.
+-$(TARGET): $(SDL2_LIB) $(LIBHV_LIB) $(LIBHV_JSON_HEADER) $(CONTRIBUTORS_H) $(APP_C_OBJS) $(APP_OBJS) $(APP_MODULE_OBJS) $(REMOTE_LINENOISE_OBJ) $(OBJCPP_OBJS) $(LVGL_OBJS) $(HELIX_XML_OBJS) $(THORVG_OBJS) $(LVGL_OPENGLES_OBJS) $(LV_MARKDOWN_OBJS) $(QUIRC_OBJS) $(FONT_OBJS) $(TRANS_OBJS) $(APP_DNS_RESOLV_OBJ) $(WPA_DEPS)
++HELIX_LINK_INPUTS := $(SDL2_LIB) $(LIBHV_LIB) $(LIBHV_JSON_HEADER) $(CONTRIBUTORS_H) $(APP_C_OBJS) $(APP_OBJS) $(APP_MODULE_OBJS) $(REMOTE_LINENOISE_OBJ) $(OBJCPP_OBJS) $(LVGL_OBJS) $(HELIX_XML_OBJS) $(THORVG_OBJS) $(LVGL_OPENGLES_OBJS) $(LV_MARKDOWN_OBJS) $(QUIRC_OBJS) $(FONT_OBJS) $(TRANS_OBJS) $(APP_DNS_RESOLV_OBJ) $(WPA_DEPS)
++$(TARGET): $(HELIX_LINK_INPUTS)
+ 	$(Q)mkdir -p $(BIN_DIR)
+ 	$(ECHO) "$(MAGENTA)$(BOLD)[LD]$(RESET) $@"
+ 	# Exclude header prerequisites (including .hpp generated deps like hv/json.hpp).
+@@ -188,6 +189,15 @@ $(TARGET): $(SDL2_LIB) $(LIBHV_LIB) $(LIBHV_JSON_HEADER) $(CONTRIBUTORS_H) $(APP
+ 	@# the deploy targets use it to turn the matching runtime switch on.
+ 	$(Q)printf 'remote_control=%s\n' "$(ENABLE_REMOTE_CONTROL)" > $(BIN_DIR)/.build-features
+ 
++ifeq ($(PLATFORM_TARGET)-$(ENABLE_GLES_3D),snapmaker-u1-yes)
++.PHONY: gpu-self-test
++gpu-self-test: $(BIN_DIR)/helix-gpu-self-test
++
++$(BIN_DIR)/helix-gpu-self-test: $(filter-out $(OBJ_DIR)/main.o,$(HELIX_LINK_INPUTS)) $(OBJ_DIR)/tools/gpu_self_test.o
++	$(Q)mkdir -p $(BIN_DIR)
++	$(Q)$(CXX) $(CXXFLAGS) $(filter-out %.a %.h %.hh %.hpp %.hxx,$^) -o $@ $(LDFLAGS)
++endif
++
+ # Collect all .d dependency files for proper header tracking
+ # These are generated during compilation with -MMD -MP flags
+ DEPFILES := $(wildcard $(OBJ_DIR)/*.d $(OBJ_DIR)/**/*.d)
+diff --git a/src/application/display_manager.cpp b/src/application/display_manager.cpp
+index 361f8c7..f02b39e 100644
+--- a/src/application/display_manager.cpp
++++ b/src/application/display_manager.cpp
+@@ -49,6 +49,7 @@
+ 
+ #include <algorithm>
+ #include <cstdlib>
++#include <cstring>
+ #include <functional>
+ #include <string>
+ 
+@@ -628,6 +629,33 @@ bool DisplayManager::init(const Config& config) {
+         }
+     }
+ 
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    const char* gpu_enabled = std::getenv("UI_GPU_ENABLED");
++    const bool gpu_on = gpu_enabled && std::strcmp(gpu_enabled, "1") == 0;
++    const uint32_t period_ms = gpu_on ? 22 : 33;
++    lv_timer_t* display_timer = lv_display_get_refr_timer(m_display);
++    lv_timer_t* animation_timer = lv_anim_get_timer();
++    if (display_timer)
++        lv_timer_set_period(display_timer, period_ms);
++    if (animation_timer)
++        lv_timer_set_period(animation_timer, period_ms);
++    spdlog::info("[UI GPU] enabled={} display_period_ms={} animation_period_ms={}", gpu_on,
++                 display_timer ? period_ms : 0, animation_timer ? period_ms : 0);
++    m_render_report_start = lv_tick_get();
++    m_render_frames = 0;
++    lv_display_add_event_cb(m_display, [](lv_event_t* event) {
++        auto* self = static_cast<DisplayManager*>(lv_event_get_user_data(event));
++        ++self->m_render_frames;
++        const uint32_t elapsed = lv_tick_elaps(self->m_render_report_start);
++        if (elapsed >= 5000) {
++            spdlog::debug("[UI GPU] render_ready_frames={} elapsed_ms={} render_fps={:.2f}",
++                          self->m_render_frames, elapsed, 1000.0 * self->m_render_frames / elapsed);
++            self->m_render_frames = 0;
++            self->m_render_report_start = lv_tick_get();
++        }
++    }, LV_EVENT_RENDER_READY, this);
++#endif
++
+     return true;
+ }
+ 
+diff --git a/src/rendering/gcode_gles_renderer.cpp b/src/rendering/gcode_gles_renderer.cpp
+index 255abd7..e868b29 100644
+--- a/src/rendering/gcode_gles_renderer.cpp
++++ b/src/rendering/gcode_gles_renderer.cpp
+@@ -35,6 +35,7 @@
+ #include <algorithm>
+ #include <chrono>
+ #include <cmath>
++#include <cstdlib>
+ #include <cstring>
+ #include <glm/gtc/matrix_transform.hpp>
+ #include <glm/gtc/type_ptr.hpp>
+@@ -467,6 +468,15 @@ bool GCodeGLESRenderer::init_gl() {
+     if (gl_init_failed_)
+         return false;
+ 
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    const char* enabled = std::getenv("UI_GPU_ENABLED");
++    if (enabled && std::strcmp(enabled, "0") == 0) {
++        spdlog::info("[GCode GLES] Disabled by UI_GPU_ENABLED; using CPU 2D");
++        gl_init_failed_ = true;
++        return false;
++    }
++#endif
++
+     // Layer 2 covers driver init too: loading the GPU driver can fault before any
+     // draw is reached. A graceful failure removes the guard on return and the
+     // viewer falls back to 2D for this session; only a fault inside leaves it for
+@@ -669,6 +679,31 @@ bool GCodeGLESRenderer::create_fbo(int width, int height) {
+         return false;
+     }
+ 
++    // Depth renderbuffer (16-bit)
++    glGenRenderbuffers(1, &depth_rbo_.id);
++    glBindRenderbuffer(GL_RENDERBUFFER, depth_rbo_.id);
++    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, width, height);
++    if (!check_gl_error("glRenderbufferStorage(depth)")) {
++        destroy_fbo();
++        return false;
++    }
++    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth_rbo_.id);
++    check_gl_error("glFramebufferRenderbuffer(depth)");
++
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    gpu_output_ = ui_gpu_output_create(static_cast<unsigned>(width), static_cast<unsigned>(height));
++    if (gpu_output_) {
++        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
++                               ui_gpu_output_texture(gpu_output_), 0);
++        if (!check_gl_error("glFramebufferTexture2D(output)") ||
++            glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
++            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
++            ui_gpu_output_destroy(gpu_output_);
++            gpu_output_ = nullptr;
++        }
++    }
++    if (!gpu_output_) {
++#endif
+     // Color renderbuffer — use GL_RGBA8 (8 bits per channel) to match the
+     // GL_RGBA/GL_UNSIGNED_BYTE format used by glReadPixels in blit_to_lvgl().
+     // GL_RGBA4 would cause precision loss (4 bits stored, 8 bits read back).
+@@ -682,17 +717,10 @@ bool GCodeGLESRenderer::create_fbo(int width, int height) {
+     }
+     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, color_rbo_.id);
+     check_gl_error("glFramebufferRenderbuffer(color)");
+-
+-    // Depth renderbuffer (16-bit)
+-    glGenRenderbuffers(1, &depth_rbo_.id);
+-    glBindRenderbuffer(GL_RENDERBUFFER, depth_rbo_.id);
+-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, width, height);
+-    if (!check_gl_error("glRenderbufferStorage(depth)")) {
+-        destroy_fbo();
+-        return false;
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
+     }
+-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth_rbo_.id);
+-    check_gl_error("glFramebufferRenderbuffer(depth)");
++    spdlog::debug("[GCode GLES] Output: {}", gpu_output_ ? "DMA-BUF" : "glReadPixels");
++#endif
+ 
+     GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+     if (status != GL_FRAMEBUFFER_COMPLETE) {
+@@ -715,6 +743,10 @@ void GCodeGLESRenderer::destroy_fbo() {
+     depth_rbo_ = GLRenderbufferHandle();
+     color_rbo_ = GLRenderbufferHandle();
+     fbo_ = GLFramebufferHandle();
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    ui_gpu_output_destroy(gpu_output_);
++    gpu_output_ = nullptr;
++#endif
+     fbo_width_ = 0;
+     fbo_height_ = 0;
+ }
+@@ -1517,8 +1549,34 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
+     if (readback_buf_.size() != readback_size) {
+         readback_buf_.resize(readback_size);
+     }
+-    glReadPixels(0, 0, fbo_width_, fbo_height_, GL_RGBA, GL_UNSIGNED_BYTE, readback_buf_.data());
+-    check_gl_error("glReadPixels");
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    if (gpu_output_) {
++        const uint8_t* pixels = ui_gpu_output_begin_read(gpu_output_);
++        if (!pixels) {
++            spdlog::error("[GCode GLES] DMA-BUF read synchronization failed; switching to CPU 2D");
++            gl_render_failed_ = true;
++            destroy_fbo();
++            return;
++        }
++        const size_t row_bytes = static_cast<size_t>(fbo_width_) * 4;
++        const size_t stride = ui_gpu_output_stride(gpu_output_);
++        for (int y = 0; y < fbo_height_; ++y) {
++            std::memcpy(readback_buf_.data() + static_cast<size_t>(y) * row_bytes,
++                        pixels + static_cast<size_t>(y) * stride, row_bytes);
++        }
++        if (ui_gpu_output_end_read(gpu_output_) != 0) {
++            spdlog::error("[GCode GLES] DMA-BUF release synchronization failed; switching to CPU 2D");
++            gl_render_failed_ = true;
++            destroy_fbo();
++            return;
++        }
++    } else {
++#endif
++        glReadPixels(0, 0, fbo_width_, fbo_height_, GL_RGBA, GL_UNSIGNED_BYTE, readback_buf_.data());
++        check_gl_error("glReadPixels");
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    }
++#endif
+ 
+     // The white silhouette, derived from the tag render_selection_tag() left in
+     // the alpha byte. Byte 3 is alpha in the readback's RGBA and in the
+diff --git a/src/tools/gpu_self_test.cpp b/src/tools/gpu_self_test.cpp
+new file mode 100644
+index 0000000..5cb6911
+--- /dev/null
++++ b/src/tools/gpu_self_test.cpp
+@@ -0,0 +1,249 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++
++#include "async_lifetime_guard.h"
++#include "gcode_gles_renderer.h"
++#include "gcode_layer_renderer.h"
++#include "helix-xml/src/xml/lv_xml.h"
++#include <EGL/egl.h>
++#include <algorithm>
++#include <chrono>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <filesystem>
++#include <fstream>
++#include <iostream>
++#include <stdexcept>
++
++namespace helix::gcode {
++struct GCodeGLESSelfTestAccess {
++    static void redraw(GCodeGLESRenderer& renderer) { renderer.frame_dirty_ = true; }
++    static bool initialized(const GCodeGLESRenderer& renderer) { return renderer.gl_initialized_; }
++    static bool dma(const GCodeGLESRenderer& renderer) { return renderer.gpu_output_ != nullptr; }
++    static const std::vector<uint8_t>& pixels(const GCodeGLESRenderer& renderer) {
++        return renderer.readback_buf_;
++    }
++    static int client_version(const GCodeGLESRenderer& renderer) {
++        EGLint version = 0;
++        if (renderer.gl_initialized_)
++            eglQueryContext(renderer.egl_display_, renderer.egl_context_,
++                            EGL_CONTEXT_CLIENT_VERSION, &version);
++        return version;
++    }
++};
++} // namespace helix::gcode
++
++namespace {
++using namespace helix::gcode;
++using Clock = std::chrono::steady_clock;
++
++void require(bool condition, const char* message) {
++    if (!condition)
++        throw std::runtime_error(message);
++}
++
++ParsedGCodeFile parse(const char* path) {
++    GCodeParser parser;
++    if (path) {
++        std::ifstream input(path);
++        require(input.good(), "cannot open G-code input");
++        for (std::string line; std::getline(input, line);)
++            parser.parse_line(line);
++    } else {
++        parser.parse_line("G90");
++        parser.parse_line("M83");
++        parser.parse_line("EXCLUDE_OBJECT_DEFINE NAME=left CENTER=30,30");
++        parser.parse_line("EXCLUDE_OBJECT_DEFINE NAME=right CENTER=70,30");
++        for (int layer = 0; layer < 3; ++layer) {
++            parser.parse_line("G1 Z" + std::to_string(0.2 * (layer + 1)));
++            for (int object = 0; object < 2; ++object) {
++                const int x = 20 + 40 * object;
++                parser.parse_line(std::string("EXCLUDE_OBJECT_START NAME=") + (object ? "right" : "left"));
++                parser.parse_line("G1 X" + std::to_string(x) + " Y20 F1200");
++                parser.parse_line("G1 X" + std::to_string(x + 20) + " Y20 E1");
++                parser.parse_line("G1 X" + std::to_string(x + 20) + " Y40 E1");
++                parser.parse_line("G1 X" + std::to_string(x) + " Y40 E1");
++                parser.parse_line("G1 X" + std::to_string(x) + " Y20 E1");
++                parser.parse_line("EXCLUDE_OBJECT_END");
++            }
++        }
++    }
++    auto result = parser.finalize(true);
++    require(!result.layers.empty(), "G-code has no layers");
++    return result;
++}
++
++struct Scene {
++    ParsedGCodeFile& file;
++    GCodeGLESRenderer gpu;
++    GCodeLayerRenderer cpu;
++    GCodeCamera camera;
++    bool off;
++    double render_ms = 0;
++
++    Scene(ParsedGCodeFile& source, bool disabled) : file(source), off(disabled) {
++        if (!off) {
++            GeometryBuilder builder;
++            auto geometry = std::make_unique<RibbonGeometry>(builder.build(file, SimplificationOptions{}));
++            require(!geometry->vertices.empty(), "G-code has no extrusion geometry");
++            geometry->prepare_interleaved_buffers();
++            gpu.set_prebuilt_geometry(std::move(geometry), "gpu-self-test");
++            gpu.set_filament_color("#FF6B35");
++            if (!file.object_name_table.empty())
++                gpu.set_highlighted_object(file.object_name_table.front());
++        }
++        cpu.set_gcode(&file);
++        cpu.set_current_layer(static_cast<int>(file.layers.size()) - 1);
++    }
++
++    static void draw(lv_event_t* event) {
++        auto& scene = *static_cast<Scene*>(lv_event_get_user_data(event));
++        lv_area_t area;
++        lv_obj_get_coords(static_cast<lv_obj_t*>(lv_event_get_target(event)), &area);
++        auto start = Clock::now();
++        scene.gpu.render(lv_event_get_layer(event), scene.file, scene.camera, &area);
++        if (scene.off && scene.gpu.render_failed())
++            scene.cpu.render(lv_event_get_layer(event), &area);
++        scene.render_ms = std::chrono::duration<double, std::milli>(Clock::now() - start).count();
++    }
++};
++
++void write_ppm(const std::filesystem::path& path, const lv_draw_buf_t& image) {
++    std::ofstream output(path, std::ios::binary);
++    output << "P6\n" << image.header.w << ' ' << image.header.h << "\n255\n";
++    bool varied = false;
++    for (uint32_t y = 0; y < image.header.h; ++y) {
++        const auto* row = image.data + static_cast<size_t>(y) * image.header.stride;
++        for (uint32_t x = 0; x < image.header.w; ++x) {
++            varied |= std::memcmp(row + x * 4, image.data, 3) != 0;
++            const char rgb[] = {static_cast<char>(row[x * 4 + 2]),
++                                static_cast<char>(row[x * 4 + 1]), static_cast<char>(row[x * 4])};
++            output.write(rgb, sizeof(rgb));
++        }
++    }
++    require(output.good(), "cannot write snapshot");
++    require(varied, "snapshot contains only one color");
++}
++
++void run_case(Scene& scene, lv_obj_t* object, int width, int height, float azimuth, float elevation,
++              const std::filesystem::path& prefix, std::ostream& report) {
++    scene.gpu.set_viewport_size(width, height);
++    scene.camera.set_viewport_size(width, height);
++    scene.camera.set_azimuth(azimuth);
++    scene.camera.set_elevation(elevation);
++    scene.camera.fit_to_bounds(scene.file.global_bounding_box);
++    scene.cpu.set_canvas_size(width, height);
++    scene.cpu.auto_fit();
++    lv_obj_set_size(object, width, height);
++    lv_obj_update_layout(object);
++    lv_draw_buf_t* snapshot = lv_snapshot_create_draw_buf(object, LV_COLOR_FORMAT_ARGB8888);
++    require(snapshot != nullptr, "snapshot allocation failed");
++    std::unique_ptr<lv_draw_buf_t, decltype(&lv_draw_buf_destroy)> image(snapshot, lv_draw_buf_destroy);
++    auto draw_frame = [&]() {
++        GCodeGLESSelfTestAccess::redraw(scene.gpu);
++        require(lv_snapshot_take_to_draw_buf(object, LV_COLOR_FORMAT_ARGB8888, snapshot) == LV_RESULT_OK,
++                "snapshot render failed");
++    };
++    for (int frame = 0; frame < 120; ++frame) {
++        draw_frame();
++        if (frame >= 3 && !scene.gpu.is_uploading() &&
++            (!scene.off || !scene.cpu.needs_more_frames()))
++            break;
++    }
++    require(!scene.gpu.is_uploading(), "geometry upload did not finish");
++    std::vector<double> render_times;
++    for (int frame = 0; frame < 20; ++frame) {
++        draw_frame();
++        render_times.push_back(scene.render_ms);
++    }
++    const bool initialized = GCodeGLESSelfTestAccess::initialized(scene.gpu);
++    const bool dma = GCodeGLESSelfTestAccess::dma(scene.gpu);
++    const int client_version = GCodeGLESSelfTestAccess::client_version(scene.gpu);
++    const auto& rgba = GCodeGLESSelfTestAccess::pixels(scene.gpu);
++    if (scene.off) {
++        require(!initialized && scene.gpu.render_failed() && rgba.empty(), "off mode initialized GLES");
++    } else {
++        require(initialized && !scene.gpu.render_failed() && client_version == 2, "GLES2 rendering failed");
++        require(rgba.size() == static_cast<size_t>(width) * height * 4, "wrong RGBA buffer size");
++        const char* mode = std::getenv("UI_GPU_OUTPUT");
++        if (mode && std::strcmp(mode, "readback") == 0)
++            require(!dma, "readback mode used DMA-BUF");
++        else
++            require(dma, "shared output unavailable; renderer fell back to readback");
++        std::ofstream raw(prefix.string() + ".rgba", std::ios::binary);
++        raw.write(reinterpret_cast<const char*>(rgba.data()), static_cast<std::streamsize>(rgba.size()));
++        require(raw.good(), "cannot write RGBA output");
++    }
++    size_t selected = 0;
++    for (size_t i = 3; i < rgba.size(); i += 4)
++        selected += rgba[i] == kSelectedAlpha;
++    if (!scene.off && !scene.file.object_name_table.empty())
++        require(selected > 0, "selected object has no alpha tags");
++    write_ppm(prefix.string() + ".ppm", *snapshot);
++    std::sort(render_times.begin(), render_times.end());
++    const size_t count = render_times.size();
++    const double median = (render_times[(count - 1) / 2] + render_times[count / 2]) * 0.5;
++    report << "{\"width\":" << width << ",\"height\":" << height
++           << ",\"gles_initialized\":" << (initialized ? "true" : "false")
++           << ",\"gles_client_version\":" << client_version
++           << ",\"output\":\"" << (scene.off ? "cpu2d" : dma ? "dmabuf" : "readback")
++           << "\",\"selected_alpha_pixels\":" << selected
++           << ",\"render_median_ms\":" << median
++           << ",\"render_p95_ms\":" << render_times[(count * 95 + 99) / 100 - 1]
++           << ",\"measured_frames\":" << render_times.size() << "}";
++}
++} // namespace
++
++int main(int argc, char** argv) {
++    if (argc < 2 || argc > 3) {
++        std::fprintf(stderr, "Usage: helix-gpu-self-test OUTPUT_DIRECTORY [GCODE_FILE]\n");
++        return 2;
++    }
++    try {
++        const std::filesystem::path output = std::filesystem::absolute(argv[1]);
++        std::filesystem::create_directories(output / "config");
++        setenv("HELIX_CONFIG_DIR", (output / "config").c_str(), 1);
++        helix::internal::set_main_thread_id();
++        spdlog::set_level(spdlog::level::debug);
++        auto file = parse(argc == 3 ? argv[2] : nullptr);
++        lv_init();
++        lv_tick_set_cb([]() -> uint32_t {
++            return static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
++                Clock::now().time_since_epoch()).count());
++        });
++        lv_xml_init();
++        lv_display_t* display = lv_display_create(480, 320);
++        require(display != nullptr, "memory display allocation failed");
++        std::vector<uint8_t> framebuffer(480 * 320 * 4);
++        lv_display_set_color_format(display, LV_COLOR_FORMAT_ARGB8888);
++        lv_display_set_buffers(display, framebuffer.data(), nullptr, framebuffer.size(),
++                               LV_DISPLAY_RENDER_MODE_FULL);
++        lv_display_set_flush_cb(display, [](lv_display_t* d, const lv_area_t*, uint8_t*) {
++            lv_display_flush_ready(d);
++        });
++        std::ofstream report(output / "result.json");
++        require(report.good(), "cannot open report");
++        const char* enabled = std::getenv("UI_GPU_ENABLED");
++        const bool off = enabled && std::strcmp(enabled, "0") == 0;
++        {
++            Scene scene(file, off);
++            lv_obj_t* object = lv_obj_create(lv_screen_active());
++            lv_obj_remove_style_all(object);
++            lv_obj_remove_flag(object, LV_OBJ_FLAG_SCROLLABLE);
++            lv_obj_add_event_cb(object, Scene::draw, LV_EVENT_DRAW_MAIN, &scene);
++            report << "{\"cases\":[";
++            run_case(scene, object, 480, 320, 45, 35, output / "full", report);
++            report << ',';
++            run_case(scene, object, 317, 193, 0, 85, output / "compact", report);
++            report << "]}\n";
++            lv_obj_delete(object);
++        }
++        lv_deinit();
++        lv_xml_deinit();
++        require(report.good(), "cannot write report");
++        return 0;
++    } catch (const std::exception& error) {
++        std::fprintf(stderr, "GPU self-test failed: %s\n", error.what());
++        return 1;
++    }
++}
