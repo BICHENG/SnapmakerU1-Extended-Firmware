@@ -2,6 +2,8 @@
 
 The gui feature branch retains Snapmaker's original /usr/bin/gui and its file selection, material mapping, printing and settings screens. The stock-ui integration branch combines it with Fan Curves, Balanced-only reduced motor current and the ALSA network microphone. All active feature branches follow the vendor version pinned by upstream develop. No upstream pull request is part of this work.
 
+This document describes the integrated gui feature. Its delivery branches are gui-gpu, gui-remote and gui-gcode; the last includes GPU support but not the WebRTC changes. See [GUI delivery stages](gui-stages.md) for their dependencies and acceptance boundaries.
+
 ## Rendering
 
 Fluidd parses G-code in a browser worker and draws paths as SVG. The factory screen displays slicer thumbnails. Tapping the factory model image opens the personal extension's full-screen preview. During a print, the entire thumbnail becomes a live GPU viewport inside the original printing page. There is no separate preview button. The image's touch area stops scroll propagation and distinguishes a tap from a drag; dragging it cannot scroll the factory page out of view.
@@ -37,7 +39,7 @@ The preview supports readable .gcode files whose factory thumbnail resolves insi
 
 The GPU overlay enables the original disabled Mali-G52 device-tree node, uses the existing vdd_gpu regulator, builds the matching bifrost_kbase module and installs the pinned Mali g24p0 library and licence. The GPU is capped at 400 MHz, with runtime power management. Panel timings and voltage tables are unchanged.
 
-GPU startup uses [components] mali_gpu = true. The preview is enabled in this personal profile when /dev/mali0 exists; [components] stock_preview = false disables it. The profile explicitly selects gui = snapmaker.
+GPU startup uses [components] mali_gpu = true. The preview is enabled in this personal profile when /dev/mali0 exists and the 400 MHz limit reads back correctly; [components] stock_preview = false disables it. The profile explicitly selects gui = snapmaker.
 
 The factory refresh period changes from 33 ms to 22 ms. The 480 × 320 panel is approximately 45 Hz. Ordinary factory widgets retain LVGL software rendering; the G-code viewport uses GLES 3 on the GPU. It renders at twice the viewport dimensions (960 × 640 for a full-screen view), then downsamples on the GPU before reading back native-resolution pixels. This reduces jagged edges without changing the physical panel resolution. Rendering readback and framebuffer capture each involve a copy.
 
