@@ -1,12 +1,12 @@
-name: Original UI firmware
+name: Feature firmware
 on:
   push:
-    branches: [stock-ui]
+    branches: [fancurves, balanced-low-current, printers-sonic, gui, stock-ui]
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: stock-ui-${{ github.ref }}
+  group: feature-firmware-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   firmware:
@@ -41,16 +41,22 @@ jobs:
             tmp/cache/
           key: stock-ui-build-${{ github.sha }}
           restore-keys: stock-ui-build-
-      - name: Build personal firmware
+      - name: Check audio service
+        if: hashFiles('overlays/mods/BICHENG/70-app-auxmic/test/test_*.py') != ''
+        run: python3 -m unittest discover -s overlays/mods/BICHENG/70-app-auxmic/test -p 'test_*.py'
+      - name: Build firmware
         run: |
           ./dev.sh make firmware
-          ./dev.sh make build PROFILE=extended-BICHENG OUTPUT_FILE=U1_stock-ui_${GITHUB_SHA}_upgrade.bin
-          sha256sum U1_stock-ui_*_upgrade.bin > SHA256SUMS
+          profile=extended
+          if [ -d overlays/mods/BICHENG ]; then profile=extended-BICHENG; fi
+          output="U1_${GITHUB_REF_NAME//\//-}_${GITHUB_SHA}_upgrade.bin"
+          ./dev.sh make build PROFILE="$profile" OUTPUT_FILE="$output"
+          sha256sum "$output" > SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: stock-ui-firmware
+          name: ${{ github.ref_name }}-firmware
           path: |
-            U1_stock-ui_*_upgrade.bin
+            U1_*_upgrade.bin
             SHA256SUMS
           if-no-files-found: error
           retention-days: 14
