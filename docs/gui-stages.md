@@ -4,7 +4,7 @@ The original Snapmaker executable and screen remain the product UI. The gui bran
 
 | Stage | Branch | Scope | Depends on |
 | --- | --- | --- | --- |
-| 1 | gui-gpu | Mali kernel module, existing GPU regulator and device tree, pinned EGL/GLES runtime, opt-in startup and operating limit | Upstream develop |
+| 1 | gui-gpu | Mali runtime, shared GPU output, Firmware switch, stock/Helix refresh policy and baseline measurement | Upstream develop |
 | 2 | gui-remote | Framebuffer capture, MPP H.264 encoding, WebRTC video and touch, connection lifecycle | Upstream develop and its existing camera libraries |
 | 3 | gui-gcode | G-code parsing and progress, GLES viewport, original UI adapter and controls | gui-gpu |
 
@@ -12,9 +12,13 @@ The implementation directories are 71-ui-gpu, 61-app-remote-screen and 72-stock-
 
 ## Stage 1: provide GPU capability
 
-Keep this stage independent of the private factory GUI ABI. Reuse the pinned kernel, existing voltage table, runtime power management and a checked 400 MHz limit. Do not alter panel timings or add another service manager. An independent EGL check must identify the actual hardware renderer, verify rendered pixels and release its resources. Runtime-suspend checks must account for other active GPU consumers.
+The hardware and shared output modules are independent of the private factory GUI ABI. Reuse the pinned kernel, existing voltage table, runtime power management and a checked 400 MHz limit. Do not alter panel timings or add another service manager. An independent EGL check must identify the actual hardware renderer, verify rendered pixels and release its resources. Runtime-suspend checks must account for other active GPU consumers.
 
-Enabling /dev/mali0 alone does not accelerate factory widgets. The original LVGL text, buttons and lists remain software-rendered. Stage 3's 22 ms refresh timer is scheduling, not a GPU drawing backend.
+The original LVGL text, buttons and lists remain software-rendered. A separate hash-checked stock-display adapter owns refresh and animation cadence, counts actual completed renders in both switch states, and calls the optional stage 3 tick. Stage 3 does not install a competing sleep hook. The private adapter remains an internal, version-specific component even though it ships in this branch.
+
+Helix 1.0.7 consumes the same DMA-BUF output source through its existing GLES 2 G-code renderer, retaining its color conversion and selection markers. Its ordinary widgets keep the software backend. The adapter uses public LVGL timer/event APIs; no NanoVG backend or user renderer tuning is required. Installed assets must match the patched executable's version, otherwise the official executable is used.
+
+Firmware exposes a GPU switch. Startup exports one effective policy after checking the device and frequency cap. Original 2.1 and Helix use 22 ms display/animation periods when enabled; the disabled baseline is 33 ms. Original 2.0 has only its verified display timer adjusted. The native panel is about 45 Hz, so increasing timers to 60/120 Hz would not establish those display modes.
 
 ## Stage 2: replace interactive screenshots
 
@@ -26,9 +30,9 @@ A refresh must replace only that browser page's abandoned session, and closing a
 
 The renderer parses each file once, uploads geometry to the GPU, renders only changed views, and releases resources when hidden. The selected layer is opaque; other layers are composited once at 24% opacity. Supersampling and the original screen are retained during performance work.
 
-The factory executable is statically linked and has no supported plugin interface in this implementation. The adapter checks exact executable hashes before calling private LVGL functions. Keep private structure offsets in the version description, document tested versions, and fall back to the original image on rendering failure. An exit guard does not isolate a running GUI from a hung GPU call.
+The factory executable contains statically linked LVGL and has no supported plugin interface in this implementation. The adapter checks exact executable hashes before calling private LVGL functions. Keep private structure offsets in the version description, document tested versions, and fall back to the original image on rendering failure. An exit guard does not isolate a running GUI from a hung GPU call.
 
-The current frame path includes synchronous GPU readback and CPU copies into LVGL. Measure drawing, resolve/readback and pixel delivery separately before replacing it. Do not claim zero-copy or full-system GPU acceleration. The measured panel configuration is about 45 Hz, so the first performance target is a 22.2 ms frame budget at unchanged visual quality, not an unverified 60/120 Hz timing.
+The frame path resolves supersampling into a shared DMA-BUF, waits for GPU completion, synchronizes CPU access, and copies pixels into LVGL. Unsupported imports retain glReadPixels. This removes the measured readback bottleneck but is not end-to-end zero-copy. Compare UI_GPU_OUTPUT=readback against automatic output in the same binary, separately from the global off/on cadence comparison. The performance target is a 22.2 ms frame budget at unchanged visual quality; complex models can still exceed it.
 
 The file cursor tracks interpreter progress, which can lead physical movement. It is not a precise nozzle-position signal.
 
