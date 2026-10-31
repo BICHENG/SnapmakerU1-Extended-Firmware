@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-echo "bd2d80e9084c6709161fd9ca4130f06c57e89b00ffa596bc6c5706c4f1aebda4  $ROOTFS_DIR/usr/bin/gui" | sha256sum -c -
+GUI_SHA=$(sha256sum "$ROOTFS_DIR/usr/bin/gui" | cut -d" " -f1)
+grep -Fq ".sha256=\"$GUI_SHA\"," "$HERE/apps/stock-ui/stock-abi.h"
 make -C "$HERE/apps/stock-ui" test
 make -C "$HERE/apps/stock-ui" CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++ MALI_LIB="$ROOTFS_DIR/usr/lib/libmali.so.1" \
     PROGRESS_LIBS="$ROOTFS_DIR/usr/lib/libboost_json.so.1.83.0 $ROOTFS_DIR/usr/lib/libcurl.so.4"

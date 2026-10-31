@@ -23,9 +23,10 @@ void stock_log(const char *format,...) {
     va_list args;va_start(args,format);vfprintf(f,format,args);va_end(args);fclose(f);
 }
 
-/* These entry points belong only to the SHA-256 checked vendor 2.0.0.205 GUI. */
+/* Private entry points are selected only after the exact vendor GUI hash matches. */
 static uintptr_t base;
-#define FN(off,ret,...) ((ret(*)(__VA_ARGS__))(base+(off)))
+static const StockAbi *abi;
+#define FN(off,ret,...) ((ret(*)(__VA_ARGS__))(base+abi->off))
 typedef struct {void *target,*original;uint32_t code;void *user,*param,*prev;uint8_t flags;} Event;
 typedef struct {uint8_t magic,cf;uint16_t flags,w,h,stride,reserved;uint32_t size;const uint8_t *data;void *r1,*r2;} Image;
 static int (*real_usleep)(useconds_t);
@@ -69,7 +70,7 @@ static void add_event(void *o,void (*cb)(Event*),uint32_t code,void *user){
     FN(lv_obj_add_event_cb,void*,void*,void(*)(Event*),uint32_t,void*)(o,cb,code,user);
 }
 static void *label(void *parent,const char *s,int x,int y){
-    void *o=create(stock_label_class,parent);if(!o)return NULL;
+    void *o=create(abi->stock_label_class,parent);if(!o)return NULL;
     if(font)style(o,90,font);
     style(o,88,0xffffff);text(o,s);pos(o,x,y);return o;
 }
@@ -222,7 +223,8 @@ static void control(Event *e) {
     request_frame();pthread_mutex_unlock(&mutex);
 }
 static void *button(void *parent,const char *s,int x,int y,int w,int h,int action){
-    void *o=create(stock_button_class,parent);if(!o)return NULL;
+    void *o=create(abi->stock_button_class,parent);if(!o)return NULL;
+    FN(lv_obj_remove_flag,void,void*,uint32_t)(o,(1u<<4)|(1u<<8)|(1u<<9)|(1u<<15));
     pos(o,x,y);size(o,w,h);
     for(int prop=16;prop<=19;prop++)style(o,prop,0);
     style(o,12,10);style(o,28,0x292d33);style(o,29,255);style(o,48,0);style(o,60,0);
@@ -237,13 +239,16 @@ static void touch(Event *e){
     int32_t point[2];void *indev=FN(lv_event_get_indev,void*,Event*)(e);
     if(!indev)return;
     FN(lv_indev_get_point,void,void*,int32_t*)(indev,point);
-    if(e->code==1){last_x=point[0];last_y=point[1];drag=1;}
+    if(e->code==1){
+        last_x=point[0];last_y=point[1];
+        drag=point[1]>=260?2:point[1]>48?1:0;
+    }
     if(!drag)return;
     pthread_mutex_lock(&mutex);
-    if(point[1]>=260&&layers){
+    if(drag==2&&layers){
         int x=point[0]-60;if(x<0)x=0;if(x>360)x=360;
         following=0;layer=(unsigned)((uint64_t)x*(layers-1)/360);request_frame();
-    } else if(e->code==2&&!flat&&point[1]>48) {
+    } else if(e->code==2&&!flat) {
         yaw+=(point[0]-last_x)*0.012f;
         tilt=fmaxf(-1.4f,fminf(1.4f,tilt+(point[1]-last_y)*0.012f));request_frame();
     }
@@ -255,12 +260,14 @@ static void open_preview(Event *e){
     if(!source_image||!model_path(FN(lv_image_get_src,const char*,void*)(source_image),selected,sizeof(selected)))return;
     arm_guard();
     screen=FN(lv_display_get_screen_active,void*,void*)(NULL);
-    preview=create(stock_image_class,screen);if(!preview)return;
+    void *top=FN(lv_display_get_layer_top,void*,void*)(NULL);
+    if(!top)return;
+    preview=create(abi->stock_image_class,top);if(!preview)return;
     memset(display_pixels,20,sizeof(display_pixels));
     for(size_t i=3;i<sizeof(display_pixels);i+=4)display_pixels[i]=255;
     FN(lv_image_set_src,void,void*,const void*)(preview,&descriptor);pos(preview,0,0);
-    FN(lv_obj_add_flag,void,void*,uint32_t)(preview,2);
-    FN(lv_obj_remove_flag,void,void*,uint32_t)(preview,16);
+    FN(lv_obj_add_flag,void,void*,uint32_t)(preview,2|(1u<<13)|(1u<<18));
+    FN(lv_obj_remove_flag,void,void*,uint32_t)(preview,(1u<<4)|(1u<<8)|(1u<<9)|(1u<<15));
     add_event(preview,touch,0,NULL);add_event(preview,preview_deleted,38,NULL);
     if(!button(preview,"返回",8,6,68,36,0)){close_pending=1;return;}
     void *follow=button(preview,"预览",88,6,174,36,6);
@@ -294,7 +301,7 @@ static void badge_deleted(Event *e){
 }
 static uintptr_t find_font(void *o,unsigned depth){
     if(!o||depth>14||!FN(lv_obj_is_visible,int,void*)(o))return 0;
-    if(*(uintptr_t*)o-base==stock_label_class){
+    if(*(uintptr_t*)o-base==abi->stock_label_class){
         const unsigned char *s=FN(lv_label_get_text,const unsigned char*,void*)(o);
         for(;s&&*s;s++)if(*s>=128)return FN(lv_obj_get_style_prop,uintptr_t,void*,uint32_t,int)(o,0,90);
     }
@@ -330,7 +337,7 @@ static void scan(void *o,unsigned depth){
     if(!o||depth>14)return;
     if(!FN(lv_obj_is_visible,int,void*)(o))return;
     uintptr_t cls=*(uintptr_t*)o-base;
-    if(cls==stock_image_class&&o!=preview&&!badge) {
+    if(cls==abi->stock_image_class&&o!=preview&&!badge) {
         const unsigned char *src=FN(lv_image_get_src,const unsigned char*,void*)(o);
         char candidate[sizeof(filename)];
         int32_t a[4];FN(lv_obj_get_coords,void,void*,int32_t*)(o,a);
@@ -338,7 +345,7 @@ static void scan(void *o,unsigned depth){
         if(src&&*src=='A'&&w>=60&&h>=60&&w<=WIDTH&&h<=HEIGHT&&model_path((const char*)src,candidate,sizeof(candidate))){
             font=find_font(FN(lv_display_get_screen_active,void*,void*)(NULL),0);
             source_image=o;
-            inline_image=create(stock_image_class,o);
+            inline_image=create(abi->stock_image_class,o);
             if(inline_image){
                 pos(inline_image,0,0);FN(lv_obj_add_flag,void,void*,uint32_t)(inline_image,1|2);
                 add_event(inline_image,open_preview,7,NULL);
@@ -358,7 +365,7 @@ static void pump(void){
     FN(lv_lock,void,void)();
     void *current=FN(lv_display_get_screen_active,void*,void*)(NULL);
     if(current&&!refresh_set){
-        void *global=*(void**)(base+stock_global_got),*disp=*(void**)((char*)global+0x28);
+        void *global=*(void**)(base+abi->stock_global_got),*disp=*(void**)((char*)global+0x28);
         void *timer=*(void**)((char*)disp+0x380);
         stock_log("refresh period %u -> 22 ms\n",*(unsigned*)timer);
         FN(lv_timer_set_period,void,void*,unsigned)(timer,22);refresh_set=1;
@@ -428,22 +435,28 @@ __attribute__((constructor)) static void init(void){
     char path[128]={0};if(readlink("/proc/self/exe",path,sizeof(path)-1)<0||strcmp(path,"/usr/bin/gui"))return;
     int fd=open("/proc/self/exe",O_RDONLY|O_CLOEXEC);struct stat st;
     if(fd<0)return;
-    if(fstat(fd,&st)||st.st_size!=7010568){close(fd);return;}
+    if(fstat(fd,&st)){close(fd);return;}
+    int supported=0;
+    for(size_t i=0;i<sizeof(stock_abis)/sizeof(stock_abis[0]);i++)
+        if((size_t)st.st_size==stock_abis[i].executable_size)supported=1;
+    if(!supported){close(fd);return;}
     void *data=mmap(NULL,st.st_size,PROT_READ,MAP_PRIVATE,fd,0);close(fd);if(data==MAP_FAILED)return;
     unsigned char digest[32];char hex[65];
     unsigned char *(*sha)(const void*,size_t,unsigned char*)=dlsym(RTLD_DEFAULT,"SHA256");
     if(!sha){munmap(data,st.st_size);return;}sha(data,st.st_size,digest);munmap(data,st.st_size);
     for(int j=0;j<32;j++)sprintf(hex+j*2,"%02x",digest[j]);
-    if(strcmp(hex,"bd2d80e9084c6709161fd9ca4130f06c57e89b00ffa596bc6c5706c4f1aebda4"))return;
+    for(size_t i=0;i<sizeof(stock_abis)/sizeof(stock_abis[0]);i++)
+        if((size_t)st.st_size==stock_abis[i].executable_size&&!strcmp(hex,stock_abis[i].sha256))abi=&stock_abis[i];
+    if(!abi)return;
     if(access("/tmp/stock-ui.guard",F_OK)==0){stock_log("previous extension did not exit cleanly; keeping factory UI\n");return;}
     started=milliseconds();arm_guard();
     dl_iterate_phdr(locate,NULL);
-    stock_log("supported original GUI verified, base=%lx\n",base);
+    stock_log("supported original GUI %s verified, base=%lx\n",abi->version,base);
 }
 int usleep(useconds_t usec){
     if(!real_usleep)real_usleep=dlsym(RTLD_NEXT,"usleep");
     uintptr_t ra=(uintptr_t)__builtin_return_address(0)-base;
-    if(base&&(ra==stock_main_sleep||ra==stock_main_short_sleep)){
+    if(base&&(ra==abi->stock_main_sleep||ra==abi->stock_main_short_sleep)){
         pump();useconds_t cap=preview||inline_show?22000:500000;if(usec>cap)usec=cap;
     }
     return real_usleep(usec);
