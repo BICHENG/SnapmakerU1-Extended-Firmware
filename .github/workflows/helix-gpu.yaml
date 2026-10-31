@@ -13,7 +13,9 @@ jobs:
       - uses: actions/cache@v4
         id: binary
         with:
-          path: ui-artifact
+          path: |
+            ui-artifact
+            ui-test-artifact
           key: helix-u1-gpu-binary-${{ hashFiles('.github/workflows/helix-gpu.yaml', '.github/scripts/prepare-helix-gpu.py', 'overlays/mods/BICHENG/71-ui-gpu/apps/helix-gpu-shared.patch', 'overlays/mods/BICHENG/71-ui-gpu/apps/ui-gpu/gpu_output.*', 'overlays/firmware-extended/69-app-helixscreen/root/usr/local/share/extended-pkg/helixscreen') }}
       - name: Fetch and prepare pinned Helix source
         if: steps.binary.outputs.cache-hit != 'true'
@@ -45,11 +47,25 @@ jobs:
           docker run --rm -e CCACHE_DIR=/src/.ccache -v "$PWD/helix:/src" -w /src helix-u1-gpu:local \
             make PLATFORM_TARGET=snapmaker-u1 DISPLAY_BACKEND=fbdev ENABLE_GLES_3D=yes ENABLE_OPENGLES=no SKIP_OPTIONAL_DEPS=1 -j4
           python3 .github/scripts/prepare-helix-gpu.py package helix ui-artifact
+      - name: Link offscreen self-test from the same production objects
+        if: steps.binary.outputs.cache-hit != 'true'
+        run: |
+          docker run --rm -e CCACHE_DIR=/src/.ccache -v "$PWD/helix:/src" -w /src helix-u1-gpu:local \
+            make PLATFORM_TARGET=snapmaker-u1 DISPLAY_BACKEND=fbdev ENABLE_GLES_3D=yes ENABLE_OPENGLES=no SKIP_OPTIONAL_DEPS=1 -j4 gpu-self-test
+          python3 .github/scripts/prepare-helix-gpu.py package helix ui-test-artifact --self-test
       - name: Verify artifact source and checksums
-        run: python3 .github/scripts/prepare-helix-gpu.py verify ui-artifact
+        run: |
+          python3 .github/scripts/prepare-helix-gpu.py verify ui-artifact
+          python3 .github/scripts/prepare-helix-gpu.py verify ui-test-artifact --self-test
       - uses: actions/upload-artifact@v4
         with:
           name: helix-u1-gpu
           path: ui-artifact/
+          if-no-files-found: error
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: helix-u1-gpu-test
+          path: ui-test-artifact/
           if-no-files-found: error
           retention-days: 14
