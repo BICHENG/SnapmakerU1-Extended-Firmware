@@ -38,3 +38,30 @@ baseline to compare end-to-end performance; use the segmented pass to identify
 where time is spent. Do not treat its timings as GPU hardware timestamps or add
 its medians to predict baseline latency. LVGL composition, framebuffer capture,
 MPP encoding, display scanout and WebRTC transport are outside this benchmark.
+
+## U1 measurement, 2026-10-31
+
+Vendor 2.1.0.157, Mali capped at 400 MHz, 70,370 vertices / 157 layers,
+layer 153, 480x320 output with 960x640 supersampling, five warmups and 40
+rotating frames per pass. The printer was idle with all heater targets at zero.
+The original preview was visible but static; GPU runtime status was suspended
+before each run. No remote refresh test or second benchmark ran concurrently.
+
+| Implementation | Render median | Render + two copies median | Total p95 |
+| --- | ---: | ---: | ---: |
+| Two supersampled color buffers | 40.06 ms | 40.90 ms | 45.29 ms |
+| One supersampled color buffer | 39.10 ms | 39.79 ms | 45.12 ms |
+
+This one-pair comparison does not establish a repeatable speed improvement.
+The accepted change removes one 2,457,600-byte RGBA8 buffer, its texture sampling
+pass and an FBO transition. It keeps the depth buffer, 2x supersampling, nearest
+context compositing at 24% opacity and opaque current layer. Three captured
+2D/3D views differed by at most one value per 8-bit channel; the synthetic
+opacity and antialias checks passed.
+
+The candidate's segmented medians were 26.74 ms for draw completion, 11.24 ms
+for resolve/readback, 0.48 ms for CPU preparation and 0.80 ms for delivery
+copies. Ordinary CPU copies are not the main measured cost. The full frame
+still exceeds the 22.2 ms budget of the observed 45 Hz panel. Do not claim
+45 newly rendered frames per second, 60/120 Hz support, or full LVGL GPU
+acceleration from this result.
