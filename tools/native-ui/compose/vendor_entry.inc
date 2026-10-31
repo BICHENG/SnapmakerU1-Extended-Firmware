@@ -85,4 +85,3 @@ static void verify_binary(void *main_address)
     vendor_fill = (stock_sw_fill_fn)(vendor_base + STOCK_SW_FILL_OFFSET);
     vendor_fill_init = (stock_fill_init_fn)(vendor_base + STOCK_FILL_INIT_OFFSET);
 }
-

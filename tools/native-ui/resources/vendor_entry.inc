@@ -66,4 +66,3 @@ static void verify_binary(void)
         fatal("original_main_address_mismatch");
     if(dlsym(RTLD_DEFAULT,"__gmon_start__")) fatal("unexpected_profiling_initializer");
 }
-

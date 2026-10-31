@@ -176,4 +176,3 @@ static void glyph_collect_callback(stock_draw_unit_t *unit, stock_glyph_dsc_t *g
             fatal("software_glyph_callback_changed_source_bitmap");
     }
 }
-
