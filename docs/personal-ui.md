@@ -14,7 +14,7 @@ The expanded preview belongs to LVGL's top layer and stays at the screen origin.
 
 The file cursor is the interpreter's progress and can lead physical movement queued in Klipper. This display does not confirm physical extrusion or provide step-synchronous tracking.
 
-This profile builds and selects the original screen. The upstream optional HelixScreen component remains in the general firmware source; its separate custom GPU build has been removed.
+The original screen remains the primary interface. This profile preserves the user's GUI selection. The GPU stage also supplies a version-matched Helix executable using the same shared output module; it does not switch the interface to Helix.
 
 ## Compatibility and ownership
 
@@ -27,7 +27,7 @@ The vendor GUI statically links LVGL and does not export its APIs. The adapter s
 
 Both checks pass before any private entry point is called. Unsupported GUI versions run without the extension; firmware builds reject an unknown hash. This is a binary compatibility adapter, not an official Snapmaker plugin interface. Vendor updates require a new adapter and device verification. The 2.1 adapter was mapped against the official binary; its device acceptance is recorded separately from the 2.0 checks below.
 
-The usleep interposition acts only at two verified call sites in the original main loop. All LVGL calls run there under the existing LVGL mutex. One worker handles parsing, GPU work and nonblocking libcurl requests; it never calls LVGL. It reuses the firmware's libcurl and Boost.JSON libraries. No extra service is installed. The original executable is neither modified nor replaced.
+The GPU stage's stock-display adapter owns the only usleep interposition, restricted to two verified original main-loop sites. It invokes the G-code extension's stock_ui_tick callback. All LVGL calls run under the existing LVGL mutex. One worker handles parsing, GPU work and nonblocking libcurl requests; it never calls LVGL. It reuses the firmware's libcurl and Boost.JSON libraries. No extra service is installed. The original executable is neither modified nor replaced.
 
 While printing or paused, the worker requests status about every 250 ms. Other visible previews check once per second. HTTP work is asynchronous so the vendor status endpoint's response delay cannot stall rotation or rendering. Queries stop when no supported model image or expanded preview is visible. Unchanged state does not redraw the GPU viewport.
 
@@ -39,9 +39,9 @@ The preview supports readable .gcode files whose factory thumbnail resolves insi
 
 The GPU overlay enables the original disabled Mali-G52 device-tree node, uses the existing vdd_gpu regulator, builds the matching bifrost_kbase module and installs the pinned Mali g24p0 library and licence. The GPU is capped at 400 MHz, with runtime power management. Panel timings and voltage tables are unchanged.
 
-GPU startup uses [components] mali_gpu = true. The preview is enabled in this personal profile when /dev/mali0 exists and the 400 MHz limit reads back correctly; [components] stock_preview = false disables it. The profile explicitly selects gui = snapmaker.
+Firmware exposes the GPU switch, stored as [components] mali_gpu. Changing it reboots an idle printer and preserves the selected GUI. The preview requires the effective GPU policy, the original GUI selection, a GPU character device and a confirmed 400 MHz limit; [components] stock_preview = false disables the preview separately.
 
-The factory refresh period changes from 33 ms to 22 ms. The 480 × 320 panel is approximately 45 Hz. Ordinary factory widgets retain LVGL software rendering; the G-code viewport uses GLES 3 on the GPU. It renders at twice the viewport dimensions (960 × 640 for a full-screen view), then downsamples on the GPU before reading back native-resolution pixels. This reduces jagged edges without changing the physical panel resolution. Rendering readback and framebuffer capture each involve a copy.
+On original 2.1, GPU-enabled display and animation periods are 22 ms; GPU-off retains the 33 ms baseline. The 480 × 320 panel is approximately 45 Hz. Ordinary factory widgets retain LVGL software rendering; the G-code viewport uses GLES 3. It renders at twice the viewport dimensions (960 × 640 for a full-screen view), then downsamples into a shared DMA-BUF before CPU delivery to LVGL. Unsupported imports keep the readback path. Antialiasing and physical panel resolution are unchanged. See the renderer's [benchmark](../overlays/mods/BICHENG/72-stock-ui/apps/stock-ui/BENCHMARK.md) for the latest isolated measurements and their limits.
 
 A temporary guard protects initial extension startup and an active GPU viewport. If the GUI exits unexpectedly during either, its next launch runs the factory UI without the adapter. GPU resources and geometry are released when neither the live thumbnail nor the expanded preview is active. The guard clears after that normal return, or on reboot.
 
@@ -58,11 +58,11 @@ The existing firmware workflow builds feature branches and the combined stock-ui
 Development checks on 2026-10-31 established:
 
 - The Chinese factory material configuration page and a native G-code preview run in the original GUI.
-- SHOULDER_PETG_21m46s.gcode produces 70,370 vertices and 157 extrusion layers. GUI RSS is about 73 MB with the preview open.
+- SHOULDER_PETG_21m46s.gcode produces 70,370 vertices and 157 extrusion layers.
 - Mali-G52 renders the viewport, and the factory refresh timer reads 22 ms.
-- A browser rotation test observed approximately 32 changed frames per second. The sustained WebRTC stream returned to 45 fps, decoding 1,609 frames with zero dropped frames.
+- Browser rotation and sustained WebRTC streaming were exercised; video frame rate is distinct from the rate of newly rendered views.
 - Returning from the preview restores the factory material configuration page.
-- The revised renderer keeps the current layer opaque and both earlier and later layers translucent, with intermediate edge pixels from supersampling. On the same 70,370-vertex sample, 40 warm rotating renders took a median 33.81 ms and p95 36.24 ms. Stream frame rate is distinct from the rate of newly rendered views.
+- The renderer keeps the current layer opaque and both earlier and later layers translucent, with intermediate edge pixels from supersampling.
 - Six drag sequences across the canvas, toolbar, slider and screen boundaries left the expanded preview at [0, 0, 479, 319] on the top layer.
 
 These are development checks. The deployment record must separately identify the final image, active slot, reboot acceptance and preserved printer configuration.

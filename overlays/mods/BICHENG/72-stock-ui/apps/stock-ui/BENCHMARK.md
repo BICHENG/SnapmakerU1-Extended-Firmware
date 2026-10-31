@@ -13,6 +13,7 @@ time. It does not implement a printer-status guard; the caller must check first.
 
 ```sh
 ./bench-gpu /userdata/gcodes/SHOULDER_PETG_21m46s.gcode 153 40 > render-profile.json
+UI_GPU_OUTPUT=readback ./bench-gpu /userdata/gcodes/SHOULDER_PETG_21m46s.gcode 153 40 > readback-profile.json
 ```
 
 The layer argument is one-based and defaults to the last layer. Each pass has
@@ -26,7 +27,8 @@ The JSON reports median and p95 wall-clock milliseconds:
 - `baseline.render_ms`: the unchanged render path, without added GPU waits.
 - `segmented.draw_finish_ms`: draw submission plus GPU completion, measured
   with `glFinish` at the boundary before resolve.
-- `segmented.resolve_readback_ms`: GPU downsampling plus synchronous readback.
+- `segmented.resolve_readback_ms`: GPU downsampling and output synchronization,
+  or synchronous readback in the fallback mode.
 - `segmented.cpu_prepare_ms`: vertical flip/copy and CPU slider drawing.
 - `delivery_copy_ms`: two full-size CPU copies matching the shared-frame and
   LVGL-image buffer sizes. This is an isolated copy benchmark, not a measurement
@@ -39,29 +41,32 @@ where time is spent. Do not treat its timings as GPU hardware timestamps or add
 its medians to predict baseline latency. LVGL composition, framebuffer capture,
 MPP encoding, display scanout and WebRTC transport are outside this benchmark.
 
-## U1 measurement, 2026-10-31
+## Shared-output measurement, 2026-10-31
 
 Vendor 2.1.0.157, Mali capped at 400 MHz, 70,370 vertices / 157 layers,
 layer 153, 480x320 output with 960x640 supersampling, five warmups and 40
 rotating frames per pass. The printer was idle with all heater targets at zero.
-The original preview was visible but static; GPU runtime status was suspended
-before each run. No remote refresh test or second benchmark ran concurrently.
+GPU runtime status was suspended before each run. No remote refresh test or
+second GPU benchmark ran concurrently. Both modes used the same executable,
+alternating readback, shared output, shared output, readback.
 
-| Implementation | Render median | Render + two copies median | Total p95 |
+| Output mode | Render + two copies median | Total p95 | Resolve/output median |
 | --- | ---: | ---: | ---: |
-| Two supersampled color buffers | 40.06 ms | 40.90 ms | 45.29 ms |
-| One supersampled color buffer | 39.10 ms | 39.79 ms | 45.12 ms |
+| Readback A | 39.23 ms | 46.15 ms | 10.90 ms |
+| Shared A | 28.59 ms | 36.32 ms | 1.16 ms |
+| Shared B | 28.80 ms | 35.52 ms | 1.15 ms |
+| Readback B | 39.39 ms | 46.65 ms | 10.52 ms |
 
-This one-pair comparison does not establish a repeatable speed improvement.
-The accepted change removes one 2,457,600-byte RGBA8 buffer, its texture sampling
-pass and an FBO transition. It keeps the depth buffer, 2x supersampling, nearest
-context compositing at 24% opacity and opaque current layer. Three captured
-2D/3D views differed by at most one value per 8-bit channel; the synthetic
-opacity and antialias checks passed.
+For this workload, shared output reduces the measured frame path by about 27%.
+Six full and compact 2D/3D views were byte-identical to the accepted renderer.
+The synthetic opacity and antialias checks passed, including forced DMA-heap
+failure with automatic readback fallback. The common module also passed a
+100-frame GLES 2 pixel comparison, odd-stride and resource-lifetime test.
 
-The candidate's segmented medians were 26.74 ms for draw completion, 11.24 ms
-for resolve/readback, 0.48 ms for CPU preparation and 0.80 ms for delivery
-copies. Ordinary CPU copies are not the main measured cost. The full frame
-still exceeds the 22.2 ms budget of the observed 45 Hz panel. Do not claim
-45 newly rendered frames per second, 60/120 Hz support, or full LVGL GPU
-acceleration from this result.
+The retained renderer uses one supersampled color buffer, a depth buffer,
+2x supersampling, context compositing at 24% opacity and an opaque current
+layer. It resolves into a shared linear output texture, then synchronizes
+CPU access and copies into the existing image buffers. This is not end-to-end
+zero-copy. Complex sample frames still exceed the panel's 22.2 ms budget;
+the result does not establish 45 new G-code views per second, 60/120 Hz support,
+whole-UI GPU rasterization or improved print performance.
