@@ -179,7 +179,13 @@ int main(void)
     request("15\n"); native_tick(99000,vendor_base+fake_abi.main_sleep); assert(!benchmark_until && !repaints);
 
     reset_policy(1,0,0);
-    global_pointer=NULL; native_tick(1000,vendor_base+fake_abi.main_sleep); assert(!attachments && !ticks && !timer_writes);
+    global_pointer=NULL;
+    assert(!mkfifo(request_path,0600));
+    alarm(2);
+    native_tick(1000,vendor_base+fake_abi.main_sleep);
+    alarm(0);
+    assert(!benchmark_until && !repaints && access(request_path,F_OK)!=0);
+    assert(!attachments && !ticks && !timer_writes);
     global_pointer=global_memory;
     request("16\n"); native_tick(1000,vendor_base+fake_abi.main_sleep); assert(!benchmark_until && !repaints);
     request("2\n"); native_tick(1000,vendor_base+fake_abi.main_sleep);
