@@ -17,7 +17,12 @@ aarch64-linux-gnu-strip --strip-debug "$ROOTFS_DIR/lib/modules/bifrost_kbase.ko"
 boot="$BUILD_DIR/boot-gpu"
 boot_fit.sh extract "$BOOT_IMG" "$boot"
 for dtb in "$boot/fdt.dtb" "$boot/resources/rk-kernel.dtb"; do
+  test "$(fdtget -t s "$dtb" / compatible)" = 'rockchip,rk3562-evb2-ddr4-v10 rockchip,rk3562'
   test "$(fdtget -t s "$dtb" /gpu@ff320000 compatible)" = 'arm,mali-bifrost'
+  test "$(fdtget -t x "$dtb" /gpu@ff320000 operating-points-v2)" = "$(fdtget -t x "$dtb" /gpu-opp-table phandle)"
+  for opp in opp-400000000 opp-j-400000000; do
+    test "$(fdtget -t x "$dtb" "/gpu-opp-table/$opp" opp-hz)" = '0 17d78400'
+  done
   regulator=/i2c@ff200000/pmic@20/regulators/DCDC_REG4
   test "$(fdtget -t s "$dtb" "$regulator" regulator-name)" = vdd_gpu
   supply=$(fdtget -t x "$dtb" "$regulator" phandle)
