@@ -12,3 +12,7 @@ typedef struct {
 Gpu *gpu_create(const Model *model,char *error,size_t size);
 int gpu_render(Gpu *g,const Model *m,const RenderView *view,uint8_t *pixels);
 void gpu_destroy(Gpu *g);
+#ifdef STOCK_GPU_PROFILE
+typedef struct {double draw_ms,resolve_readback_ms,cpu_prepare_ms;} GpuProfile;
+void gpu_profile(Gpu *g,GpuProfile *profile);
+#endif

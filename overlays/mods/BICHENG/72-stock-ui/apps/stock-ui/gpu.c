@@ -8,6 +8,13 @@
 #include <unistd.h>
 #include <string.h>
 #include <stddef.h>
+#ifdef STOCK_GPU_PROFILE
+#include <time.h>
+static double clock_ms(void){
+    struct timespec t;clock_gettime(CLOCK_MONOTONIC,&t);
+    return t.tv_sec*1000.0+t.tv_nsec/1000000.0;
+}
+#endif
 extern void stock_log(const char *format,...);
 struct gbm_device;
 extern struct gbm_device *gbm_create_device(int);
@@ -22,7 +29,13 @@ struct Gpu {
     GLuint composite,scene_fbo,scene_texture;
     GLint center,scale,rotation,brightness,extent;
     uint8_t readback[WIDTH*HEIGHT*4];
+#ifdef STOCK_GPU_PROFILE
+    GpuProfile *profile;
+#endif
 };
+#ifdef STOCK_GPU_PROFILE
+void gpu_profile(Gpu *g,GpuProfile *profile){g->profile=profile;}
+#endif
 static GLuint shader(GLenum kind,const char *source) {
     GLuint s=glCreateShader(kind);glShaderSource(s,1,&source,NULL);glCompileShader(s);
     GLint ok=0;glGetShaderiv(s,GL_COMPILE_STATUS,&ok);
@@ -147,6 +160,10 @@ static void context_paths(size_t first,size_t end,size_t count) {
 int gpu_render(Gpu *g,const Model *m,const RenderView *v,uint8_t *pixels) {
     unsigned layer=v->layer;int flat=v->flat,w=v->width,h=v->height;
     if(w<1||w>WIDTH||h<1||h>HEIGHT)return -1;
+#ifdef STOCK_GPU_PROFILE
+    double draw_start=0,readback_start=0,copy_start=0;
+    if(g->profile){glFinish();draw_start=clock_ms();}
+#endif
     float yaw=v->yaw,tilt=v->tilt,zoom=v->zoom;
     if(layer>=m->layers)layer=m->layers-1;
     glBindFramebuffer(GL_FRAMEBUFFER,g->fbo);
@@ -182,24 +199,40 @@ int gpu_render(Gpu *g,const Model *m,const RenderView *v,uint8_t *pixels) {
     if(completed<first)completed=first;
     glUniform1f(g->brightness,.38f);glDrawArrays(GL_LINES,completed,end-completed);
     glUniform1f(g->brightness,1);glDrawArrays(GL_LINES,first,completed-first);
+#ifdef STOCK_GPU_PROFILE
+    if(g->profile){
+        glFinish();readback_start=clock_ms();
+        g->profile->draw_ms=readback_start-draw_start;
+    }
+#endif
     glBindFramebuffer(GL_READ_FRAMEBUFFER,g->scene_fbo);glBindFramebuffer(GL_DRAW_FRAMEBUFFER,g->resolve_fbo);
     glBlitFramebuffer(0,0,w*SAMPLES,h*SAMPLES,0,0,w,h,GL_COLOR_BUFFER_BIT,GL_LINEAR);
     glBindFramebuffer(GL_FRAMEBUFFER,g->resolve_fbo);
     glReadPixels(0,0,w,h,GL_RGBA,GL_UNSIGNED_BYTE,g->readback);
     if(glGetError()!=GL_NO_ERROR)return -1;
+#ifdef STOCK_GPU_PROFILE
+    if(g->profile){
+        copy_start=clock_ms();
+        g->profile->resolve_readback_ms=copy_start-readback_start;
+    }
+#endif
     for(int y=0;y<h;y++)memcpy(pixels+y*w*4,g->readback+(h-1-y)*w*4,w*4);
-    if(v->compact)return 0;
-    int fill=12+(m->layers>1?(int)(456ull*layer/(m->layers-1)):456);
-    for(int y=308;y<312;y++)for(int x=12;x<=468;x++){
-        uint8_t *p=pixels+(y*WIDTH+x)*4;
-        p[0]=x<=fill?255:65;p[1]=x<=fill?102:60;p[2]=x<=fill?24:55;
+    if(!v->compact){
+        int fill=12+(m->layers>1?(int)(456ull*layer/(m->layers-1)):456);
+        for(int y=308;y<312;y++)for(int x=12;x<=468;x++){
+            uint8_t *p=pixels+(y*WIDTH+x)*4;
+            p[0]=x<=fill?255:65;p[1]=x<=fill?102:60;p[2]=x<=fill?24:55;
+        }
+        for(int y=304;y<=315;y++)for(int x=fill-6;x<=fill+6;x++){
+            float alpha=fmaxf(0,fminf(1,6-sqrtf((x-fill)*(x-fill)+(y-309.5f)*(y-309.5f))));
+            uint8_t *p=pixels+(y*WIDTH+x)*4;
+            p[0]=(uint8_t)(p[0]*(1-alpha)+255*alpha);
+            p[1]=(uint8_t)(p[1]*(1-alpha)+102*alpha);
+            p[2]=(uint8_t)(p[2]*(1-alpha)+24*alpha);
+        }
     }
-    for(int y=304;y<=315;y++)for(int x=fill-6;x<=fill+6;x++){
-        float alpha=fmaxf(0,fminf(1,6-sqrtf((x-fill)*(x-fill)+(y-309.5f)*(y-309.5f))));
-        uint8_t *p=pixels+(y*WIDTH+x)*4;
-        p[0]=(uint8_t)(p[0]*(1-alpha)+255*alpha);
-        p[1]=(uint8_t)(p[1]*(1-alpha)+102*alpha);
-        p[2]=(uint8_t)(p[2]*(1-alpha)+24*alpha);
-    }
+#ifdef STOCK_GPU_PROFILE
+    if(g->profile)g->profile->cpu_prepare_ms=clock_ms()-copy_start;
+#endif
     return 0;
 }
