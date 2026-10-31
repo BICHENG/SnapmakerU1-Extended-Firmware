@@ -1,0 +1,270 @@
+diff --git a/Makefile b/Makefile
+index 8c370cc..f3da877 100644
+--- a/Makefile
++++ b/Makefile
+@@ -416,6 +416,9 @@ ENABLE_SCREENSAVER ?= yes
+ 
+ # Application C sources
+ APP_C_SRCS := $(wildcard $(SRC_DIR)/*.c)
++ifneq ($(PLATFORM_TARGET)-$(ENABLE_GLES_3D),snapmaker-u1-yes)
++    APP_C_SRCS := $(filter-out $(SRC_DIR)/gpu_output.c,$(APP_C_SRCS))
++endif
+ APP_C_OBJS := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(APP_C_SRCS))
+ 
+ # Application C++ sources (exclude test binaries, splash binary, and lvgl-demo)
+@@ -850,6 +853,10 @@ else ifneq ($(CROSS_COMPILE)$(filter x86 x86-fbdev x86-both,$(PLATFORM_TARGET)),
+     endif
+     # Add target-specific linker flags (e.g., -lstdc++fs for GCC 8)
+     LDFLAGS += $(TARGET_LDFLAGS)
++    # The offscreen G-code renderer also needs EGL when the display uses fbdev.
++    ifeq ($(ENABLE_GLES_3D),yes)
++        LDFLAGS += -lEGL -lGLESv2 -lgbm
++    endif
+     # DRM backend requires libdrm for display; libinput for LVGL input drivers
+     ifeq ($(DISPLAY_BACKEND),drm)
+         LDFLAGS += -ldrm
+diff --git a/docker/Dockerfile.snapmaker-u1 b/docker/Dockerfile.snapmaker-u1
+index 5efc6ff..9156624 100644
+--- a/docker/Dockerfile.snapmaker-u1
++++ b/docker/Dockerfile.snapmaker-u1
+@@ -56,6 +56,9 @@ RUN dpkg --add-architecture arm64 && apt-get update && apt-get install -y --no-i
+     zlib1g-dev:arm64 \
+     libzstd-dev:arm64 \
+     libdrm-dev:arm64 \
++    libegl1-mesa-dev:arm64 \
++    libgles2-mesa-dev:arm64 \
++    libgbm-dev:arm64 \
+     libinput-dev:arm64 \
+     libudev-dev:arm64 \
+     libevdev-dev:arm64 \
+diff --git a/include/display_manager.h b/include/display_manager.h
+index 407c5f1..e043807 100644
+--- a/include/display_manager.h
++++ b/include/display_manager.h
+@@ -680,6 +680,10 @@ class DisplayManager : public helix::ICalibrationSink {
+ 
+     std::unique_ptr<DisplayBackend> m_backend;
+     lv_display_t* m_display = nullptr;
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    uint32_t m_render_report_start = 0;
++    uint32_t m_render_frames = 0;
++#endif
+     lv_indev_t* m_pointer = nullptr;
+     lv_indev_t* m_keyboard = nullptr;
+     lv_group_t* m_input_group = nullptr;
+diff --git a/include/gcode_gles_renderer.h b/include/gcode_gles_renderer.h
+index 7db5b8b..cb35a6d 100644
+--- a/include/gcode_gles_renderer.h
++++ b/include/gcode_gles_renderer.h
+@@ -13,6 +13,9 @@
+ #include "gcode_render_memory.h"
+ #include "gcode_selection_state.h"
+ #include "gcode_selection_style.h"
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++#include "gpu_output.h"
++#endif
+ 
+ #include <lvgl/lvgl.h>
+ 
+@@ -163,13 +166,13 @@ class GCodeGLESRenderer {
+         return geometry_ != nullptr;
+     }
+ 
+-    /// True once a fatal GL error (out-of-memory / invalid-operation) was seen
+-    /// during a draw batch. The viewer polls this after render() and switches
++    /// True when GL initialization failed or a fatal draw error was seen.
++    /// The viewer polls this after render() and switches
+     /// to the pure-CPU 2D renderer for the rest of the session rather than
+     /// risk a driver-side crash on constrained GPUs (e.g. Mali-G31 on CB1).
+     /// Sticky: once set it stays set until the renderer is destroyed.
+     bool render_failed() const {
+-        return gl_render_failed_;
++        return gl_init_failed_ || gl_render_failed_;
+     }
+ 
+     // ====== Color / Material ======
+@@ -438,6 +441,9 @@ class GCodeGLESRenderer {
+     GLFramebufferHandle fbo_;
+     GLRenderbufferHandle color_rbo_;
+     GLRenderbufferHandle depth_rbo_;
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    UiGpuOutput* gpu_output_ = nullptr;
++#endif
+     int fbo_width_ = 0;
+     int fbo_height_ = 0;
+ 
+diff --git a/src/application/display_manager.cpp b/src/application/display_manager.cpp
+index 361f8c7..f02b39e 100644
+--- a/src/application/display_manager.cpp
++++ b/src/application/display_manager.cpp
+@@ -49,6 +49,7 @@
+ 
+ #include <algorithm>
+ #include <cstdlib>
++#include <cstring>
+ #include <functional>
+ #include <string>
+ 
+@@ -628,6 +629,33 @@ bool DisplayManager::init(const Config& config) {
+         }
+     }
+ 
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    const char* gpu_enabled = std::getenv("UI_GPU_ENABLED");
++    const bool gpu_on = gpu_enabled && std::strcmp(gpu_enabled, "1") == 0;
++    const uint32_t period_ms = gpu_on ? 22 : 33;
++    lv_timer_t* display_timer = lv_display_get_refr_timer(m_display);
++    lv_timer_t* animation_timer = lv_anim_get_timer();
++    if (display_timer)
++        lv_timer_set_period(display_timer, period_ms);
++    if (animation_timer)
++        lv_timer_set_period(animation_timer, period_ms);
++    spdlog::info("[UI GPU] enabled={} display_period_ms={} animation_period_ms={}", gpu_on,
++                 display_timer ? period_ms : 0, animation_timer ? period_ms : 0);
++    m_render_report_start = lv_tick_get();
++    m_render_frames = 0;
++    lv_display_add_event_cb(m_display, [](lv_event_t* event) {
++        auto* self = static_cast<DisplayManager*>(lv_event_get_user_data(event));
++        ++self->m_render_frames;
++        const uint32_t elapsed = lv_tick_elaps(self->m_render_report_start);
++        if (elapsed >= 5000) {
++            spdlog::debug("[UI GPU] render_ready_frames={} elapsed_ms={} render_fps={:.2f}",
++                          self->m_render_frames, elapsed, 1000.0 * self->m_render_frames / elapsed);
++            self->m_render_frames = 0;
++            self->m_render_report_start = lv_tick_get();
++        }
++    }, LV_EVENT_RENDER_READY, this);
++#endif
++
+     return true;
+ }
+ 
+diff --git a/src/rendering/gcode_gles_renderer.cpp b/src/rendering/gcode_gles_renderer.cpp
+index 255abd7..e868b29 100644
+--- a/src/rendering/gcode_gles_renderer.cpp
++++ b/src/rendering/gcode_gles_renderer.cpp
+@@ -35,6 +35,7 @@
+ #include <algorithm>
+ #include <chrono>
+ #include <cmath>
++#include <cstdlib>
+ #include <cstring>
+ #include <glm/gtc/matrix_transform.hpp>
+ #include <glm/gtc/type_ptr.hpp>
+@@ -467,6 +468,15 @@ bool GCodeGLESRenderer::init_gl() {
+     if (gl_init_failed_)
+         return false;
+ 
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    const char* enabled = std::getenv("UI_GPU_ENABLED");
++    if (enabled && std::strcmp(enabled, "0") == 0) {
++        spdlog::info("[GCode GLES] Disabled by UI_GPU_ENABLED; using CPU 2D");
++        gl_init_failed_ = true;
++        return false;
++    }
++#endif
++
+     // Layer 2 covers driver init too: loading the GPU driver can fault before any
+     // draw is reached. A graceful failure removes the guard on return and the
+     // viewer falls back to 2D for this session; only a fault inside leaves it for
+@@ -669,6 +679,31 @@ bool GCodeGLESRenderer::create_fbo(int width, int height) {
+         return false;
+     }
+ 
++    // Depth renderbuffer (16-bit)
++    glGenRenderbuffers(1, &depth_rbo_.id);
++    glBindRenderbuffer(GL_RENDERBUFFER, depth_rbo_.id);
++    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, width, height);
++    if (!check_gl_error("glRenderbufferStorage(depth)")) {
++        destroy_fbo();
++        return false;
++    }
++    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth_rbo_.id);
++    check_gl_error("glFramebufferRenderbuffer(depth)");
++
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    gpu_output_ = ui_gpu_output_create(static_cast<unsigned>(width), static_cast<unsigned>(height));
++    if (gpu_output_) {
++        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
++                               ui_gpu_output_texture(gpu_output_), 0);
++        if (!check_gl_error("glFramebufferTexture2D(output)") ||
++            glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
++            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
++            ui_gpu_output_destroy(gpu_output_);
++            gpu_output_ = nullptr;
++        }
++    }
++    if (!gpu_output_) {
++#endif
+     // Color renderbuffer — use GL_RGBA8 (8 bits per channel) to match the
+     // GL_RGBA/GL_UNSIGNED_BYTE format used by glReadPixels in blit_to_lvgl().
+     // GL_RGBA4 would cause precision loss (4 bits stored, 8 bits read back).
+@@ -682,17 +717,10 @@ bool GCodeGLESRenderer::create_fbo(int width, int height) {
+     }
+     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, color_rbo_.id);
+     check_gl_error("glFramebufferRenderbuffer(color)");
+-
+-    // Depth renderbuffer (16-bit)
+-    glGenRenderbuffers(1, &depth_rbo_.id);
+-    glBindRenderbuffer(GL_RENDERBUFFER, depth_rbo_.id);
+-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, width, height);
+-    if (!check_gl_error("glRenderbufferStorage(depth)")) {
+-        destroy_fbo();
+-        return false;
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
+     }
+-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth_rbo_.id);
+-    check_gl_error("glFramebufferRenderbuffer(depth)");
++    spdlog::debug("[GCode GLES] Output: {}", gpu_output_ ? "DMA-BUF" : "glReadPixels");
++#endif
+ 
+     GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+     if (status != GL_FRAMEBUFFER_COMPLETE) {
+@@ -715,6 +743,10 @@ void GCodeGLESRenderer::destroy_fbo() {
+     depth_rbo_ = GLRenderbufferHandle();
+     color_rbo_ = GLRenderbufferHandle();
+     fbo_ = GLFramebufferHandle();
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    ui_gpu_output_destroy(gpu_output_);
++    gpu_output_ = nullptr;
++#endif
+     fbo_width_ = 0;
+     fbo_height_ = 0;
+ }
+@@ -1517,8 +1549,34 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
+     if (readback_buf_.size() != readback_size) {
+         readback_buf_.resize(readback_size);
+     }
+-    glReadPixels(0, 0, fbo_width_, fbo_height_, GL_RGBA, GL_UNSIGNED_BYTE, readback_buf_.data());
+-    check_gl_error("glReadPixels");
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    if (gpu_output_) {
++        const uint8_t* pixels = ui_gpu_output_begin_read(gpu_output_);
++        if (!pixels) {
++            spdlog::error("[GCode GLES] DMA-BUF read synchronization failed; switching to CPU 2D");
++            gl_render_failed_ = true;
++            destroy_fbo();
++            return;
++        }
++        const size_t row_bytes = static_cast<size_t>(fbo_width_) * 4;
++        const size_t stride = ui_gpu_output_stride(gpu_output_);
++        for (int y = 0; y < fbo_height_; ++y) {
++            std::memcpy(readback_buf_.data() + static_cast<size_t>(y) * row_bytes,
++                        pixels + static_cast<size_t>(y) * stride, row_bytes);
++        }
++        if (ui_gpu_output_end_read(gpu_output_) != 0) {
++            spdlog::error("[GCode GLES] DMA-BUF release synchronization failed; switching to CPU 2D");
++            gl_render_failed_ = true;
++            destroy_fbo();
++            return;
++        }
++    } else {
++#endif
++        glReadPixels(0, 0, fbo_width_, fbo_height_, GL_RGBA, GL_UNSIGNED_BYTE, readback_buf_.data());
++        check_gl_error("glReadPixels");
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    }
++#endif
+ 
+     // The white silhouette, derived from the tag render_selection_tag() left in
+     // the alpha byte. Byte 3 is alpha in the readback's RGBA and in the
