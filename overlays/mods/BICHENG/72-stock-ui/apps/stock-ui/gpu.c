@@ -18,9 +18,9 @@ struct Gpu {
     struct gbm_device *gbm;
     EGLDisplay display;
     EGLContext context;
-    GLuint program,texture,fbo,depth,vbo,grid,marker,resolve_fbo,resolve_color;
+    GLuint program,texture,fbo,depth,vbo,grid,resolve_fbo,resolve_color;
     GLuint composite,scene_fbo,scene_texture;
-    GLint center,scale,rotation,brightness,point_size,extent;
+    GLint center,scale,rotation,brightness,extent;
     uint8_t readback[WIDTH*HEIGHT*4];
 };
 static GLuint shader(GLenum kind,const char *source) {
@@ -33,7 +33,6 @@ void gpu_destroy(Gpu *g) {
     if(g->display&&g->context){
         if(g->current){
             glDeleteBuffers(1,&g->vbo);glDeleteBuffers(1,&g->grid);
-            glDeleteBuffers(1,&g->marker);
             glDeleteRenderbuffers(1,&g->depth);glDeleteTextures(1,&g->texture);
             glDeleteFramebuffers(1,&g->fbo);glDeleteProgram(g->program);
             glDeleteFramebuffers(1,&g->resolve_fbo);glDeleteRenderbuffers(1,&g->resolve_color);
@@ -62,13 +61,13 @@ Gpu *gpu_create(const Model *m,char *error,size_t size) {
     g->current=1;
     GLuint vs=shader(GL_VERTEX_SHADER,
         "attribute vec3 position;attribute vec4 color;varying vec4 c;"
-        "uniform vec3 center;uniform vec3 scale;uniform vec4 rotation;uniform float point_size;"
+        "uniform vec3 center;uniform vec3 scale;uniform vec4 rotation;"
         "void main(){vec3 p=position-center;"
         "float x=p.x*rotation.x-p.y*rotation.y;"
         "float y=p.x*rotation.y+p.y*rotation.x;"
         "float v=y*rotation.z+p.z*rotation.w;"
         "float d=-y*rotation.w+p.z*rotation.z;"
-        "gl_Position=vec4(x*scale.x,v*scale.y,-d*scale.z,1.0);gl_PointSize=point_size;c=color;}");
+        "gl_Position=vec4(x*scale.x,v*scale.y,-d*scale.z,1.0);c=color;}");
     GLuint fs=shader(GL_FRAGMENT_SHADER,
         "precision mediump float;varying vec4 c;uniform float brightness;"
         "void main(){gl_FragColor=vec4(c.bgr*brightness,c.a);}");
@@ -81,7 +80,6 @@ Gpu *gpu_create(const Model *m,char *error,size_t size) {
     g->scale=glGetUniformLocation(g->program,"scale");
     g->rotation=glGetUniformLocation(g->program,"rotation");
     g->brightness=glGetUniformLocation(g->program,"brightness");
-    g->point_size=glGetUniformLocation(g->program,"point_size");
     vs=shader(GL_VERTEX_SHADER,
         "#version 300 es\nuniform vec2 extent;out vec2 uv;"
         "void main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);"
@@ -129,7 +127,6 @@ Gpu *gpu_create(const Model *m,char *error,size_t size) {
     }
     glGenBuffers(1,&g->grid);glBindBuffer(GL_ARRAY_BUFFER,g->grid);
     glBufferData(GL_ARRAY_BUFFER,sizeof(grid),grid,GL_STATIC_DRAW);
-    glGenBuffers(1,&g->marker);
     if(glGetError()!=GL_NO_ERROR)goto fail;
     stock_log("renderer=%s vertices=%zu layers=%u\n",glGetString(GL_RENDERER),m->count,m->layers);
     return g;
@@ -161,12 +158,12 @@ int gpu_render(Gpu *g,const Model *m,const RenderView *v,uint8_t *pixels) {
     if(span<1)span=1;
     glUniform3f(g->center,(m->min[0]+m->max[0])/2,(m->min[1]+m->max[1])/2,(m->min[2]+m->max[2])/2);
     float dx=m->max[0]-m->min[0],dy=m->max[1]-m->min[1],dz=m->max[2]-m->min[2];
-    float fit_w=v->compact?w*.90f:420,fit_h=v->compact?h*.90f:190;
+    float fit_w=v->compact?w*.90f:452,fit_h=v->compact?h*.90f:256;
     float pixels_per_mm=(flat?fminf(fit_w/fmaxf(dx,1),fit_h/fmaxf(dy,1)):
                              fminf(fit_w,fit_h)/fmaxf(sqrtf(dx*dx+dy*dy+dz*dz),1))*zoom;
     glUniform3f(g->scale,2*pixels_per_mm/w,2*pixels_per_mm/h,0.8f/span);
     glUniform4f(g->rotation,cosf(yaw),sinf(yaw),cosf(tilt),sinf(tilt));
-    glUniform1f(g->point_size,8*SAMPLES);glUniform1f(g->brightness,1);
+    glUniform1f(g->brightness,1);
     attributes(g->vbo);glLineWidth(SAMPLES);
     size_t first=layer?m->layer_end[layer-1]:0;
     size_t end=m->layer_end[layer];
@@ -185,14 +182,6 @@ int gpu_render(Gpu *g,const Model *m,const RenderView *v,uint8_t *pixels) {
     if(completed<first)completed=first;
     glUniform1f(g->brightness,.38f);glDrawArrays(GL_LINES,completed,end-completed);
     glUniform1f(g->brightness,1);glDrawArrays(GL_LINES,first,completed-first);
-    if(v->nozzle){
-        const float *p=v->nozzle;
-        if(p[0]>=m->min[0]-5&&p[0]<=m->max[0]+5&&p[1]>=m->min[1]-5&&p[1]<=m->max[1]+5){
-            Vertex dot={.x=p[0],.y=p[1],.z=p[2],.color={80,255,120,255}};
-            glBindBuffer(GL_ARRAY_BUFFER,g->marker);glBufferData(GL_ARRAY_BUFFER,sizeof(dot),&dot,GL_STREAM_DRAW);
-            attributes(g->marker);glDisable(GL_DEPTH_TEST);glDrawArrays(GL_POINTS,0,1);
-        }
-    }
     glBindFramebuffer(GL_READ_FRAMEBUFFER,g->scene_fbo);glBindFramebuffer(GL_DRAW_FRAMEBUFFER,g->resolve_fbo);
     glBlitFramebuffer(0,0,w*SAMPLES,h*SAMPLES,0,0,w,h,GL_COLOR_BUFFER_BIT,GL_LINEAR);
     glBindFramebuffer(GL_FRAMEBUFFER,g->resolve_fbo);
@@ -200,13 +189,17 @@ int gpu_render(Gpu *g,const Model *m,const RenderView *v,uint8_t *pixels) {
     if(glGetError()!=GL_NO_ERROR)return -1;
     for(int y=0;y<h;y++)memcpy(pixels+y*w*4,g->readback+(h-1-y)*w*4,w*4);
     if(v->compact)return 0;
-    for(int y=0;y<HEIGHT;y++)if(y<48||y>=264)for(int x=0;x<WIDTH;x++){
-        uint8_t *p=pixels+(y*WIDTH+x)*4;p[0]=25;p[1]=23;p[2]=20;p[3]=255;
-    }
-    int fill=60+(m->layers>1?(int)(360ull*layer/(m->layers-1)):360);
-    for(int y=270;y<274;y++)for(int x=60;x<=420;x++){
+    int fill=12+(m->layers>1?(int)(456ull*layer/(m->layers-1)):456);
+    for(int y=308;y<312;y++)for(int x=12;x<=468;x++){
         uint8_t *p=pixels+(y*WIDTH+x)*4;
         p[0]=x<=fill?255:65;p[1]=x<=fill?102:60;p[2]=x<=fill?24:55;
+    }
+    for(int y=304;y<=315;y++)for(int x=fill-6;x<=fill+6;x++){
+        float alpha=fmaxf(0,fminf(1,6-sqrtf((x-fill)*(x-fill)+(y-309.5f)*(y-309.5f))));
+        uint8_t *p=pixels+(y*WIDTH+x)*4;
+        p[0]=(uint8_t)(p[0]*(1-alpha)+255*alpha);
+        p[1]=(uint8_t)(p[1]*(1-alpha)+102*alpha);
+        p[2]=(uint8_t)(p[2]*(1-alpha)+24*alpha);
     }
     return 0;
 }

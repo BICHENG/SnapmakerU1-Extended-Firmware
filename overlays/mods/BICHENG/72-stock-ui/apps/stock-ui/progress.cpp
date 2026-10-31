@@ -1,11 +1,10 @@
 #include "progress.h"
 #include <boost/json.hpp>
 #include <curl/curl.h>
-#include <cmath>
 #include <cstring>
 #include <new>
 #ifndef STOCK_PROGRESS_URL
-#define STOCK_PROGRESS_URL "http://127.0.0.1:7125/printer/objects/query?print_stats&virtual_sdcard&motion_report&gcode_move&webhooks"
+#define STOCK_PROGRESS_URL "http://127.0.0.1:7125/printer/objects/query?print_stats&virtual_sdcard&webhooks"
 #endif
 struct ProgressClient { CURL *curl; CURLM *multi; bool pending; size_t length; char data[32768]; };
 static uint64_t integer(const boost::json::value& v) {
@@ -35,16 +34,6 @@ int progress_parse(const char *data,size_t length,PrintProgress *out) {
         const auto& sd=status.at("virtual_sdcard");
         p.file_position=integer(sd.at("file_position"));p.file_size=integer(sd.at("file_size"));
         if(p.file_position>p.file_size||(p.state!=JOB_IDLE&&!name.size()))return -1;
-        const auto& motion=status.at("motion_report").at("live_position").as_array();
-        const auto& origin=status.at("gcode_move").at("homing_origin").as_array();
-        if(motion.size()>=3&&origin.size()>=3) {
-            p.has_nozzle=1;
-            for(int k=0;k<3;k++){
-                double x=boost::json::value_to<double>(motion[k])-boost::json::value_to<double>(origin[k]);
-                if(!std::isfinite(x)||std::fabs(x)>10000)p.has_nozzle=0;
-                p.nozzle[k]=static_cast<float>(x);
-            }
-        }
         *out=p;return 0;
     } catch(const std::exception&) {return -1;}
 }
