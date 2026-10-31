@@ -1,0 +1,62 @@
+name: Feature firmware
+on:
+  push:
+    branches: [fancurves, balanced-low-current, printers-sonic, gui, stock-ui]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: feature-firmware-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  firmware:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .github/dev
+          load: true
+          tags: snapmaker-u1-dev:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Read source versions
+        run: cat vars.mk >> "$GITHUB_ENV"
+      - uses: actions/cache@v4
+        with:
+          path: firmware/
+          key: firmwares-${{ runner.os }}-${{ runner.arch }}-${{ env.FIRMWARE_VERSION }}
+      - uses: actions/cache@v4
+        with:
+          path: tmp/kernel/
+          key: kernels-${{ runner.os }}-${{ runner.arch }}-${{ env.KERNEL_SHA }}
+      - uses: actions/cache@v4
+        with:
+          path: |
+            tmp/ccache/
+            tmp/cache/
+          key: stock-ui-build-${{ github.sha }}
+          restore-keys: stock-ui-build-
+      - name: Check audio service
+        if: hashFiles('overlays/mods/BICHENG/70-app-auxmic/test/test_*.py') != ''
+        run: python3 -m unittest discover -s overlays/mods/BICHENG/70-app-auxmic/test -p 'test_*.py'
+      - name: Build firmware
+        run: |
+          ./dev.sh make firmware
+          profile=extended
+          if [ -d overlays/mods/BICHENG ]; then profile=extended-BICHENG; fi
+          output="U1_${GITHUB_REF_NAME//\//-}_${GITHUB_SHA}_upgrade.bin"
+          ./dev.sh make build PROFILE="$profile" OUTPUT_FILE="$output"
+          sha256sum "$output" > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.ref_name }}-firmware
+          path: |
+            U1_*_upgrade.bin
+            SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
