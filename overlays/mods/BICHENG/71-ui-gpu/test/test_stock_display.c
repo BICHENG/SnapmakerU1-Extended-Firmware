@@ -40,6 +40,7 @@ static int test_clock(clockid_t,struct timespec *);
 static char fixture_path[256], request_path[256];
 static int pretend_gui, hash_kind=-1, hash_available=1, have_extension, mutex_depth;
 static unsigned locks, unlocks, timer_writes, attachments, polls, ticks, tick_lookups, logs, repaints;
+static unsigned draw_ticks, draw_lookups;
 static unsigned actual_refresh, actual_animation, attached_gpu, slept;
 static uint64_t fake_ms=100000;
 static unsigned refresh_timer=33, animation_timer=33;
@@ -49,6 +50,10 @@ static DisplayAbi fake_abi;
 
 static int sleep_original(useconds_t value) { slept=value; return 7; }
 static unsigned tick_extension(unsigned value) { assert(!mutex_depth); ticks++; return value<17000?value:17000; }
+static void tick_draw(uintptr_t base,void *display)
+{
+    assert(!mutex_depth && base==vendor_base && display==display_memory); draw_ticks++;
+}
 static void lock_native(void) { assert(!mutex_depth); mutex_depth=1; locks++; }
 static void unlock_native(void) { assert(mutex_depth==1); mutex_depth=0; unlocks++; }
 static void set_period(void *timer,unsigned period) { assert(mutex_depth==1); *(unsigned *)timer=period; timer_writes++; }
@@ -81,6 +86,7 @@ static void *test_dlsym(void *handle,const char *name)
     if(!strcmp(name,"usleep")) { assert(handle==RTLD_NEXT); return sleep_original; }
     assert(handle==RTLD_DEFAULT);
     if(!strcmp(name,"SHA256")) return hash_available?fake_sha:NULL;
+    if(!strcmp(name,"stock_draw_tick")) { draw_lookups++; return have_extension?tick_draw:NULL; }
     assert(!strcmp(name,"stock_ui_tick")); tick_lookups++;
     return have_extension?tick_extension:NULL;
 }
@@ -115,9 +121,10 @@ static int test_clock(clockid_t clock,struct timespec *value)
 
 static void reset_policy(unsigned version,int enabled,int extension)
 {
-    main_initialized=policy_reported=unsupported_reported=0; extension_tick=NULL;
-    benchmark_until=benchmark_next=benchmark_checked=0;
+    main_initialized=policy_reported=unsupported_reported=0; extension_tick=NULL; draw_tick=NULL;
+    benchmark_until=benchmark_checked=0;
     locks=unlocks=timer_writes=attachments=polls=ticks=tick_lookups=logs=repaints=0;
+    draw_ticks=draw_lookups=0;
     refresh_timer=animation_timer=33; have_extension=extension;
     global_pointer=global_memory;
     memset(global_memory,0,sizeof(global_memory)); memset(display_memory,0,sizeof(display_memory));
@@ -158,7 +165,7 @@ int main(void)
     assert(!ftruncate(fd,1)); display_init(); assert(!vendor_abi); close(fd);
 
     reset_policy(1,0,0);
-    assert(native_tick(99000,vendor_base+fake_abi.main_sleep+4)==99000 && !locks && !tick_lookups);
+    assert(native_tick(99000,vendor_base+fake_abi.main_sleep+4)==99000 && !locks && !tick_lookups && !draw_lookups);
     assert(native_tick(99000,vendor_base+fake_abi.main_sleep)==99000);
     assert(locks==1 && unlocks==1 && !timer_writes && actual_refresh==33 && actual_animation==33 && !attached_gpu);
     refresh_timer=17;
@@ -169,7 +176,7 @@ int main(void)
     assert(native_tick(99000,vendor_base+fake_abi.main_sleep)==17000);
     assert(timer_writes==2 && actual_refresh==22 && actual_animation==22 && attached_gpu && ticks==1);
     native_tick(900,vendor_base+fake_abi.main_short_sleep);
-    assert(timer_writes==2 && tick_lookups==1 && ticks==2 && polls==2);
+    assert(timer_writes==2 && tick_lookups==1 && ticks==2 && polls==2 && draw_lookups==1 && draw_ticks==2);
     unsigned log_count=logs; native_tick(900,vendor_base+fake_abi.main_sleep); assert(logs==log_count);
 
     reset_policy(0,1,1);
@@ -185,17 +192,26 @@ int main(void)
     native_tick(1000,vendor_base+fake_abi.main_sleep);
     alarm(0);
     assert(!benchmark_until && !repaints && access(request_path,F_OK)!=0);
-    assert(!attachments && !ticks && !timer_writes);
+    assert(!attachments && !ticks && !timer_writes && !draw_ticks);
     global_pointer=global_memory;
     request("16\n"); native_tick(1000,vendor_base+fake_abi.main_sleep); assert(!benchmark_until && !repaints);
     request("2\n"); native_tick(1000,vendor_base+fake_abi.main_sleep);
     assert(benchmark_until==fake_ms+2000 && repaints==1 && access(request_path,F_OK)!=0 && !timer_writes);
-    fake_ms+=32; native_tick(1000,vendor_base+fake_abi.main_sleep); assert(repaints==1);
-    fake_ms++; native_tick(1000,vendor_base+fake_abi.main_sleep); assert(repaints==2);
-    fake_ms+=2000; native_tick(1000,vendor_base+fake_abi.main_sleep); assert(!benchmark_until && repaints==2);
-    request("1junk\n"); native_tick(1000,vendor_base+fake_abi.main_sleep); assert(!benchmark_until && repaints==2);
+    fake_ms++; native_tick(1000,vendor_base+fake_abi.main_short_sleep); assert(repaints==2);
+    assert(!timer_writes && refresh_timer==33 && animation_timer==33);
+    native_tick(1000,vendor_base+fake_abi.main_sleep+4); assert(repaints==2);
+    native_tick(1000,vendor_base+fake_abi.main_sleep); assert(repaints==3);
+    fake_ms+=1999; native_tick(1000,vendor_base+fake_abi.main_sleep); assert(!benchmark_until && repaints==3);
+    fake_ms++; native_tick(1000,vendor_base+fake_abi.main_sleep); assert(!benchmark_until && repaints==3);
+    request("1junk\n"); native_tick(1000,vendor_base+fake_abi.main_sleep); assert(!benchmark_until && repaints==3);
     ((int32_t *)display_memory)[0]=100;
-    request("1\n"); native_tick(1000,vendor_base+fake_abi.main_sleep); assert(!benchmark_until && repaints==2);
+    request("1\n"); native_tick(1000,vendor_base+fake_abi.main_sleep); assert(!benchmark_until && repaints==3);
+    reset_policy(1,1,0);
+    request("1\n"); native_tick(1000,vendor_base+fake_abi.main_sleep); assert(benchmark_until && repaints==1);
+    fake_ms++; native_tick(1000,vendor_base+fake_abi.main_sleep); assert(repaints==2);
+    assert(timer_writes==2 && refresh_timer==22 && animation_timer==22);
+    fake_ms+=999; native_tick(1000,vendor_base+fake_abi.main_sleep); assert(!benchmark_until && repaints==2);
+    assert(timer_writes==2);
     assert(!unlink(fixture_path)); assert(!rmdir(directory));
     puts("stock-display host tests passed: hash gate, callsite, off/on, animation, optional tick, unsupported perf, bounded repaint");
     return 0;

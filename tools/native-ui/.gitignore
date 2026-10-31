@@ -1,0 +1,6 @@
+*.so
+*.o
+__pycache__/
+capture/test_capture
+test-resources
+test-comparison

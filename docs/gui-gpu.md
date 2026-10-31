@@ -1,6 +1,6 @@
 # Factory UI GPU rendering and automated reconstruction
 
-Status on 2026-10-31: feasibility branch, based on gpu. This branch adds this plan only. It does not contain a replacement UI executable, a new runtime hook or a new Firmware selector. Automatic acquisition has supporting evidence; a complete automatic reconstruction has not been demonstrated.
+Status on 2026-11-01: measured drawing experiments, based on gpu. This branch contains reproducible diagnostics under [tools/native-ui](../tools/native-ui/README.md) and an optional observation callback in the existing main-loop adapter. The diagnostics are excluded from firmware packaging. There is no replacement UI, additional Firmware selector or installed widget GPU backend. Full automatic reconstruction has not been demonstrated.
 
 The product requirement is the original Snapmaker UX with better drawing performance. Preserve its navigation, layout, printing behavior and settings. Retain the shipped gpu foundation, the original executable and the GPU-off baseline while developing the candidate. See [GPU architecture](gpu-architecture.md) for the accepted runtime and measured limits.
 
@@ -8,9 +8,13 @@ The product requirement is the original Snapmaker UX with better drawing perform
 
 The original application continues to own page construction, layout, events and printer operations. A version-checked adapter consumes native drawing work and uses GPU rendering only for operations with measured complete-page benefit. This applies to all covered pages without manually recreating each one.
 
-Existing isolated experiments against GUI SHA256 2cf51b704a1d750f269f4132f108197ea7ec3b4b0865b070b87e150bf9d0e472 verified two GPU tasks plus one native software task through the original queue, completion and cleanup. Six default-font cases reproduced copied glyph output without pixel differences. These establish useful entry points, not a complete backend. Simple rectangle fills were slower on GPU, so a blanket replacement is rejected.
+The checked GUI SHA256 is 2cf51b704a1d750f269f4132f108197ea7ec3b4b0865b070b87e150bf9d0e472. The current original homepage was captured without changing dispatch or drawing. It contains seven fills, twelve labels and twelve images in one root layer. Correcting the bounded repaint test's second clock produced 45.0 and 45.2 complete frames/s in two five-second windows, with CPU-path refresh p95 of 6.81 and 6.85 ms. These windows exclude the capture overhead and do not measure panel scanout or every page.
 
-The next executable experiment must cover an actual expensive page, including main-buffer allocation, DIRECT double-buffer synchronization and fbdev delivery. Keep the single existing main-loop adapter; do not add a second sleep hook. Native task descriptors cannot outlive their LVGL lifetime. Mixed CPU/GPU work must preserve ordering, clipping and alpha with explicit ownership transitions. Neither an extra frame copy nor one synchronization per widget is an assumed performance solution.
+The isolated GPU compositor batches the whole scene, imports a 1,920-byte-stride BGRA DMA buffer and finishes once. Framebuffer-fetch shaders reproduce the original integer alpha rules exactly in all fifteen tested default-font scenes; standard GL blending does not. Even after skipping invisible commands and using clears for opaque fills, the 204-glyph scene takes 2.37 ms on GPU versus 1.37 ms through native CPU drawing and delivery. The native measurement includes label layout; GPU atlas preparation is outside its warm timing. This candidate is not promoted.
+
+Eight isolated image/glyph cases also pass resource capture, native passthrough and replay after the source assets are overwritten. Capacity failures still finish native drawing. This proves ownership and selected resource semantics, not a new renderer: replay continues to call the original ELF's CPU drawing functions. Packaged sources reproduce all three measured probe binaries byte-for-byte. See [results and limits](../tools/native-ui/results.json).
+
+The current decision is to retain CPU widgets and the shared GPU path for measured G-code workloads. A future widget backend needs a demonstrated expensive page before further integration. It must include main-buffer allocation, DIRECT synchronization and fbdev delivery in its comparison. Keep the single main-loop adapter. Native task descriptors cannot outlive their LVGL lifetime. Mixed CPU/GPU work must preserve ordering, clipping and alpha with explicit ownership transitions. Neither an extra frame copy nor one synchronization per widget is an assumed performance solution.
 
 Promotion requires complete-frame CPU and GPU measurements on the same page and state, including p95, memory use and idle behavior. A failed performance experiment remains here; it must not add permanent complexity to gpu.
 
@@ -33,7 +37,7 @@ flowchart LR
 
 Every capture must record the executable hash, firmware version, language, screen size, input sequence and status-event sequence. Within the scene, capture stable object identity and parentage, class, rectangle, draw order, visibility, state, clipping, computed styles, text, font/glyph data, image contents and transforms. Record assets by content hash, not process pointers. Dynamic values and event transitions need explicit bindings; a button's coordinates do not define its behavior.
 
-The available historical home/files/detail logs contain 78/684/144 object records respectively. These are record counts, potentially including repeated snapshots, not counts of unique controls or coverage percentages. Their rectangles, text and image references prove that structural extraction is possible. Missing visibility, styles, events and an embedded version hash prevent treating them as current-version golden fixtures. Memory addresses and class offsets are not stable identifiers across versions.
+The current versioned homepage capture contains a verified frame and 31 task records. Descriptor pointers are diagnostic only. The separately tested resource module is not connected to that capture, so this is not yet a portable whole-page scene. Styles, navigation, event/state transitions and control-command equivalence remain unproven. Memory addresses and class offsets are not stable identities across versions.
 
 Collect additional states through isolated input/status replay with printer commands recorded by test doubles. Do not use an automated click crawler on the production printer. The collector must first prove that the original application cannot reach production control resources; legacy exploratory probes are not production collectors.
 
@@ -51,10 +55,10 @@ Only one implementation may control the printer. A rendering-only adapter preser
 
 | Unit | Required evidence | Current status |
 | --- | --- | --- |
-| Versioned acquisition | Reproducible scene, asset and transition capture; unsupported fields listed | Partial historical trees and isolated draw/glyph probes only |
+| Versioned acquisition | Reproducible scene, asset and transition capture; unsupported fields listed | Current homepage metadata/frame capture plus eight isolated resource-replay cases; no whole-page portable scene or transition capture |
 | One generated page | Repeatable generator output; state replay and visual/interaction comparison | Not implemented |
-| GPU backend | Complete-frame benefit over CPU, correct fallbacks, bounded memory and idle release | Shared GPU output exists; full widget backend not implemented |
+| GPU backend | Complete-frame benefit over CPU, correct fallbacks, bounded memory and idle release | Exact pixels in fifteen synthetic scenes; batch compositor slower than CPU and rejected for daily use |
 | Whole UI behavior | Coverage inventory with replay for observed states and command equivalence | Not established |
 | Daily firmware | Buildable candidate, explicit promotion, rollback and device acceptance | Excluded from gui and stock-ui |
 
-The existing Feature firmware workflow can build future candidates through workflow_dispatch. Automatic firmware builds intentionally exclude this documentation-only branch. Add collector/generator checks when executable work exists; do not start a second firmware build system or flash a plan.
+The Native UI diagnostics workflow runs sanitizer tests and target compilation for this branch. The existing Feature firmware workflow remains sufficient for future accepted runtime candidates through workflow_dispatch. Automatic firmware builds exclude gui-gpu while it is research only. The measured diagnostic session restored the shipped libraries and left the printer idle, without touches, motion or heating commands.

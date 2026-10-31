@@ -1,0 +1,41 @@
+[
+  {
+    "mode": "off",
+    "name": "off",
+    "refresh_ms": 33,
+    "animation_ms": 33,
+    "offscreen_flushes": 61,
+    "mean_flush_interval_ms": 33.136,
+    "drawn_interval_fps": 30.1787,
+    "sentinel_7ms_callbacks": 1465,
+    "sentinel_37ms_callbacks": 280,
+    "stock_display_sha256": "bec656bb37fd0771204c1152345a438134b22ee163d9bd797988466ab4285343",
+    "production_gui_unchanged": true
+  },
+  {
+    "mode": "on",
+    "name": "on",
+    "refresh_ms": 22,
+    "animation_ms": 22,
+    "offscreen_flushes": 91,
+    "mean_flush_interval_ms": 22.0843,
+    "drawn_interval_fps": 45.281,
+    "sentinel_7ms_callbacks": 1465,
+    "sentinel_37ms_callbacks": 280,
+    "stock_display_sha256": "bec656bb37fd0771204c1152345a438134b22ee163d9bd797988466ab4285343",
+    "production_gui_unchanged": true
+  },
+  {
+    "mode": "on-with-tick",
+    "name": "on-with-tick",
+    "refresh_ms": 22,
+    "animation_ms": 22,
+    "offscreen_flushes": 91,
+    "mean_flush_interval_ms": 22.1132,
+    "drawn_interval_fps": 45.2218,
+    "sentinel_7ms_callbacks": 1465,
+    "sentinel_37ms_callbacks": 280,
+    "stock_display_sha256": "bec656bb37fd0771204c1152345a438134b22ee163d9bd797988466ab4285343",
+    "production_gui_unchanged": true
+  }
+]

@@ -1,0 +1,101 @@
+{
+  "date": "2026-11-01",
+  "vendor_sha256": "2cf51b704a1d750f269f4132f108197ea7ec3b4b0865b070b87e150bf9d0e472",
+  "decision": "Keep ordinary factory widgets on CPU. Retain measured G-code GPU output. Do not promote the widget compositor.",
+  "replacement_ui_implemented": false,
+  "live_resource_capture_connected": false,
+  "reproduced_binary_sha256": {
+    "libstock-draw-capture.so": "41d003c0c226eb65847c954321f3e632af59a5532cf065bbc9ede197abf848aa",
+    "libnative-resources-probe.so": "b56e120cfdece7bbd7c34e047effc83c9ad6f1f856de9c3fd29d16ce2f592350",
+    "libnative-compose-probe.so": "1107849999c84521e64d51b9d0a71b9082aad2dc9a731d315e98f0aca2e5b73f"
+  },
+  "homepage": {
+    "tasks": 31,
+    "types": {
+      "fill": 7,
+      "image": 12,
+      "label": 12
+    },
+    "drawn_fps": [
+      45.0,
+      45.2
+    ],
+    "refresh_p95_ms": [
+      6.8061,
+      6.8507
+    ]
+  },
+  "resource_probe": {
+    "passed_cases": 8,
+    "replay_requires_original_elf": true
+  },
+  "compositor_probe": {
+    "passed_exact_fetch_cases": 15,
+    "samples_per_scene": 20,
+    "dense_page_native_us": {
+      "median_us": 1366.176,
+      "p95_us": 1724.928,
+      "samples_us": [
+        1340.801,
+        1366.176,
+        1386.884,
+        1324.759,
+        1387.76,
+        1329.426,
+        1239.592,
+        1340.801,
+        1390.093,
+        1417.51,
+        1486.927,
+        1198.175,
+        1303.176,
+        1316.3,
+        1230.551,
+        1222.676,
+        1538.552,
+        1562.761,
+        1724.928,
+        2396.642
+      ]
+    },
+    "dense_page_gpu_us": {
+      "median_us": 2367.474,
+      "p95_us": 3960.569,
+      "samples_us": [
+        4044.57,
+        2432.809,
+        2616.852,
+        2459.35,
+        2523.226,
+        2680.143,
+        3960.569,
+        2240.015,
+        2260.141,
+        2367.474,
+        2407.434,
+        2127.431,
+        2613.934,
+        1935.805,
+        1985.097,
+        2269.182,
+        2065.598,
+        2046.056,
+        2173.223,
+        2064.431
+      ]
+    },
+    "timing_scope": "warm atlas; complete ordered batch plus finish/sync/full-frame copy; prepare_us is separate; CPU native includes original label layout"
+  },
+  "evidence_sha256": {
+    "cadence.json": "eb19534a2f3d77bc7eb6bd49cda7feeb3c6efb767a040150cca1c8b83ffb2006",
+    "compose.json": "190ff17c6888b235818fbb7e2dd7e7e85f23ac2ad796f7caa04d5e56d54ea641",
+    "homepage.json": "aae762055f33f97ef260563b566c1bbe5eaf51634252fc850794e4f5b4517dd3",
+    "resources.json": "b2c4a338f5d3d18b872f8b6737b541e6648755620840478ea930ae4b8e4f9976"
+  },
+  "limits": [
+    "The isolated compositor uses default-font synthetic scenes.",
+    "The captured page descriptors contain pointers and are not portable resources.",
+    "Native resource replay does not reconstruct navigation, settings or printer control.",
+    "GPU widget drawing is not installed in daily firmware."
+  ]
+}

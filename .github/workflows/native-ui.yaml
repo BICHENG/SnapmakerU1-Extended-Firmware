@@ -1,0 +1,19 @@
+name: Native UI diagnostics
+on:
+  push:
+    branches: [gui-gpu]
+    paths:
+      - tools/native-ui/**
+      - .github/workflows/native-ui.yaml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install compilers and headers
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu libegl-dev libgles-dev
+      - name: Check host behavior and compile AArch64 probes
+        run: make -C tools/native-ui test all check-compose
