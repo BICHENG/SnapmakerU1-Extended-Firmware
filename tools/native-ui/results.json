@@ -23,7 +23,20 @@
     "refresh_p95_ms": [
       6.8061,
       6.8507
-    ]
+    ],
+    "baseline_33ms": {
+      "drawn_fps": [
+        24.2,
+        30.2
+      ],
+      "refresh_p95_ms": [
+        6.1924,
+        5.745
+      ],
+      "gpu_driver_unchanged": true,
+      "native_timer_policy_only": true,
+      "limitation": "The first complete window had 121 refreshes, the second 151. No over-budget drawn frames were recorded; the cause of the reduced first-window refresh count was not established."
+    }
   },
   "resource_probe": {
     "passed_cases": 8,
@@ -90,7 +103,8 @@
     "cadence.json": "eb19534a2f3d77bc7eb6bd49cda7feeb3c6efb767a040150cca1c8b83ffb2006",
     "compose.json": "190ff17c6888b235818fbb7e2dd7e7e85f23ac2ad796f7caa04d5e56d54ea641",
     "homepage.json": "aae762055f33f97ef260563b566c1bbe5eaf51634252fc850794e4f5b4517dd3",
-    "resources.json": "b2c4a338f5d3d18b872f8b6737b541e6648755620840478ea930ae4b8e4f9976"
+    "resources.json": "b2c4a338f5d3d18b872f8b6737b541e6648755620840478ea930ae4b8e4f9976",
+    "homepage-off.json": "bed93f6af56f21fa6e6ba9ca18cd7db0ebe30bee60fc1c089f3dcf4045b4d937"
   },
   "limits": [
     "The isolated compositor uses default-font synthetic scenes.",

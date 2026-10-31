@@ -16,6 +16,8 @@ The capture remains metadata-only. Its raw descriptor pointers are not portable 
 
 See [measured results](results.json). The current real homepage has 31 tasks: seven fills, twelve labels and twelve images, all in the root layer. With the bounded repaint test corrected, two complete five-second windows drew 45.0 and 45.2 frames/s; CPU-path refresh p95 was 6.81 and 6.85 ms. This includes layout, synchronization, rasterization and delivery, but not panel scanout.
 
+The 33 ms policy baseline completed 24.2 and 30.2 frames/s. The first window had fewer refresh opportunities without over-budget drawn frames; its cause is not established. Both windows are retained in `evidence/homepage-off.json`. This temporary policy test left the GPU driver and saved settings unchanged; it is not a new full hardware-off acceptance. The original libraries and enabled policy were restored afterwards.
+
 The optimized GPU compositor matched all pixels in the fifteen tested scenes. Its 204-glyph scene took 2.37 ms versus 1.37 ms for native CPU drawing plus delivery. The warm GPU atlas excludes upload/layout preparation, while the native CPU measurement includes label layout. Even with that advantage, the candidate was slower. It is not promoted into `gpu`, `gui` or `stock-ui`.
 
 One current homepage and synthetic scenes do not establish all-page or all-font coverage. Ordinary labels/buttons remain on CPU. GPU acceleration remains useful for the measured G-code workloads. Full automatic reconstruction of navigation and printer behavior has not been demonstrated.
