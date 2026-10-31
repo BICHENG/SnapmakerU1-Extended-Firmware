@@ -7,7 +7,7 @@ The fork separates shared GPU support from UI rendering development. Changes are
 | fancurves | Fan curve configuration, editor and Klipper integration | extended |
 | balanced-low-current | Allow Balanced with reduced X/Y current; keep Aggressive blocked | extended |
 | printers-sonic | Phone/network microphone presented through ALSA, including snd-aloop | extended-BICHENG |
-| gpu | Mali runtime, shared output, Firmware switch, stock/Helix adapters and baseline measurement | extended-BICHENG |
+| gpu | Maintenance: Mali runtime, shared output, Firmware switch, stock/Helix adapters and baseline measurement | extended-BICHENG |
 | gui-remote | Framebuffer MPP/WebRTC video and remote touch; independent of Mali | extended |
 | gui-gcode | GPU G-code viewport and version-checked factory UI adapter; includes gpu | extended-BICHENG |
 | gui-gpu | Experimental factory widget GPU rendering and automated reconstruction feasibility; based on gpu | Research only |
@@ -20,6 +20,8 @@ The former gui-gpu foundation branch was renamed gpu. Its commits and runtime co
 Keep changes on the branch that owns them. Merge upstream develop into fancurves, balanced-low-current, printers-sonic, gpu and gui-remote. Update gui-gcode and the experimental gui-gpu through gpu. Integrate gui-gcode and gui-remote into gui, then integrate the four product features into stock-ui. Do not rewrite published history. A future accepted gui-gpu change needs an explicit integration decision.
 
 The G-code stage consumes the foundation's common output module and display tick. The remote stage remains independent. GPU use is opt-in and does not replace the factory LVGL widget renderer. See [GPU architecture](gpu-architecture.md) and [GUI delivery stages](gui-stages.md) for boundaries and acceptance evidence.
+
+The gpu scope is settled. Its [maintenance boundary](gpu-architecture.md#maintenance-boundary) owns the allowed changes, performance comparisons and checks. Routine maintenance does not resume whole-widget GPU conversion or automatic UI reconstruction.
 
 The existing stock-ui.yaml workflow builds the eight delivery branches with the upstream toolchain. On GPU-bearing branches it also calls the pinned Helix build and verifies its source manifest before installation. It selects the BICHENG profile only when that branch contains BICHENG mods. Artifacts are named <branch>-firmware and contain the firmware image and SHA256SUMS. It does not publish releases, open pull requests or flash a printer. gui-gpu remains excluded from automatic firmware builds while it is research only. Its native-ui.yaml checks diagnostics without packaging them; workflow_dispatch remains available for a future accepted firmware candidate.
 
