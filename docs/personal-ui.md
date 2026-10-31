@@ -2,7 +2,7 @@
 
 The gui feature branch retains Snapmaker's original /usr/bin/gui and its file selection, material mapping, printing and settings screens. The stock-ui integration branch combines it with Fan Curves, Balanced-only reduced motor current and the ALSA network microphone. All active feature branches follow the vendor version pinned by upstream develop. No upstream pull request is part of this work.
 
-This document describes the integrated gui feature. Its delivery branches are gui-gpu, gui-remote and gui-gcode; the last includes GPU support but not the WebRTC changes. See [GUI delivery stages](gui-stages.md) for their dependencies and acceptance boundaries.
+This document describes the integrated gui feature. Its delivery branches are gpu, gui-remote and gui-gcode; the last includes GPU support but not the WebRTC changes. The experimental gui-gpu branch studies factory widget rendering and automated reconstruction and is excluded from this daily integration. See [GUI delivery stages](gui-stages.md) for their dependencies and acceptance boundaries.
 
 ## Rendering
 
