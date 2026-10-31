@@ -36,6 +36,9 @@ typedef struct {
     uintptr_t stock_button_class;
     uintptr_t stock_image_class;
     uintptr_t stock_global_got;
+    size_t object_parent_offset;
+    size_t global_display_offset;
+    size_t display_refresh_timer_offset;
     uintptr_t stock_main_sleep;
     uintptr_t stock_main_short_sleep;
 } StockAbi;
@@ -73,6 +76,9 @@ static const StockAbi stock_abis[]={
      .stock_button_class=0x69e2b8,
      .stock_image_class=0x69e538,
      .stock_global_got=0x69ff40,
+     .object_parent_offset=0x8,
+     .global_display_offset=0x28,
+     .display_refresh_timer_offset=0x380,
      .stock_main_sleep=0x3bb78,
      .stock_main_short_sleep=0x3bb90},
     {.version="2.1.0.157", .executable_size=6563736, .sha256="2cf51b704a1d750f269f4132f108197ea7ec3b4b0865b070b87e150bf9d0e472",
@@ -107,6 +113,9 @@ static const StockAbi stock_abis[]={
      .stock_button_class=0x63f2b0,
      .stock_image_class=0x63f530,
      .stock_global_got=0x640f38,
+     .object_parent_offset=0x8,
+     .global_display_offset=0x28,
+     .display_refresh_timer_offset=0x380,
      .stock_main_sleep=0xe8b8,
      .stock_main_short_sleep=0xe8d0},
 };

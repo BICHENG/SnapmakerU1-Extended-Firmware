@@ -179,8 +179,12 @@ static void *worker(void *unused) {
             int rc=gpu_render(g,&m,&view,pixels);
             pthread_mutex_lock(&mutex);
             if(atomic_load(&generation)==seq){
-                if(rc)snprintf(message,sizeof(message),"GPU 绘制失败");
+                if(rc){
+                    snprintf(message,sizeof(message),"GPU 绘制失败");
+                    inline_show=0;inline_ready=0;
+                }
                 else {
+                    message[0]=0;
                     if(modal){memcpy(frame,pixels,sizeof(frame));frame_ready=1;}
                     else {
                         memcpy(inline_frame,pixels,(size_t)view.width*view.height*4);
@@ -355,7 +359,7 @@ static void update_thumbnail(const char *path,int w,int h){
     start_worker();pthread_mutex_unlock(&mutex);
 }
 static void lock_page_scroll(void *image){
-    for(void *o=image;o;o=*(void**)((char*)o+8)){
+    for(void *o=image;o;o=*(void**)((char*)o+abi->object_parent_offset)){
         int32_t a[4];FN(lv_obj_get_coords,void,void*,int32_t*)(o,a);
         if(o==image||(a[0]==0&&a[1]==0&&a[2]==WIDTH-1&&a[3]==HEIGHT-1))
             FN(lv_obj_remove_flag,void,void*,uint32_t)(o,(1u<<4)|(1u<<8)|(1u<<9)|(1u<<15));
@@ -396,8 +400,9 @@ static void pump(void){
     FN(lv_lock,void,void)();
     void *current=FN(lv_display_get_screen_active,void*,void*)(NULL);
     if(current&&!refresh_set){
-        void *global=*(void**)(base+abi->stock_global_got),*disp=*(void**)((char*)global+0x28);
-        void *timer=*(void**)((char*)disp+0x380);
+        void *global=*(void**)(base+abi->stock_global_got);
+        void *disp=*(void**)((char*)global+abi->global_display_offset);
+        void *timer=*(void**)((char*)disp+abi->display_refresh_timer_offset);
         stock_log("refresh period %u -> 22 ms\n",*(unsigned*)timer);
         FN(lv_timer_set_period,void,void*,unsigned)(timer,22);refresh_set=1;
     }
