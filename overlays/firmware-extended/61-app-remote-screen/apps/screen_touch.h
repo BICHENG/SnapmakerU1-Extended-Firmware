@@ -49,6 +49,11 @@ public:
         if (!msg.is_object() || !msg.contains("touch") || !msg["touch"].is_string()) return false;
         auto action = msg["touch"].get<std::string>();
         std::lock_guard<std::mutex> lock(mutex_);
+        if (action == "hold") {
+            if (owner_.empty() || owner_ != id) return false;
+            last_ = std::chrono::steady_clock::now();
+            return true;
+        }
         if (action == "up") { if (owner_ != id) return false; release(); return true; }
         if (action != "down" && action != "move") return false;
         if (!msg.contains("x") || !msg.contains("y") || !msg["x"].is_number() || !msg["y"].is_number()) return false;

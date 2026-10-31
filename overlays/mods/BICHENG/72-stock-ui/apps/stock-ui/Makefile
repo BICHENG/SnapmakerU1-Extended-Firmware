@@ -14,6 +14,10 @@ stock-ui.o: stock-ui.c gpu.h gcode.h progress.h stock-abi.h
 gcode.o: gcode.c gcode.h
 gpu.o: gpu.c gpu.h gcode.h
 progress.o: progress.cpp progress.h
+gpu-profile.o: gpu.c gpu.h gcode.h
+	$(CC) $(CFLAGS) $(CPPFLAGS) -DSTOCK_GPU_PROFILE -c gpu.c -o $@
+bench-gpu: bench_gpu.c gpu-profile.o gcode.o
+	$(CC) $(CFLAGS) $(CPPFLAGS) -DSTOCK_GPU_PROFILE $^ $(MALI_LIB) -lm -o $@
 test:
 	$(HOSTCC) -O1 -g -fsanitize=address,undefined -Wall -Wextra -Werror gcode.c test_gcode.c -lm -o test-gcode
 	./test-gcode
@@ -21,5 +25,5 @@ test:
 	./test-progress
 	rm -f test-gcode test-progress
 clean:
-	rm -f $(TARGET) *.o test-gcode test-progress
+	rm -f $(TARGET) *.o test-gcode test-progress bench-gpu
 .PHONY: all test clean
