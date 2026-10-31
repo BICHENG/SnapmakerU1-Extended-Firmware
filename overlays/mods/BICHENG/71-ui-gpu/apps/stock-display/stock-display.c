@@ -66,9 +66,17 @@ static void benchmark_poll(uint64_t now)
     if(benchmark_checked && now-benchmark_checked<1000) return;
     benchmark_checked=now;
     const char *path="/tmp/stock-display-benchmark-seconds";
-    int fd=open(path,O_RDONLY|O_CLOEXEC|O_NOFOLLOW);
+    int fd=open(path,O_RDONLY|O_CLOEXEC|O_NOFOLLOW|O_NONBLOCK);
     if(fd<0) return;
     char text[24]={0};
+    struct stat request;
+    if(fstat(fd,&request) || !S_ISREG(request.st_mode) || request.st_size<=0 ||
+       request.st_size>=(off_t)sizeof(text)-1) {
+        close(fd);
+        unlink(path);
+        display_log("repaint benchmark rejected: expected a short regular file\n");
+        return;
+    }
     ssize_t length=read(fd,text,sizeof(text)-1);
     close(fd);
     if(unlink(path)) return;
