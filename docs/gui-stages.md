@@ -1,14 +1,17 @@
 # GUI delivery stages
 
-The original Snapmaker executable and screen remain the product UI. The gui branch integrates three independently reviewable stages; stock-ui combines gui with Fan Curves, Balanced reduced current and the ALSA network microphone. Shared build dependencies are not runtime dependencies between stages.
+The original Snapmaker executable and screen remain the product UI. The gui branch integrates the shared GPU foundation and two delivered GUI features; stock-ui combines gui with Fan Curves, Balanced reduced current and the ALSA network microphone. The new gui-gpu research branch stays outside this integration. Shared build dependencies are not runtime dependencies between stages.
 
 | Stage | Branch | Scope | Depends on |
 | --- | --- | --- | --- |
-| 1 | gui-gpu | Mali runtime, shared GPU output, Firmware switch, stock/Helix refresh policy and baseline measurement | Upstream develop |
+| 1 | gpu | Mali runtime, shared GPU output, Firmware switch, stock/Helix refresh policy and baseline measurement | Upstream develop |
 | 2 | gui-remote | Framebuffer capture, MPP H.264 encoding, WebRTC video and touch, connection lifecycle | Upstream develop and its existing camera libraries |
-| 3 | gui-gcode | G-code parsing and progress, GLES viewport, original UI adapter and controls | gui-gpu |
+| 3 | gui-gcode | G-code parsing and progress, GLES viewport, original UI adapter and controls | gpu |
+| Research | gui-gpu | Factory widget GPU rendering; automated reconstruction as a fallback | gpu; not merged into gui or stock-ui |
 
 The implementation directories are 71-ui-gpu, 61-app-remote-screen and 72-stock-ui respectively. Stage 2 uses Rockchip's video encoder, not the Mali graphics processor. It works with the factory software renderer and does not require stage 1 or stage 3.
+
+The former gui-gpu branch is now gpu. The new gui-gpu has no replacement UI runtime yet. Its first decision is whether measured factory drawing can benefit from a GPU backend while retaining the original application. An independent reconstruction requires versioned captures, generated views and state/interaction replay; historical object trees alone do not establish completeness. See [GPU architecture](gpu-architecture.md).
 
 ## Stage 1: provide GPU capability
 
