@@ -354,6 +354,13 @@ static void update_thumbnail(const char *path,int w,int h){
     }
     start_worker();pthread_mutex_unlock(&mutex);
 }
+static void lock_page_scroll(void *image){
+    for(void *o=image;o;o=*(void**)((char*)o+8)){
+        int32_t a[4];FN(lv_obj_get_coords,void,void*,int32_t*)(o,a);
+        if(o==image||(a[0]==0&&a[1]==0&&a[2]==WIDTH-1&&a[3]==HEIGHT-1))
+            FN(lv_obj_remove_flag,void,void*,uint32_t)(o,(1u<<4)|(1u<<8)|(1u<<9)|(1u<<15));
+    }
+}
 static void scan(void *o,unsigned depth){
     if(!o||depth>14)return;
     if(!FN(lv_obj_is_visible,int,void*)(o))return;
@@ -366,6 +373,7 @@ static void scan(void *o,unsigned depth){
         if(src&&*src=='A'&&w>=60&&h>=60&&w<=WIDTH&&h<=HEIGHT&&model_path((const char*)src,candidate,sizeof(candidate))){
             font=find_font(FN(lv_display_get_screen_active,void*,void*)(NULL),0);
             source_image=o;
+            lock_page_scroll(o);
             inline_image=create(abi->stock_image_class,o);
             if(inline_image){
                 pos(inline_image,0,0);FN(lv_obj_add_flag,void,void*,uint32_t)(inline_image,1);
