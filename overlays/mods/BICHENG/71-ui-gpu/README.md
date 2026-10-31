@@ -1,5 +1,8 @@
 # U1 Mali GPU foundation
 
+This foundation is in maintenance. Scope, comparison rules and checks are owned
+by the [GPU architecture](../../../../docs/gpu-architecture.md#maintenance-boundary).
+
 This overlay enables the existing RK3562 Mali-G52 node, builds the pinned
 Rockchip kernel's bifrost driver and installs the checksummed Mali g24p0 EGL,
 GLES and GBM library with its licence. It does not change the original UI's

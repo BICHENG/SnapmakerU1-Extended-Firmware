@@ -1,6 +1,32 @@
 # GPU architecture and UI reconstruction boundary
 
-Updated 2026-11-01. The daily runtime was accepted in stock-ui commit 7ba72da on vendor 2.1.0.157. The GPU foundation is gpu; gui-gpu holds factory drawing experiments and automatic reconstruction research. The new change corrects only the bounded repaint measurement. It does not add another renderer or change normal animation/sleep behavior.
+Updated 2026-11-01. The daily runtime was accepted in stock-ui commit 7ba72da on vendor 2.1.0.157. The GPU foundation is gpu and is now in maintenance. gui-gpu holds factory drawing experiments and automatic reconstruction research. The last runtime change, 81e9729, corrects only the bounded repaint measurement. The maintenance decision changes no runtime code.
+
+## Maintenance boundary
+
+This section owns the gpu maintenance rules. Keep the existing driver and power policy, shared output, Firmware switch, factory/Helix adapters and bounded measurements. Accept correctness and compatibility fixes, resource-lifetime fixes and verified upstream updates. New page behavior, printer commands and the experimental widget renderer stay outside this branch. A new backend needs a measured problem in a specific page and a complete-frame benefit before reconsideration.
+
+Keep the deployed defaults: opt-in GPU, checked 400 MHz cap, runtime suspend, original software widgets, 22 ms enabled cadence and the 33 ms disabled baseline. Preserve installed paths and configuration keys. Unknown factory executables must pass through without private calls; mismatched Helix assets must use the official executable. Unsupported DMA imports retain readback, while failed CPU synchronization must abort the frame. Maintenance does not add a service, renderer switch or panel overclock.
+
+Choose the comparison that answers the change:
+
+| Question | Hold fixed | Change and report |
+| --- | --- | --- |
+| Does a renderer help? | Same page/state, display and animation periods, resolution, visual quality and observers | CPU/GPU drawing only; complete-frame time, memory and pixels. Use an isolated experiment; the Firmware off/on switch is not this comparison. |
+| Does shared output help? | Same GLES binary, geometry, cadence and visual quality | UI_GPU_OUTPUT=readback versus automatic output; include completion, synchronization and delivery. |
+| What does the user-facing switch do? | Same page/workload and measurement window | Existing off/on policy; identify both GPU availability and 33/22 ms cadence changes. Do not attribute the frame-rate difference to GPU widget drawing. |
+
+Use the checks already attached to the changed layer:
+
+| Changed layer | Existing verification |
+| --- | --- |
+| Startup, setting or Helix selection | test/test_*.py through the Feature firmware workflow |
+| Factory display adapter | apps/stock-display make test with ASan/UBSan; target checks for exact GUI-hash handling, native timer cadence and expiry of bounded redraw requests |
+| Shared output or driver | Target build plus existing offscreen pixel, import/readback, resource-lifetime and suspend checks while idle |
+| Helix pin or build inputs | prepare-helix-gpu.py source/checksum verification, matching assets and the production-object self-test |
+| Documentation only | Diff, links and branch ancestry; retain the successful runtime build record without another firmware build or device test |
+
+Follow upstream through gpu, then gui-gcode, gui and stock-ui; gui-gpu follows gpu separately and stays outside daily integration. Preserve published history. Source updates that touch a consumer require that consumer's checks; build success alone does not establish device acceptance. Keep the build commit, current documentation head and deployed firmware distinct. Opening a PR remains a separate user decision.
 
 ## What runs today
 
