@@ -11,7 +11,7 @@ The original Snapmaker executable and screen remain the product UI. The gui bran
 
 The implementation directories are 71-ui-gpu, 61-app-remote-screen and 72-stock-ui respectively. Stage 2 uses Rockchip's video encoder, not the Mali graphics processor. It works with the factory software renderer and does not require stage 1 or stage 3.
 
-The former gui-gpu branch is now gpu. The new gui-gpu has no replacement UI runtime yet. Its first decision is whether measured factory drawing can benefit from a GPU backend while retaining the original application. An independent reconstruction requires versioned captures, generated views and state/interaction replay; historical object trees alone do not establish completeness. See [GPU architecture](gpu-architecture.md).
+The former gui-gpu branch is now gpu. The new gui-gpu has no replacement UI runtime. Its first measured widget compositor was slower than CPU despite exact tested pixels. The current original homepage already completes about 45 full redraws/s with the 22 ms policy. Keep ordinary controls on CPU and require a demonstrated expensive page before extending this work. Independent reconstruction still requires portable scene capture, generated views and state/interaction replay. See [GPU architecture](gpu-architecture.md).
 
 ## Stage 1: provide GPU capability
 
