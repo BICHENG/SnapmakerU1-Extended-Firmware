@@ -96,5 +96,10 @@ int main() {
     assert(open(a, UINT64_MAX).contains("error"));
     assert(find_client(a6) && client_count() == 2);
     close(a6); close(c1); assert(client_count() == 0);
+    g_client_counter = 0; // A restarted server must not reuse an old page's session id.
+    auto a7 = open(a, 7).at("id").get<std::string>();
+    assert(a7 != a1 && a7 != a6);
+    close(a1); close(a6); assert(find_client(a7));
+    close(a7); assert(client_count() == 0);
     std::cout << "Session replacement, stale generations, independent viewers, close, cleanup and SDP failure checks passed\n";
 }

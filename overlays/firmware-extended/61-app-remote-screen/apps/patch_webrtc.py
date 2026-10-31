@@ -9,9 +9,10 @@ changes = [
     ('using json = nlohmann::json;', '#include "screen_touch.h"\n\nusing json = nlohmann::json;'),
     ('    std::string id;\n', '    std::string id;\n    std::string screen_owner;\n    uint64_t screen_generation = 0;\n'),
     ('    client->id = std::to_string(++g_client_counter);',
-     '    client->id = std::to_string(++g_client_counter);\n'
      '    client->screen_owner = request.value("screen_owner", "");\n'
-     '    client->screen_generation = request.value("screen_generation", uint64_t{0});'),
+     '    client->screen_generation = request.value("screen_generation", uint64_t{0});\n'
+     '    client->id = client->screen_owner.empty() ? std::to_string(++g_client_counter) :\n'
+     '        client->screen_owner + "-" + std::to_string(client->screen_generation);'),
     ('log_errorf("Removed client %s\\n", c->id.c_str());',
      'screen_touch.disconnected(c->id);\n            log_errorf("Removed client %s\\n", c->id.c_str());'),
     ('client->data_channel->onMessage([weak_client](auto) {',
