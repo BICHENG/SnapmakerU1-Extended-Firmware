@@ -13,7 +13,9 @@ The implementation directories are 71-ui-gpu, 61-app-remote-screen and 72-stock-
 
 The former gui-gpu branch is now gpu. The new gui-gpu has no replacement UI runtime. Its first measured widget compositor was slower than CPU despite exact tested pixels. The current original homepage already completes about 45 full redraws/s with the 22 ms policy. Keep ordinary controls on CPU and require a demonstrated expensive page before extending this work. Independent reconstruction still requires portable scene capture, generated views and state/interaction replay. See [GPU architecture](gpu-architecture.md).
 
-## Stage 1: provide GPU capability
+## Stage 1: maintain GPU capability
+
+This stage is in maintenance. Keep the delivered capability and follow the [GPU maintenance boundary](gpu-architecture.md#maintenance-boundary); the later stages do not require a replacement widget renderer.
 
 The hardware and shared output modules are independent of the private factory GUI ABI. Reuse the pinned kernel, existing voltage table, runtime power management and a checked 400 MHz limit. Do not alter panel timings or add another service manager. An independent EGL check must identify the actual hardware renderer, verify rendered pixels and release its resources. Runtime-suspend checks must account for other active GPU consumers.
 
