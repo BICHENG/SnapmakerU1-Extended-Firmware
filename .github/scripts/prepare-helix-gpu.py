@@ -71,41 +71,43 @@ def binary_info(path):
             struct.unpack_from("<H", header, 16)[0] not in (2, 3) or
             struct.unpack_from("<H", header, 18)[0] != 183):
         raise ValueError("Helix artifact is not an AArch64 little-endian ELF executable")
-    return {"name": "helix-screen", "sha256": sha256(path), "bytes": path.stat().st_size}
+    return {"name": path.name, "sha256": sha256(path), "bytes": path.stat().st_size}
 
 
-def checksums(artifact):
+def checksums(artifact, binary="helix-screen"):
     return "".join(f"{sha256(artifact / name)}  {name}\n"
-                   for name in ("helix-screen", "VERSION", "source.json"))
+                   for name in (binary, "VERSION", "source.json"))
 
 
-def package(source, artifact):
+def package(source, artifact, self_test=False):
     check_revision(source)
     git(source, "apply", "--reverse", "--check", str(ROOT / PATCH))
     for name, directory in (("gpu_output.c", "src"), ("gpu_output.h", "include")):
         if sha256(source / directory / name) != sha256(ROOT / COMMON / name):
             raise ValueError(f"Helix was built with a different {name}")
-    binary = source / "build/snapmaker-u1/bin/helix-screen"
+    name = "helix-gpu-self-test" if self_test else "helix-screen"
+    binary = source / "build/snapmaker-u1/bin" / name
     manifest = identity()
     manifest["binary"] = binary_info(binary)
     artifact.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(binary, artifact / "helix-screen")
+    shutil.copyfile(binary, artifact / name)
     (artifact / "VERSION").write_text(VERSION + "\n", encoding="utf-8", newline="\n")
     (artifact / "source.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n",
                                            encoding="utf-8", newline="\n")
-    (artifact / "SHA256SUMS").write_text(checksums(artifact), encoding="utf-8", newline="\n")
-    verify(artifact)
+    (artifact / "SHA256SUMS").write_text(checksums(artifact, name), encoding="utf-8", newline="\n")
+    verify(artifact, self_test)
 
 
-def verify(artifact):
+def verify(artifact, self_test=False):
     manifest = json.loads((artifact / "source.json").read_text(encoding="utf-8"))
     expected = identity()
-    expected["binary"] = binary_info(artifact / "helix-screen")
+    name = "helix-gpu-self-test" if self_test else "helix-screen"
+    expected["binary"] = binary_info(artifact / name)
     if manifest != expected:
         raise ValueError("Helix artifact does not match the pinned source and current GPU inputs")
     if (artifact / "VERSION").read_bytes() != (VERSION + "\n").encode():
         raise ValueError("Helix artifact version mismatch")
-    if (artifact / "SHA256SUMS").read_text(encoding="utf-8") != checksums(artifact):
+    if (artifact / "SHA256SUMS").read_text(encoding="utf-8") != checksums(artifact, name):
         raise ValueError("Helix artifact checksum mismatch")
     print(f"Verified Helix {VERSION} / {REVISION}: {expected['binary']['sha256']}")
 
@@ -117,15 +119,18 @@ def main():
     pack = commands.add_parser("package")
     pack.add_argument("source", type=Path)
     pack.add_argument("artifact", type=Path)
-    commands.add_parser("verify").add_argument("artifact", type=Path)
+    pack.add_argument("--self-test", action="store_true")
+    check = commands.add_parser("verify")
+    check.add_argument("artifact", type=Path)
+    check.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     try:
         if args.command == "prepare":
             prepare(args.source)
         elif args.command == "package":
-            package(args.source, args.artifact)
+            package(args.source, args.artifact, args.self_test)
         else:
-            verify(args.artifact)
+            verify(args.artifact, args.self_test)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         detail = error.stderr if isinstance(error, subprocess.CalledProcessError) else str(error)
         parser.exit(1, f"Helix GPU: {detail}\n")
