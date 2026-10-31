@@ -44,6 +44,12 @@ jobs:
       - name: Check audio service
         if: hashFiles('overlays/mods/BICHENG/70-app-auxmic/test/test_*.py') != ''
         run: python3 -m unittest discover -s overlays/mods/BICHENG/70-app-auxmic/test -p 'test_*.py'
+      - name: Check GPU startup
+        if: hashFiles('overlays/mods/BICHENG/71-ui-gpu/test/test_*.py') != ''
+        run: python3 -m unittest discover -s overlays/mods/BICHENG/71-ui-gpu/test -p 'test_*.py'
+      - name: Check remote screen lifecycle
+        if: hashFiles('overlays/firmware-extended/61-app-remote-screen/test/screen-lifecycle.test.mjs') != ''
+        run: node --test overlays/firmware-extended/61-app-remote-screen/test/screen-lifecycle.test.mjs
       - name: Build firmware
         run: |
           ./dev.sh make firmware
