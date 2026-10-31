@@ -18,6 +18,15 @@ if [ "$1" = start ]; then
 	grep -q " $HELIX_GUI " /proc/mounts && HELIX_BOUND=yes || HELIX_BOUND=
 
 	if [ "$HELIX_SELECTED" = helixscreen ] && [ -x "$HELIX_ROOT/bin/helix-screen" ]; then
+		HELIX_BINARY="$HELIX_ROOT/bin/helix-screen"
+		HELIX_GPU_BINARY=/usr/local/libexec/helix-screen-gpu
+		HELIX_GPU_VERSION=$(cat /usr/local/libexec/helix-screen-gpu.version 2>/dev/null)
+		# Match installed assets, not the package version pinned by this firmware.
+		if [ -n "$HELIX_GPU_VERSION" ] && [ -x "$HELIX_GPU_BINARY" ] &&
+		   [ "$(readlink -f "$HELIX_ROOT" 2>/dev/null)" = "/oem/apps/helixscreen/helixscreen-$HELIX_GPU_VERSION" ]; then
+			HELIX_BINARY="$HELIX_GPU_BINARY"
+		fi
+
 		# Restart wpa_supplicant with GUI controlled `wpa_supplicant.conf`
 		HELIX_WPA_CONF=/oem/printer_data/gui/wpa_supplicant.conf
 		mkdir -p "$(dirname "$HELIX_WPA_CONF")"
@@ -47,8 +56,8 @@ if [ "$1" = start ]; then
 		export HELIX_REMOTE_SCREEN_FB0=/dev/fb0
 
 		if [ -z "$HELIX_BOUND" ]; then
-			if mount -o ro --bind "$HELIX_ROOT/bin/helix-screen" "$HELIX_GUI"; then
-				logger -p user.info -t "lmd[$$]" -- "HelixScreen bound over $HELIX_GUI"
+			if mount -o ro --bind "$HELIX_BINARY" "$HELIX_GUI"; then
+				logger -p user.info -t "lmd[$$]" -- "HelixScreen $HELIX_BINARY bound over $HELIX_GUI"
 			fi
 		fi
 	elif [ -n "$HELIX_BOUND" ]; then
@@ -56,5 +65,5 @@ if [ "$1" = start ]; then
 		logger -p user.info -t "lmd[$$]" -- "Restored stock $HELIX_GUI"
 	fi
 
-	unset HELIX_ROOT HELIX_CFG HELIX_CFG_DIR HELIX_GUI HELIX_SELECTED HELIX_BOUND
+	unset HELIX_ROOT HELIX_CFG HELIX_CFG_DIR HELIX_GUI HELIX_SELECTED HELIX_BOUND HELIX_BINARY HELIX_GPU_BINARY HELIX_GPU_VERSION
 fi
