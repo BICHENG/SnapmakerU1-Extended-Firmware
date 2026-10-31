@@ -38,18 +38,16 @@ if [ "$1" = start ]; then
 		# Keep settings under the extended config dir, which survives a firmware upgrade;
 		# `$HELIX_ROOT` doesn't.
 		export HELIX_CONFIG_DIR="$HELIX_CFG_DIR"
-		export HELIX_LOG_DEST=file
-		export HELIX_LOG_FILE=/tmp/helixscreen.log
 		if [ ! -d "$HELIX_CFG_DIR" ]; then
 			mkdir -p "$HELIX_CFG_DIR"
 			chown -R lava:lava "$HELIX_CFG_DIR"
 		fi
 
-		HELIX_BINARY="$HELIX_ROOT/bin/helix-screen"
+		# HelixScreen never writes to `/dev/fb0`, so mirror its frames there for `fb-http`.
 		export HELIX_REMOTE_SCREEN_FB0=/dev/fb0
 
 		if [ -z "$HELIX_BOUND" ]; then
-			if mount -o ro --bind "$HELIX_BINARY" "$HELIX_GUI"; then
+			if mount -o ro --bind "$HELIX_ROOT/bin/helix-screen" "$HELIX_GUI"; then
 				logger -p user.info -t "lmd[$$]" -- "HelixScreen bound over $HELIX_GUI"
 			fi
 		fi
@@ -58,5 +56,5 @@ if [ "$1" = start ]; then
 		logger -p user.info -t "lmd[$$]" -- "Restored stock $HELIX_GUI"
 	fi
 
-	unset HELIX_ROOT HELIX_CFG HELIX_CFG_DIR HELIX_GUI HELIX_SELECTED HELIX_BOUND HELIX_BINARY
+	unset HELIX_ROOT HELIX_CFG HELIX_CFG_DIR HELIX_GUI HELIX_SELECTED HELIX_BOUND
 fi
