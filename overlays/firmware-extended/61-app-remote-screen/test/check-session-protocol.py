@@ -40,3 +40,8 @@ with tempfile.TemporaryDirectory() as directory:
                     '-I' + str(tmp), '-I' + str(a.json_include),
                     str(folder / 'session-protocol-test.cpp'), '-o', str(executable)], check=True)
     subprocess.run([str(executable)], check=True)
+    touch_test = tmp / 'touch-lease-test'
+    subprocess.run([os.environ.get('CXX', 'g++'), '-std=c++17', '-Wall', '-Wextra', '-Werror',
+                    '-pthread', '-I' + str(a.json_include), str(folder / 'touch-lease-test.cpp'),
+                    '-o', str(touch_test)], check=True)
+    subprocess.run([str(touch_test)], check=True)

@@ -14,9 +14,10 @@ const settle = async () => { for (let i = 0; i < 40; ++i) await Promise.resolve(
 
 function browser({storage = new Map(), navigation = 'navigate', frameNavigation = navigation,
                   auth = async () => true, request, answer} = {}) {
-    const calls = [], peers = [], timers = new Map(), events = new Map();
+    const calls = [], peers = [], timers = new Map(), intervals = new Map(), events = new Map();
     const elements = new Map(['screen', 'status', 'reconnect', 'fullscreen'].map(id => [id, {
-        addEventListener() {}, getBoundingClientRect: () => ({left:0, top:0, width:480, height:320})
+        handlers:new Map(), addEventListener(type, fn) { this.handlers.set(type, fn); }, setPointerCapture() {},
+        getBoundingClientRect: () => ({left:0, top:0, width:480, height:320})
     }]));
     let nextId = 0, nextTimer = 0;
     class Peer {
@@ -37,6 +38,8 @@ function browser({storage = new Map(), navigation = 'navigate', frameNavigation 
         initAuth:auth, getAuthHeaders:() => ({Authorization:'test-token'}),
         setTimeout:(fn, delay) => { const id = ++nextTimer; timers.set(id, {fn, delay}); return id; },
         clearTimeout:id => timers.delete(id),
+        setInterval:(fn, delay) => { const id = ++nextTimer; intervals.set(id, {fn, delay}); return id; },
+        clearInterval:id => intervals.delete(id),
         fetch:async (url, options) => {
             const message = JSON.parse(options.body); calls.push({message, options});
             let result = {type:'ok'};
@@ -47,7 +50,7 @@ function browser({storage = new Map(), navigation = 'navigate', frameNavigation 
         }
     });
     vm.runInContext(source, context);
-    return {calls, peers, timers, events, storage, elements,
+    return {calls, peers, timers, intervals, events, storage, elements,
         connect:() => vm.runInContext('connect()', context),
         async retry() {
             const [id, {fn}] = timers.entries().next().value;
@@ -129,4 +132,26 @@ test('authentication failure does not retry and pagehide cancels a pending retry
     assert.equal(unauthorized.calls.length, 0); assert.equal(unauthorized.timers.size, 0);
     const b = browser({request:() => ({error:'max clients reached'})}); await settle();
     assert.equal(b.timers.size, 1); b.events.get('pagehide')(); assert.equal(b.timers.size, 0);
+});
+
+test('a stationary press renews only its hold lease and every release path stops renewal', async () => {
+    for (const stop of ['pointerup', 'pointercancel', 'lostpointercapture', 'blur', 'pagehide', 'disconnect']) {
+        const b = browser(); await settle();
+        const sent = [];
+        const channel = {readyState:'open', send:text => sent.push(JSON.parse(text)), close() { this.readyState = 'closed'; }};
+        b.peers[0].ondatachannel({channel});
+        const video = b.elements.get('screen');
+        video.handlers.get('pointerdown')({isPrimary:true, button:0, pointerId:1, clientX:120, clientY:80});
+        assert.equal(b.intervals.size, 1);
+        const hold = b.intervals.values().next().value;
+        assert.equal(hold.delay, 500);
+        for (let i = 0; i < 6; ++i) hold.fn();
+        assert.equal(sent[0].touch, 'down');
+        assert.deepEqual(sent.slice(1), Array.from({length:6}, () => ({touch:'hold'})));
+        if (stop === 'disconnect') b.peers[0].change('disconnected');
+        else if (stop === 'blur' || stop === 'pagehide') b.events.get(stop)();
+        else video.handlers.get(stop)();
+        assert.equal(b.intervals.size, 0, stop);
+        assert.equal(sent.at(-1).touch, 'up', stop);
+    }
 });

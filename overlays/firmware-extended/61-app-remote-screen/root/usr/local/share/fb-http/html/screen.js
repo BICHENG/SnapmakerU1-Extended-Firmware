@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 const video = document.getElementById('screen');
 const statusText = document.getElementById('status');
-let peer, channel, session, generation = 0, pressed = false, retryTimer, retries = 0;
+let peer, channel, session, generation = 0, pressed = false, retryTimer, holdTimer, retries = 0;
 const retryDelays = [1000, 2000, 4000, 8000, 15000];
 const identityKey = 'u1-screen-client';
 const randomOwner = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), n => n.toString(16).padStart(2, '0')).join('');
@@ -38,6 +38,7 @@ async function signal(message, keepalive = false) {
     return result;
 }
 function release() {
+    clearInterval(holdTimer); holdTimer = null;
     if (pressed && channel?.readyState === 'open') {
         try { channel.send(JSON.stringify({touch:'up'})); } catch (_) {}
     }
@@ -136,6 +137,13 @@ function pointer(event, action) {
     if (action === 'down') { pressed = true; video.setPointerCapture(event.pointerId); }
     if (!pressed) return;
     channel.send(JSON.stringify({touch:action,x:Math.max(0,Math.min(1,x)),y:Math.max(0,Math.min(1,y))}));
+    if (action === 'down') {
+        clearInterval(holdTimer);
+        holdTimer = setInterval(()=>{
+            if (!pressed || channel?.readyState !== 'open') { release(); return; }
+            try { channel.send(JSON.stringify({touch:'hold'})); } catch (_) { release(); }
+        }, 500);
+    }
 }
 video.addEventListener('pointerdown',e=>{if(e.isPrimary && e.button===0)pointer(e,'down');});
 video.addEventListener('pointermove',e=>{if(e.isPrimary)pointer(e,'move');});
