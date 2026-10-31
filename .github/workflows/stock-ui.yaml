@@ -65,6 +65,14 @@ jobs:
           output="U1_${GITHUB_REF_NAME//\//-}_${GITHUB_SHA}_upgrade.bin"
           ./dev.sh make build PROFILE="$profile" OUTPUT_FILE="$output"
           sha256sum "$output" > SHA256SUMS
+      - name: Restore build cache ownership
+        if: always()
+        run: |
+          for cache_dir in tmp/cache tmp/ccache; do
+            if [ -d "$cache_dir" ]; then
+              sudo chown -R "$(id -u):$(id -g)" "$cache_dir"
+            fi
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ github.ref_name }}-firmware

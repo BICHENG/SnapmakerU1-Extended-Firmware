@@ -45,6 +45,18 @@ The patched build keeps the fbdev display and its normal CPU widget renderer;
 G-code uses GLES 2 and the shared output module. It does not enable experimental
 NanoVG drawing or require users to change renderer options.
 
+On U1, the existing geometry budget limits tubes to four sides without changing
+path simplification precision. Uploads omit degenerate triangles, and the main
+solid pass writes the selection tag instead of replaying the entire model.
+Ghost layers and selection brackets do not overwrite that tag. Coplanar overlap
+belongs to the face that actually wins the color depth test.
+
+Before allocating expanded buffers, the same 25% available-memory budget covers
+CPU geometry, the actual per-layer upload payload, and a GPU reserve of 8 MiB
+plus six times that payload. The reserve includes margin over measured U1
+driver allocations; it is not a driver allocation limit. Models over budget use
+the existing 2D fallback. With GPU disabled, this entry skips 3D construction.
+
 The small `stock-display` adapter is separate from the G-code extension. It
 recognizes exact original GUI hashes for 2.0.0.205 and 2.1.0.157 and is the sole
 owner of the original main-loop sleep hook. Unknown binaries remain untouched.
