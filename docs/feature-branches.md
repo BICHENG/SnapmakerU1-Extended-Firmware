@@ -7,11 +7,16 @@ The fork maintains four independent feature branches on upstream develop. Change
 | fancurves | Fan curve configuration, editor and Klipper integration | extended |
 | balanced-low-current | Allow Balanced with reduced X/Y current; keep Aggressive blocked | extended |
 | printers-sonic | Phone/network microphone presented through ALSA, including snd-aloop | extended-BICHENG |
-| gui | Original Snapmaker GUI, Mali G-code rendering, framebuffer WebRTC and touch | extended-BICHENG |
+| gui-gpu | Mali driver, EGL/GLES runtime and opt-in GPU startup | extended-BICHENG |
+| gui-remote | Framebuffer MPP/WebRTC video and remote touch; independent of Mali | extended |
+| gui-gcode | GPU G-code viewport and version-checked factory UI adapter; includes gui-gpu | extended-BICHENG |
+| gui | Integration of the three GUI delivery stages | extended-BICHENG |
 | stock-ui | Integration of the four features for the owner's printer | extended-BICHENG |
 | develop | Unmodified upstream develop | Upstream defaults |
 
-Each feature contains only its changes plus the shared firmware workflow and this branch map. Features do not depend on stock-ui. Keep changes on their owning feature branch, then merge them into stock-ui. Merge upstream develop into each feature and integrate only after their builds pass. Do not rewrite published branch history to update it.
+The top-level features are fancurves, balanced-low-current, printers-sonic and gui. GUI changes first enter gui-gpu, gui-remote or gui-gcode, then merge into gui. The G-code stage includes gui-gpu; gui-remote does not. Features do not depend on stock-ui. Merge the four top-level features into stock-ui after their builds pass. Merge upstream develop into each independent branch, update gui-gcode through gui-gpu, and then integrate. Do not rewrite published branch history to update it.
+
+The stages share the build toolchain, workflow and branch documentation, not runtime feature code. The default GPU stage is opt-in and does not replace the factory LVGL renderer. See [GUI delivery stages](gui-stages.md) for boundaries and acceptance evidence.
 
 The existing stock-ui.yaml workflow builds these branches with the upstream toolchain. It selects the BICHENG profile only when that branch contains BICHENG mods. Artifacts are named <branch>-firmware and contain the firmware image and SHA256SUMS. It does not publish releases, open pull requests or flash a printer.
 

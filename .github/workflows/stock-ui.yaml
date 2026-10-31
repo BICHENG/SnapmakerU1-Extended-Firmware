@@ -1,7 +1,7 @@
 name: Feature firmware
 on:
   push:
-    branches: [fancurves, balanced-low-current, printers-sonic, gui, stock-ui]
+    branches: [fancurves, balanced-low-current, printers-sonic, gui-gpu, gui-remote, gui-gcode, gui, stock-ui]
   workflow_dispatch:
 permissions:
   contents: read
