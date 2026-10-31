@@ -25,9 +25,8 @@ struct Gpu {
     struct gbm_device *gbm;
     EGLDisplay display;
     EGLContext context;
-    GLuint program,texture,fbo,depth,vbo,grid,resolve_fbo,resolve_color;
-    GLuint composite,scene_fbo,scene_texture;
-    GLint center,scale,rotation,brightness,extent;
+    GLuint program,color,fbo,depth,vbo,grid,resolve_fbo,resolve_color,background;
+    GLint center,scale,rotation,brightness,opacity;
     uint8_t readback[WIDTH*HEIGHT*4];
 #ifdef STOCK_GPU_PROFILE
     GpuProfile *profile;
@@ -46,10 +45,10 @@ void gpu_destroy(Gpu *g) {
     if(g->display&&g->context){
         if(g->current){
             glDeleteBuffers(1,&g->vbo);glDeleteBuffers(1,&g->grid);
-            glDeleteRenderbuffers(1,&g->depth);glDeleteTextures(1,&g->texture);
+            glDeleteRenderbuffers(1,&g->depth);glDeleteRenderbuffers(1,&g->color);
             glDeleteFramebuffers(1,&g->fbo);glDeleteProgram(g->program);
             glDeleteFramebuffers(1,&g->resolve_fbo);glDeleteRenderbuffers(1,&g->resolve_color);
-            glDeleteProgram(g->composite);glDeleteFramebuffers(1,&g->scene_fbo);glDeleteTextures(1,&g->scene_texture);
+            glDeleteProgram(g->background);
             eglMakeCurrent(g->display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);
         }
         eglDestroyContext(g->display,g->context);
@@ -82,8 +81,8 @@ Gpu *gpu_create(const Model *m,char *error,size_t size) {
         "float d=-y*rotation.w+p.z*rotation.z;"
         "gl_Position=vec4(x*scale.x,v*scale.y,-d*scale.z,1.0);c=color;}");
     GLuint fs=shader(GL_FRAGMENT_SHADER,
-        "precision mediump float;varying vec4 c;uniform float brightness;"
-        "void main(){gl_FragColor=vec4(c.bgr*brightness,c.a);}");
+        "precision mediump float;varying vec4 c;uniform float brightness;uniform float opacity;"
+        "void main(){gl_FragColor=vec4(c.bgr*brightness,c.a*opacity);}");
     if(!vs||!fs){glDeleteShader(vs);glDeleteShader(fs);goto fail;}
     g->program=glCreateProgram();glAttachShader(g->program,vs);glAttachShader(g->program,fs);
     glBindAttribLocation(g->program,0,"position");glBindAttribLocation(g->program,1,"color");
@@ -93,34 +92,25 @@ Gpu *gpu_create(const Model *m,char *error,size_t size) {
     g->scale=glGetUniformLocation(g->program,"scale");
     g->rotation=glGetUniformLocation(g->program,"rotation");
     g->brightness=glGetUniformLocation(g->program,"brightness");
+    g->opacity=glGetUniformLocation(g->program,"opacity");
     vs=shader(GL_VERTEX_SHADER,
-        "#version 300 es\nuniform vec2 extent;out vec2 uv;"
+        "#version 300 es\n"
         "void main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);"
-        "uv=p*extent;gl_Position=vec4(p*2.0-1.0,0.0,1.0);}");
+        "gl_Position=vec4(p*2.0-1.0,0.0,1.0);}");
     fs=shader(GL_FRAGMENT_SHADER,
-        "#version 300 es\nprecision mediump float;uniform sampler2D source;in vec2 uv;out vec4 color;"
-        "void main(){color=texture(source,uv);color.a*=0.24;}");
+        "#version 300 es\nprecision mediump float;out vec4 color;"
+        "void main(){color=vec4(18.0/255.0,17.0/255.0,15.0/255.0,1.0);}");
     if(!vs||!fs){glDeleteShader(vs);glDeleteShader(fs);goto fail;}
-    g->composite=glCreateProgram();glAttachShader(g->composite,vs);glAttachShader(g->composite,fs);
-    glLinkProgram(g->composite);glDeleteShader(vs);glDeleteShader(fs);
-    glGetProgramiv(g->composite,GL_LINK_STATUS,&ok);if(!ok)goto fail;
-    g->extent=glGetUniformLocation(g->composite,"extent");
-    glGenTextures(1,&g->texture);glBindTexture(GL_TEXTURE_2D,g->texture);
-    glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,WIDTH*SAMPLES,HEIGHT*SAMPLES,0,GL_RGBA,GL_UNSIGNED_BYTE,NULL);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
+    g->background=glCreateProgram();glAttachShader(g->background,vs);glAttachShader(g->background,fs);
+    glLinkProgram(g->background);glDeleteShader(vs);glDeleteShader(fs);
+    glGetProgramiv(g->background,GL_LINK_STATUS,&ok);if(!ok)goto fail;
     glGenFramebuffers(1,&g->fbo);glBindFramebuffer(GL_FRAMEBUFFER,g->fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,g->texture,0);
+    glGenRenderbuffers(1,&g->color);glBindRenderbuffer(GL_RENDERBUFFER,g->color);
+    glRenderbufferStorage(GL_RENDERBUFFER,GL_RGBA8,WIDTH*SAMPLES,HEIGHT*SAMPLES);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_RENDERBUFFER,g->color);
     glGenRenderbuffers(1,&g->depth);glBindRenderbuffer(GL_RENDERBUFFER,g->depth);
     glRenderbufferStorage(GL_RENDERBUFFER,GL_DEPTH_COMPONENT16,WIDTH*SAMPLES,HEIGHT*SAMPLES);
     glFramebufferRenderbuffer(GL_FRAMEBUFFER,GL_DEPTH_ATTACHMENT,GL_RENDERBUFFER,g->depth);
-    if(glCheckFramebufferStatus(GL_FRAMEBUFFER)!=GL_FRAMEBUFFER_COMPLETE)goto fail;
-    glGenTextures(1,&g->scene_texture);glBindTexture(GL_TEXTURE_2D,g->scene_texture);
-    glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,WIDTH*SAMPLES,HEIGHT*SAMPLES,0,GL_RGBA,GL_UNSIGNED_BYTE,NULL);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);
-    glGenFramebuffers(1,&g->scene_fbo);glBindFramebuffer(GL_FRAMEBUFFER,g->scene_fbo);
-    glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,g->scene_texture,0);
     if(glCheckFramebufferStatus(GL_FRAMEBUFFER)!=GL_FRAMEBUFFER_COMPLETE)goto fail;
     glGenFramebuffers(1,&g->resolve_fbo);glBindFramebuffer(GL_FRAMEBUFFER,g->resolve_fbo);
     glGenRenderbuffers(1,&g->resolve_color);glBindRenderbuffer(GL_RENDERBUFFER,g->resolve_color);
@@ -184,14 +174,14 @@ int gpu_render(Gpu *g,const Model *m,const RenderView *v,uint8_t *pixels) {
     attributes(g->vbo);glLineWidth(SAMPLES);
     size_t first=layer?m->layer_end[layer-1]:0;
     size_t end=m->layer_end[layer];
-    /* Composite the context once so stacked layers cannot accumulate opacity. */
+    /* Store one nearest context layer, then fill its background without accumulating alpha. */
+    glUniform1f(g->opacity,.24f);
     context_paths(first,end,m->count);
-    glBindFramebuffer(GL_FRAMEBUFFER,g->scene_fbo);glDisable(GL_DEPTH_TEST);
-    glClearColor(0.07f,0.065f,0.06f,1);glClear(GL_COLOR_BUFFER_BIT);
+    glDisable(GL_DEPTH_TEST);glEnable(GL_BLEND);
+    glBlendFuncSeparate(GL_ONE_MINUS_DST_ALPHA,GL_DST_ALPHA,GL_ONE_MINUS_DST_ALPHA,GL_ONE);
+    glUniform1f(g->opacity,1);
     attributes(g->grid);glDrawArrays(GL_LINES,0,84);
-    glUseProgram(g->composite);glUniform2f(g->extent,(float)w/WIDTH,(float)h/HEIGHT);
-    glBindTexture(GL_TEXTURE_2D,g->texture);
-    glEnable(GL_BLEND);glBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);
+    glUseProgram(g->background);
     glDrawArrays(GL_TRIANGLES,0,3);
     glDisable(GL_BLEND);glUseProgram(g->program);attributes(g->vbo);
     glLineWidth(SAMPLES*(flat?1.75f:1.5f));
@@ -199,13 +189,15 @@ int gpu_render(Gpu *g,const Model *m,const RenderView *v,uint8_t *pixels) {
     if(completed<first)completed=first;
     glUniform1f(g->brightness,.38f);glDrawArrays(GL_LINES,completed,end-completed);
     glUniform1f(g->brightness,1);glDrawArrays(GL_LINES,first,completed-first);
+    const GLenum discard=GL_DEPTH_ATTACHMENT;
+    glInvalidateFramebuffer(GL_FRAMEBUFFER,1,&discard);
 #ifdef STOCK_GPU_PROFILE
     if(g->profile){
         glFinish();readback_start=clock_ms();
         g->profile->draw_ms=readback_start-draw_start;
     }
 #endif
-    glBindFramebuffer(GL_READ_FRAMEBUFFER,g->scene_fbo);glBindFramebuffer(GL_DRAW_FRAMEBUFFER,g->resolve_fbo);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER,g->fbo);glBindFramebuffer(GL_DRAW_FRAMEBUFFER,g->resolve_fbo);
     glBlitFramebuffer(0,0,w*SAMPLES,h*SAMPLES,0,0,w,h,GL_COLOR_BUFFER_BIT,GL_LINEAR);
     glBindFramebuffer(GL_FRAMEBUFFER,g->resolve_fbo);
     glReadPixels(0,0,w,h,GL_RGBA,GL_UNSIGNED_BYTE,g->readback);
