@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-PackageHomePage: https://github.com/BICHENG/SnapmakerU1-Extended-Firmware
+# SPDX-FileCopyrightText: Copyright (c) 2026 BICHENG
+
+status:
+  auxmic:
+    title: Phone Microphone
+    items:
+      - label: Service
+        cmd: /etc/init.d/S99auxmic status 2>/dev/null | head -1
+      - label: Phone page
+        cmd: >-
+          . /usr/local/share/auxmic/common.sh;
+          printf 'https://%s:9443/#pair=%s\n' "$(auxmic_address)"
+          "$(cat /home/lava/printer_data/config/extended/auxmic/pairing.token 2>/dev/null)"
+      - label: Pairing code
+        cmd: cat /home/lava/printer_data/config/extended/auxmic/pairing.token 2>/dev/null
+
+actions:
+  services:
+    items:
+      restart-auxmic:
+        label: Restart Phone Microphone
+        description: >-
+          Restart the phone microphone service.  The certificate is made again
+          when the printer's address has changed, so this is also what makes
+          the phone page work again after the address changed.
+        confirm: true
+        cmd:
+          - /etc/init.d/S99auxmic
+          - restart
+        message: "Restarting the phone microphone service..."

@@ -1,0 +1,100 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-PackageHomePage: https://github.com/BICHENG/SnapmakerU1-Extended-Firmware
+# SPDX-FileCopyrightText: Copyright (c) 2026 BICHENG
+
+NAME=auxmic
+PIDFILE=/run/auxmic.pid
+CONFIG_DIR=/home/lava/printer_data/config/extended/auxmic
+SUPERVISOR=/usr/local/bin/fake-service
+PROGRAM=/usr/local/bin/auxmic.py
+
+. /usr/local/share/auxmic/common.sh
+
+pid_alive() {
+    [ -r "$PIDFILE" ] || return 1
+    pid=$(cat "$PIDFILE")
+    case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+    kill -0 "$pid" 2>/dev/null || return 1
+    # A stale pidfile must not target a process that reused the PID.
+    tr '\000' '\n' < "/proc/$pid/cmdline" 2>/dev/null | grep -Fxq "$PROGRAM"
+}
+
+healthy() {
+    curl -kfsS --max-time 2 https://127.0.0.1:9443/healthz 2>/dev/null \
+        | grep -q '"status":"ok"'
+}
+
+start() {
+    if pid_alive; then
+        healthy && return 0
+        echo "$NAME: supervisor is running, but the device service is not ready" >&2
+        return 1
+    fi
+    [ -x "$SUPERVISOR" ] || { echo "$NAME: fake-service is missing" >&2; return 1; }
+    grep -q '^audio:' /etc/group || { echo "$NAME: audio group is missing" >&2; return 1; }
+    if ! grep -q Loopback /proc/asound/cards 2>/dev/null; then
+        insmod /lib/modules/snd-aloop.ko || return 1
+    fi
+    attempt=0
+    until grep -q ' /userdata ' /proc/mounts; do
+        [ "$attempt" -lt 30 ] || return 1
+        sleep 1
+        attempt=$((attempt + 1))
+    done
+    mkdir -p "$CONFIG_DIR" || return 1
+    chown lava:lava "$CONFIG_DIR" || return 1
+    /usr/local/bin/auxmic-cert.sh "$CONFIG_DIR" || return 1
+    . /usr/local/sbin/limits-helper.sh
+    limits_enter auxmic 64M
+    start-stop-daemon -S -b -m -q -p "$PIDFILE" -c lava:audio \
+        -x "$SUPERVISOR" -- --retry 3 --syslog \
+        /usr/bin/python3 "$PROGRAM" \
+        --host 0.0.0.0 --config-dir "$CONFIG_DIR" || return 1
+    attempt=0
+    while [ "$attempt" -lt 15 ]; do
+        if pid_alive && healthy; then
+            echo "$NAME: ready at https://$(auxmic_address):9443/"
+            return 0
+        fi
+        sleep 1
+        attempt=$((attempt + 1))
+    done
+    echo "$NAME: startup failed; see syslog" >&2
+    stop
+    return 1
+}
+
+stop() {
+    if pid_alive; then
+        start-stop-daemon -K -p "$PIDFILE" -s TERM
+        attempt=0
+        while pid_alive && [ "$attempt" -lt 10 ]; do
+            sleep 1
+            attempt=$((attempt + 1))
+        done
+        if pid_alive; then
+            echo "$NAME: has not stopped; retaining its pidfile" >&2
+            return 1
+        fi
+    fi
+    rm -f "$PIDFILE"
+}
+
+status() {
+    if pid_alive && healthy; then
+        echo "$NAME is running"
+        echo "phone page: https://$(auxmic_address):9443/"
+        return 0
+    fi
+    echo "$NAME is not ready"
+    return 1
+}
+
+case "$1" in
+    start) start ;;
+    stop) stop ;;
+    restart|reload) stop && start ;;
+    status) status ;;
+    *) echo "Usage: $0 {start|stop|restart|status}" >&2; exit 1 ;;
+esac
