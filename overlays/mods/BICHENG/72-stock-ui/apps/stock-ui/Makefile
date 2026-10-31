@@ -1,15 +1,25 @@
 CC ?= aarch64-linux-gnu-gcc
+CXX ?= aarch64-linux-gnu-g++
 HOSTCC ?= cc
+HOSTCXX ?= c++
 CFLAGS = -O2 -Wall -Wextra -Werror -fPIC
+CXXFLAGS = $(CFLAGS) -std=c++17
 MALI_LIB ?= /usr/lib/libmali.so.1
+PROGRESS_LIBS ?= -lboost_json -lcurl
 TARGET = libstock-ui.so
 all: $(TARGET)
-$(TARGET): stock-ui.c gcode.c gpu.c gcode.h gpu.h stock-abi.h
-	$(CC) $(CFLAGS) -shared stock-ui.c gcode.c gpu.c $(MALI_LIB) -o $@ -ldl -lm -pthread
+$(TARGET): stock-ui.o gcode.o gpu.o progress.o
+	$(CXX) -shared $^ $(MALI_LIB) $(PROGRESS_LIBS) -o $@ -ldl -lm -pthread
+stock-ui.o: stock-ui.c gpu.h gcode.h progress.h stock-abi.h
+gcode.o: gcode.c gcode.h
+gpu.o: gpu.c gpu.h gcode.h
+progress.o: progress.cpp progress.h
 test:
 	$(HOSTCC) -O1 -g -fsanitize=address,undefined -Wall -Wextra -Werror gcode.c test_gcode.c -lm -o test-gcode
 	./test-gcode
-	rm -f test-gcode
+	$(HOSTCXX) -std=c++17 -O0 -g -fsanitize=address,undefined -Wall -Wextra -Werror progress.cpp test_progress.cpp -lboost_json -lcurl -o test-progress
+	./test-progress
+	rm -f test-gcode test-progress
 clean:
-	rm -f $(TARGET) test-gcode
+	rm -f $(TARGET) *.o test-gcode test-progress
 .PHONY: all test clean

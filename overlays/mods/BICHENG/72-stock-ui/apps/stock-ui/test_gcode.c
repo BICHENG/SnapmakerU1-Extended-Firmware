@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <math.h>
+#include <string.h>
 static Model load(const char *data,int expect){
     char path[]="/tmp/stock-gcode-XXXXXX";int fd=mkstemp(path);assert(fd>=0);
     FILE *f=fdopen(fd,"w");fputs(data,f);fclose(f);
@@ -29,5 +30,23 @@ int main(int argc,char **argv){
     assert(m.count==2&&m.max[0]==10&&m.max[1]==5);gcode_free(&m);
     m=load("M83\nG1 X 10 Y 5 E 1\n",0);assert(m.count==2);gcode_free(&m);
     m=load("M83\nG1 Xnan E1\n",-1);gcode_free(&m);
+    const char *tracked=";模型\r\nM83\r\n;LAYER_CHANGE\r\nG1 Z.2\r\nG1 X10 E1\r\nG1 Y10 E1\r\n;LAYER_CHANGE\r\nG1 Z.4\r\nG1 X20 E1\r\n";
+    m=load(tracked,0);
+    size_t end;unsigned layer;
+    const char *line=strstr(tracked,"G1 X10 E1");
+    uint64_t first_end=(uint64_t)(strchr(line,'\n')-tracked+1);
+    assert(m.line_end[0]==first_end);
+    gcode_progress(&m,first_end-1,&end,&layer);assert(end==0&&layer==0);
+    gcode_progress(&m,first_end,&end,&layer);assert(end==2&&layer==0);
+    gcode_progress(&m,m.line_end[1],&end,&layer);assert(end==4&&layer==0);
+    gcode_progress(&m,m.line_end[2],&end,&layer);assert(end==6&&layer==1);
+    gcode_progress(&m,UINT64_MAX,&end,&layer);assert(end==6&&layer==1);
+    gcode_progress(&m,0,&end,&layer);assert(end==0&&layer==0);
+    gcode_free(&m);
+    m=load("M83\nG1 X10\nG3 X0 Y10 I-10 J0 E1\n",0);
+    for(size_t i=0;i<m.count/2;i++)assert(m.line_end[i]==m.line_end[0]);
+    gcode_progress(&m,m.line_end[0]-1,&end,&layer);assert(end==0);
+    gcode_progress(&m,m.line_end[0],&end,&layer);assert(end==m.count);
+    gcode_free(&m);
     puts("G-code behavior checks passed");
 }

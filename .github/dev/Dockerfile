@@ -19,6 +19,8 @@ RUN apt-get update -y && \
       libssl-dev \
       libegl-dev \
       libgles-dev \
+      libboost-json1.83-dev \
+      libcurl4-openssl-dev \
       dos2unix \
       sudo \
       sshpass \

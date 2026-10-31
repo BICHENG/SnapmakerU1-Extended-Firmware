@@ -8,7 +8,14 @@
 #define MAX_VERTICES 1000000
 #define MAX_LAYERS 20000
 static const uint8_t colors[4][4]={{180,190,205,255},{246,196,65,255},{65,177,240,255},{255,86,63,255}};
-void gcode_free(Model *m) {free(m->vertices);free(m->layer_end);free(m->layer_z);memset(m,0,sizeof(*m));}
+void gcode_free(Model *m) {free(m->vertices);free(m->line_end);free(m->layer_end);free(m->layer_z);memset(m,0,sizeof(*m));}
+void gcode_progress(const Model *m,uint64_t position,size_t *completed,unsigned *layer) {
+    size_t lo=0,hi=m->count/2;
+    while(lo<hi){size_t mid=lo+(hi-lo)/2;if(m->line_end[mid]<=position)lo=mid+1;else hi=mid;}
+    *completed=lo*2;unsigned a=0,b=m->layers;
+    while(a<b){unsigned mid=a+(b-a)/2;if(m->layer_end[mid]<*completed)a=mid+1;else b=mid;}
+    *layer=a<m->layers?a:(m->layers?m->layers-1:0);
+}
 static int fail(Model *m,const char *text) {snprintf(m->error,sizeof(m->error),"%s",text);return -1;}
 static int segment(Model *m,const double *a,const double *b,unsigned tool,int new_layer) {
     if(m->count+2>MAX_VERTICES)return fail(m,"文件路径过多，无法预览");
@@ -22,7 +29,9 @@ static int segment(Model *m,const double *a,const double *b,unsigned tool,int ne
         if(cap>MAX_VERTICES)cap=MAX_VERTICES;
         void *p=realloc(m->vertices,cap*sizeof(Vertex));
         if(!p)return fail(m,"内存不足");
-        m->vertices=p;m->capacity=cap;
+        m->vertices=p;
+        p=realloc(m->line_end,cap/2*sizeof(uint64_t));if(!p)return fail(m,"内存不足");
+        m->line_end=p;m->capacity=cap;
     }
     for(int j=0;j<2;j++) {
         const double *p=j?b:a;
@@ -125,7 +134,11 @@ int gcode_load(Model *m,const char *path,const atomic_uint *generation,unsigned 
             }
         } else if(draw&&hypot(next[0]-pos[0],next[1]-pos[1])>1e-6)result=segment(m,pos,next,tool,new_layer);
         if(result)break;
-        if(m->count>before){pending_layer=0;layer_z=next[2];}
+        if(m->count>before){
+            off_t end=ftello(f);if(end<0){result=fail(m,"无法读取文件位置");break;}
+            for(size_t i=before/2;i<m->count/2;i++)m->line_end[i]=(uint64_t)end;
+            pending_layer=0;layer_z=next[2];
+        }
         memcpy(pos,next,sizeof(pos));extrusion=e;
     }
     if(ferror(f))result=fail(m,"读取文件失败");

@@ -17,8 +17,8 @@ struct Gpu {
     struct gbm_device *gbm;
     EGLDisplay display;
     EGLContext context;
-    GLuint program,texture,fbo,depth,vbo,grid;
-    GLint center,scale,rotation;
+    GLuint program,texture,fbo,depth,vbo,grid,marker;
+    GLint center,scale,rotation,brightness;
     uint8_t readback[WIDTH*HEIGHT*4];
 };
 static GLuint shader(GLenum kind,const char *source) {
@@ -31,6 +31,7 @@ void gpu_destroy(Gpu *g) {
     if(g->display&&g->context){
         if(g->current){
             glDeleteBuffers(1,&g->vbo);glDeleteBuffers(1,&g->grid);
+            glDeleteBuffers(1,&g->marker);
             glDeleteRenderbuffers(1,&g->depth);glDeleteTextures(1,&g->texture);
             glDeleteFramebuffers(1,&g->fbo);glDeleteProgram(g->program);
             eglMakeCurrent(g->display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);
@@ -63,10 +64,10 @@ Gpu *gpu_create(const Model *m,char *error,size_t size) {
         "float y=p.x*rotation.y+p.y*rotation.x;"
         "float v=y*rotation.z+p.z*rotation.w;"
         "float d=-y*rotation.w+p.z*rotation.z;"
-        "gl_Position=vec4(x*scale.x,v*scale.y,-d*scale.z,1.0);c=color;}");
+        "gl_Position=vec4(x*scale.x,v*scale.y,-d*scale.z,1.0);gl_PointSize=8.0;c=color;}");
     GLuint fs=shader(GL_FRAGMENT_SHADER,
-        "precision mediump float;varying vec4 c;"
-        "void main(){gl_FragColor=vec4(c.b,c.g,c.r,c.a);}");
+        "precision mediump float;varying vec4 c;uniform float brightness;"
+        "void main(){gl_FragColor=vec4(c.bgr*brightness,c.a);}");
     if(!vs||!fs){glDeleteShader(vs);glDeleteShader(fs);goto fail;}
     g->program=glCreateProgram();glAttachShader(g->program,vs);glAttachShader(g->program,fs);
     glBindAttribLocation(g->program,0,"position");glBindAttribLocation(g->program,1,"color");
@@ -75,6 +76,7 @@ Gpu *gpu_create(const Model *m,char *error,size_t size) {
     g->center=glGetUniformLocation(g->program,"center");
     g->scale=glGetUniformLocation(g->program,"scale");
     g->rotation=glGetUniformLocation(g->program,"rotation");
+    g->brightness=glGetUniformLocation(g->program,"brightness");
     glGenTextures(1,&g->texture);glBindTexture(GL_TEXTURE_2D,g->texture);
     glTexImage2D(GL_TEXTURE_2D,0,GL_RGBA,WIDTH,HEIGHT,0,GL_RGBA,GL_UNSIGNED_BYTE,NULL);
     glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST);
@@ -98,6 +100,7 @@ Gpu *gpu_create(const Model *m,char *error,size_t size) {
     }
     glGenBuffers(1,&g->grid);glBindBuffer(GL_ARRAY_BUFFER,g->grid);
     glBufferData(GL_ARRAY_BUFFER,sizeof(grid),grid,GL_STATIC_DRAW);
+    glGenBuffers(1,&g->marker);
     if(glGetError()!=GL_NO_ERROR)goto fail;
     stock_log("renderer=%s vertices=%zu layers=%u\n",glGetString(GL_RENDERER),m->count,m->layers);
     return g;
@@ -111,26 +114,48 @@ static void attributes(GLuint buffer) {
     glVertexAttribPointer(1,4,GL_UNSIGNED_BYTE,GL_TRUE,sizeof(Vertex),(void*)offsetof(Vertex,color));
     glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
 }
-int gpu_render(Gpu *g,const Model *m,unsigned layer,int flat,float yaw,float tilt,float zoom,uint8_t *pixels) {
+int gpu_render(Gpu *g,const Model *m,const RenderView *v,uint8_t *pixels) {
+    unsigned layer=v->layer;int flat=v->flat,w=v->width,h=v->height;
+    if(w<1||w>WIDTH||h<1||h>HEIGHT)return -1;
+    float yaw=v->yaw,tilt=v->tilt,zoom=v->zoom;
     if(layer>=m->layers)layer=m->layers-1;
-    glViewport(0,0,WIDTH,HEIGHT);glDisable(GL_SCISSOR_TEST);
+    glViewport(0,0,w,h);glDisable(GL_SCISSOR_TEST);glDepthMask(GL_TRUE);
     glClearColor(0.07f,0.065f,0.06f,1);glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST);glDepthFunc(GL_LEQUAL);glUseProgram(g->program);
     float span=fmaxf(fmaxf(m->max[0]-m->min[0],m->max[1]-m->min[1]),m->max[2]-m->min[2]);
     if(span<1)span=1;
     glUniform3f(g->center,(m->min[0]+m->max[0])/2,(m->min[1]+m->max[1])/2,(m->min[2]+m->max[2])/2);
     float dx=m->max[0]-m->min[0],dy=m->max[1]-m->min[1],dz=m->max[2]-m->min[2];
-    float pixels_per_mm=(flat?fminf(420/fmaxf(dx,1),190/fmaxf(dy,1)):
-                             190/fmaxf(sqrtf(dx*dx+dy*dy+dz*dz),1))*zoom;
-    glUniform3f(g->scale,2*pixels_per_mm/WIDTH,2*pixels_per_mm/HEIGHT,0.8f/span);
+    float fit_w=v->compact?w*.90f:420,fit_h=v->compact?h*.90f:190;
+    float pixels_per_mm=(flat?fminf(fit_w/fmaxf(dx,1),fit_h/fmaxf(dy,1)):
+                             fminf(fit_w,fit_h)/fmaxf(sqrtf(dx*dx+dy*dy+dz*dz),1))*zoom;
+    glUniform3f(g->scale,2*pixels_per_mm/w,2*pixels_per_mm/h,0.8f/span);
     glUniform4f(g->rotation,cosf(yaw),sinf(yaw),cosf(tilt),sinf(tilt));
-    attributes(g->grid);glLineWidth(1);glDrawArrays(GL_LINES,0,84);
+    glUniform1f(g->brightness,1);attributes(g->grid);glLineWidth(1);glDrawArrays(GL_LINES,0,84);
     attributes(g->vbo);glLineWidth(flat?2:1);
     size_t first=flat&&layer?m->layer_end[layer-1]:0;
-    glDrawArrays(GL_LINES,first,m->layer_end[layer]-first);
-    glReadPixels(0,0,WIDTH,HEIGHT,GL_RGBA,GL_UNSIGNED_BYTE,g->readback);
+    size_t end=m->layer_end[layer];
+    if(v->completed!=SIZE_MAX){
+        end=v->completed<m->count?v->completed:m->count;
+        size_t planned=flat?m->layer_end[layer]:m->count;
+        glUniform1f(g->brightness,.22f);glDepthMask(GL_FALSE);
+        glDrawArrays(GL_LINES,first,planned-first);
+        glDepthMask(GL_TRUE);glUniform1f(g->brightness,1);
+        if(end<first)end=first;
+    }
+    glDrawArrays(GL_LINES,first,end-first);
+    if(v->nozzle){
+        const float *p=v->nozzle;
+        if(p[0]>=m->min[0]-5&&p[0]<=m->max[0]+5&&p[1]>=m->min[1]-5&&p[1]<=m->max[1]+5){
+            Vertex dot={.x=p[0],.y=p[1],.z=p[2],.color={80,255,120,255}};
+            glBindBuffer(GL_ARRAY_BUFFER,g->marker);glBufferData(GL_ARRAY_BUFFER,sizeof(dot),&dot,GL_STREAM_DRAW);
+            attributes(g->marker);glDisable(GL_DEPTH_TEST);glDrawArrays(GL_POINTS,0,1);
+        }
+    }
+    glReadPixels(0,0,w,h,GL_RGBA,GL_UNSIGNED_BYTE,g->readback);
     if(glGetError()!=GL_NO_ERROR)return -1;
-    for(int y=0;y<HEIGHT;y++)memcpy(pixels+y*WIDTH*4,g->readback+(HEIGHT-1-y)*WIDTH*4,WIDTH*4);
+    for(int y=0;y<h;y++)memcpy(pixels+y*w*4,g->readback+(h-1-y)*w*4,w*4);
+    if(v->compact)return 0;
     for(int y=0;y<HEIGHT;y++)if(y<48||y>=264)for(int x=0;x<WIDTH;x++){
         uint8_t *p=pixels+(y*WIDTH+x)*4;p[0]=25;p[1]=23;p[2]=20;p[3]=255;
     }

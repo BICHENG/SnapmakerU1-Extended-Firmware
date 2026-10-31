@@ -4,7 +4,11 @@ The stock-ui branch retains Snapmaker's original /usr/bin/gui and its file selec
 
 ## Rendering
 
-Fluidd parses G-code in a browser worker and draws paths as SVG. The factory screen displays slicer thumbnails. The personal extension adds **路径预览** to the factory model thumbnail. It uses an LVGL image and native buttons inside the existing GUI process. A worker parses extrusion paths and renders them through Mali-G52 OpenGL ES. The user can rotate, zoom, switch between 3D and single-layer 2D, and select a layer. Returning closes the preview and restores the factory page.
+Fluidd parses G-code in a browser worker and draws paths as SVG. The factory screen displays slicer thumbnails. The personal extension adds **路径预览** to the factory model thumbnail. During a print, that thumbnail becomes a live GPU viewport inside the original printing page. Tapping it opens a larger view with rotation, zoom and 3D/2D controls. Returning restores the factory page and its controls.
+
+The extension follows the current file and layer automatically. It indexes extrusion segments by their source byte offsets and colors the prefix reported by virtual_sdcard.file_position; remaining paths are dimmed. A green marker uses motion_report.live_position after applying the reported G-code origin. Selecting a layer manually leaves follow mode; **跟随打印** returns to the current progress. Pauses retain the last path, completion shows the whole model, and unavailable status freezes progress with a connection message.
+
+The file cursor is the interpreter's progress and can lead physical movement queued in Klipper. The nozzle marker is a separate live position sample. This display does not confirm physical extrusion or provide step-synchronous tracking.
 
 This profile builds and selects the original screen. The upstream optional HelixScreen component remains in the general firmware source; its separate custom GPU build has been removed.
 
@@ -16,11 +20,13 @@ The vendor GUI statically links LVGL and does not export its APIs. The adapter s
 
 Both checks pass before any private entry point is called. Unsupported GUI versions run without the extension. This is a binary compatibility adapter, not an official Snapmaker plugin interface. Vendor updates require a new adapter and device verification.
 
-The usleep interposition acts only at two verified call sites in the original main loop. All LVGL calls run there under the existing LVGL mutex. Parsing and GPU work run in one worker that never calls LVGL. The original executable is neither modified nor replaced.
+The usleep interposition acts only at two verified call sites in the original main loop. All LVGL calls run there under the existing LVGL mutex. One worker handles parsing, GPU work and nonblocking libcurl requests; it never calls LVGL. It reuses the firmware's libcurl and Boost.JSON libraries. No extra service is installed. The original executable is neither modified nor replaced.
+
+While printing or paused, the worker requests status about every 250 ms. Other visible previews check once per second. HTTP work is asynchronous so the vendor status endpoint's response delay cannot stall rotation or rendering. Queries stop when no supported model image or expanded preview is visible. Unchanged state does not redraw the GPU viewport.
 
 The parser supports G0/G1 extrusion moves, relative/absolute coordinates and extrusion, G92, millimetres/inches, T0–T3 and XY arcs using relative I/J or R. Unsupported arc modes and oversized geometry display an error. Limits are 1,000,000 vertices, 20,000 layers and 512 MB per file. Slicer layer markers exclude preceding purge moves. Travel moves do not become printed geometry.
 
-The preview supports readable .gcode files whose factory thumbnail resolves inside /userdata/gcodes. Other sources retain the factory thumbnail. Layer selection is manual and does not yet follow live print progress.
+The preview supports readable .gcode files whose factory thumbnail resolves inside /userdata/gcodes. Other sources retain the factory thumbnail. Colors are fixed by T0–T3 rather than the configured filament color.
 
 ## GPU and refresh
 
@@ -30,7 +36,7 @@ GPU startup uses [components] mali_gpu = true. The preview is enabled in this pe
 
 The factory refresh period changes from 33 ms to 22 ms. The 480 × 320 panel is approximately 45 Hz. Ordinary factory widgets retain LVGL software rendering; the G-code viewport uses the GPU. Rendering readback and framebuffer capture each involve a copy.
 
-A temporary guard protects initial extension startup and an open preview. If the GUI exits unexpectedly during either, its next launch runs the factory UI without the adapter. Closing the preview releases GPU resources and geometry. The guard clears after a normal return, or on reboot.
+A temporary guard protects initial extension startup and an active GPU viewport. If the GUI exits unexpectedly during either, its next launch runs the factory UI without the adapter. GPU resources and geometry are released when neither the live thumbnail nor the expanded preview is active. The guard clears after that normal return, or on reboot.
 
 ## WebRTC
 
@@ -51,3 +57,5 @@ Development checks on 2026-10-31 established:
 - Returning from the preview restores the factory material configuration page.
 
 These are development checks. The deployment record must separately identify the final image, active slot, reboot acceptance and preserved printer configuration.
+
+Live-follow development acceptance used the real virtual SD interface and original printing screen. A controlled fixture executed only G4 waits and M25 pauses; M26 skipped every movement and extrusion line. It verified a partial layer becoming complete, automatic layer changes, pause, manual browsing and return to follow mode, job completion and WebRTC interaction. Positions, tool switch counters and heater targets remained unchanged. This establishes the live data and rendering path, not physical extrusion synchronization or long-print stability.
