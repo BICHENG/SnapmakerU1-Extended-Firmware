@@ -39,7 +39,7 @@ static const DisplayAbi *vendor_abi;
 static int (*original_usleep)(useconds_t);
 static unsigned (*extension_tick)(unsigned);
 static int main_initialized, gpu_enabled, policy_reported, unsupported_reported;
-static uint64_t benchmark_until, benchmark_next, benchmark_checked;
+static uint64_t benchmark_until, benchmark_checked;
 
 static void display_log(const char *format, ...)
 {
@@ -61,7 +61,7 @@ static void benchmark_poll(uint64_t now)
     if(!now) return;
     if(benchmark_until && now>=benchmark_until) {
         display_log("repaint benchmark ended at monotonic_ms=%llu\n",(unsigned long long)now);
-        benchmark_until=benchmark_next=0;
+        benchmark_until=0;
     }
     if(benchmark_checked && now-benchmark_checked<1000) return;
     benchmark_checked=now;
@@ -92,7 +92,6 @@ static void benchmark_poll(uint64_t now)
         return;
     }
     benchmark_until=now+(uint64_t)seconds*1000u;
-    benchmark_next=now;
     display_log("repaint benchmark started at monotonic_ms=%llu duration_seconds=%ld; input and UI objects unchanged\n",
                 (unsigned long long)now,seconds);
 }
@@ -179,15 +178,14 @@ static unsigned native_tick(unsigned sleep_us, uintptr_t caller)
             }
         }
         perf_result=stock_perf_attach(vendor_base,abi->version,display,gpu_enabled,refresh_period,animation_period);
-        if(benchmark_until && now<benchmark_until && now>=benchmark_next && refresh_period) {
+        if(benchmark_until && now<benchmark_until && refresh_period) {
             const int32_t *resolution=display;
             if(resolution[0]==480 && resolution[1]==320) {
                 const int32_t area[]={0,0,479,319};
                 ((void (*)(void *,const int32_t *))(vendor_base+abi->invalidate_area))(display,area);
-                benchmark_next=now+refresh_period;
             }
             else {
-                benchmark_until=benchmark_next=0;
+                benchmark_until=0;
                 benchmark_cancelled=1;
             }
         }
