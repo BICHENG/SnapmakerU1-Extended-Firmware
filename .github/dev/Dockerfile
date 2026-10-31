@@ -17,6 +17,10 @@ RUN apt-get update -y && \
       flex \
       bison \
       libssl-dev \
+      libegl-dev \
+      libgles-dev \
+      libboost-json1.83-dev \
+      libcurl4-openssl-dev \
       dos2unix \
       sudo \
       sshpass \
@@ -28,6 +32,7 @@ RUN apt-get update -y && \
       golang-go \
       ffmpeg \
       u-boot-tools \
+      device-tree-compiler \
       python3 \
     && apt-get -y install ccache \
     && git config --global --add safe.directory '*' \

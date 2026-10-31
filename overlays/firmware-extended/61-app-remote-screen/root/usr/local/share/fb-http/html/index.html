@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>U1 屏幕</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;background:#111;color:#eee;height:100%;font:14px system-ui}
+body{display:flex;flex-direction:column;align-items:center;justify-content:center}
+video{width:100%;max-height:calc(100% - 40px);object-fit:contain;aspect-ratio:3/2;touch-action:none;user-select:none}
+footer{height:40px;display:flex;align-items:center;gap:16px;padding:4px 12px}
+button{color:inherit;background:#333;border:1px solid #555;border-radius:5px;padding:4px 10px;cursor:pointer}
+iframe+footer{display:none}
+</style>
+<video id="screen" autoplay playsinline muted></video>
+<footer><span id="status" role="status">正在连接…</span><button id="reconnect">重新连接</button><button id="fullscreen">全屏</button></footer>
+<script src="auth.js"></script>
+<script src="screen.js"></script>
+</html>
