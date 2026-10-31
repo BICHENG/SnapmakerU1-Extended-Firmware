@@ -48,3 +48,5 @@ RUN dpkg --add-architecture arm64 && \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /workspace
+
+RUN printf 'timeout = 30\ntries = 4\nwaitretry = 5\nretry_on_http_error = 429,500,502,503,504\n' >> /etc/wgetrc
