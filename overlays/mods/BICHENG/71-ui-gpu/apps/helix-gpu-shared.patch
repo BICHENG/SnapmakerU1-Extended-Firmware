@@ -103,7 +103,7 @@ index 7db5b8b..86f665c 100644
      int fbo_height_ = 0;
  
 diff --git a/mk/rules.mk b/mk/rules.mk
-index 7ce022c..3089672 100644
+index 7ce022c..1158e5b 100644
 --- a/mk/rules.mk
 +++ b/mk/rules.mk
 @@ -172,7 +172,8 @@ endif
@@ -116,13 +116,16 @@ index 7ce022c..3089672 100644
  	$(Q)mkdir -p $(BIN_DIR)
  	$(ECHO) "$(MAGENTA)$(BOLD)[LD]$(RESET) $@"
  	# Exclude header prerequisites (including .hpp generated deps like hv/json.hpp).
-@@ -188,6 +189,15 @@ $(TARGET): $(SDL2_LIB) $(LIBHV_LIB) $(LIBHV_JSON_HEADER) $(CONTRIBUTORS_H) $(APP
+@@ -188,6 +189,18 @@ $(TARGET): $(SDL2_LIB) $(LIBHV_LIB) $(LIBHV_JSON_HEADER) $(CONTRIBUTORS_H) $(APP
  	@# the deploy targets use it to turn the matching runtime switch on.
  	$(Q)printf 'remote_control=%s\n' "$(ENABLE_REMOTE_CONTROL)" > $(BIN_DIR)/.build-features
  
 +ifeq ($(PLATFORM_TARGET)-$(ENABLE_GLES_3D),snapmaker-u1-yes)
 +.PHONY: gpu-self-test
 +gpu-self-test: $(BIN_DIR)/helix-gpu-self-test
++ifeq ($(STRIP_BINARY),yes)
++	$(Q)$(STRIP_CMD) $<
++endif
 +
 +$(BIN_DIR)/helix-gpu-self-test: $(filter-out $(OBJ_DIR)/main.o,$(HELIX_LINK_INPUTS)) $(OBJ_DIR)/tools/gpu_self_test.o
 +	$(Q)mkdir -p $(BIN_DIR)

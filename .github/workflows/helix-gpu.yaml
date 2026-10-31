@@ -53,6 +53,11 @@ jobs:
           docker run --rm -e CCACHE_DIR=/src/.ccache -v "$PWD/helix:/src" -w /src helix-u1-gpu:local \
             make PLATFORM_TARGET=snapmaker-u1 DISPLAY_BACKEND=fbdev ENABLE_GLES_3D=yes ENABLE_OPENGLES=no SKIP_OPTIONAL_DEPS=1 -j4 gpu-self-test
           python3 .github/scripts/prepare-helix-gpu.py package helix ui-test-artifact --self-test
+      - name: Bound the compiler cache
+        if: steps.binary.outputs.cache-hit != 'true'
+        run: |
+          docker run --rm -e CCACHE_DIR=/src/.ccache -v "$PWD/helix:/src" helix-u1-gpu:local \
+            sh -c 'ccache --max-size=256M && ccache --cleanup'
       - name: Verify artifact source and checksums
         run: |
           python3 .github/scripts/prepare-helix-gpu.py verify ui-artifact
