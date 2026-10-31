@@ -9,8 +9,6 @@ typedef struct {
     JobState state;
     char filename[4096];
     uint64_t file_position,file_size;
-    float nozzle[3];
-    int has_nozzle;
 } PrintProgress;
 typedef struct ProgressClient ProgressClient;
 int progress_parse(const char *json,size_t length,PrintProgress *out);

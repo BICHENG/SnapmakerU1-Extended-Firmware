@@ -8,7 +8,6 @@ typedef struct {
     int flat,width,height,compact;
     float yaw,tilt,zoom;
     size_t completed;
-    const float *nozzle;
 } RenderView;
 Gpu *gpu_create(const Model *model,char *error,size_t size);
 int gpu_render(Gpu *g,const Model *m,const RenderView *view,uint8_t *pixels);

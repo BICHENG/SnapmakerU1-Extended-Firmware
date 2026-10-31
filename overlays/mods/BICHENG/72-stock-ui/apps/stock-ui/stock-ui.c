@@ -37,9 +37,8 @@ static int worker_started,wanted,active,frame_ready,flat,close_pending;
 static int worker_idle=1;
 static atomic_int guard_armed;
 static int following=1,live_available,live_follow,inline_ready;
-static atomic_int inline_show;
+static atomic_int inline_show,status_offline;
 static int thumb_width,thumb_height,inline_frame_width,inline_frame_height;
-static JobState job_state=JOB_IDLE;
 static uint64_t started;
 static unsigned layers,layer;
 static float layer_height,yaw=-0.45f,tilt=0.75f,zoom=1;
@@ -47,7 +46,7 @@ static char filename[4096],thumbnail[4096],message[128];
 static char previous_status[128];
 static uint8_t frame[WIDTH*HEIGHT*4],display_pixels[WIDTH*HEIGHT*4];
 static uint8_t inline_frame[WIDTH*HEIGHT*4],inline_pixels[WIDTH*HEIGHT*4];
-static void *badge,*source_image,*preview,*screen,*status_label,*mode_label,*follow_label,*inline_image;
+static void *entry,*source_image,*preview,*screen,*status_label,*eta_label,*mode_label,*follow_button,*inline_image;
 static uintptr_t font;
 static Image descriptor={.magic=0x19,.cf=0x10,.w=WIDTH,.h=HEIGHT,.stride=WIDTH*4,.size=sizeof(display_pixels),.data=display_pixels};
 static Image inline_descriptor={.magic=0x19,.cf=0x10,.data=inline_pixels};
@@ -122,8 +121,7 @@ static void *worker(void *unused) {
             int result=progress_poll(client,&next);polling=result==1;
             if(!result){
                 if(offline||next.state!=progress.state||strcmp(next.filename,progress.filename)||
-                   next.file_position!=progress.file_position||next.file_size!=progress.file_size||
-                   next.has_nozzle!=progress.has_nozzle||memcmp(next.nozzle,progress.nozzle,sizeof(next.nozzle)))redraw=1;
+                   next.file_position!=progress.file_position||next.file_size!=progress.file_size)redraw=1;
                 progress=next;offline=0;
             }else if(result<0){if(!offline)redraw=1;offline=1;}
         }
@@ -136,12 +134,13 @@ static void *worker(void *unused) {
             if(seq==atomic_load(&generation))snprintf(filename,sizeof(filename),"%s",path);
             pthread_mutex_unlock(&mutex);
         }
-        int matches=known&&!strcmp(path,printing_path)&&progress.state!=JOB_IDLE;
+        int matches=known&&!strcmp(path,printing_path)&&
+            (progress.state==JOB_PRINTING||progress.state==JOB_PAUSED||progress.state==JOB_COMPLETE);
         int tracking=matches&&(!modal||follow);
         int run=path[0]&&(modal||matches);
         pthread_mutex_lock(&mutex);
         if(seq==atomic_load(&generation)){
-            live_available=matches;live_follow=tracking;job_state=offline?JOB_OFFLINE:progress.state;
+            live_available=matches;live_follow=tracking;status_offline=offline;
             if(!run||modal)inline_show=0;
             if(run)worker_idle=0;
         }
@@ -172,7 +171,6 @@ static void *worker(void *unused) {
                 gcode_progress(&m,progress.file_position,&completed,&view.layer);
             else {size_t ignored;gcode_progress(&m,completed?m.line_end[completed/2-1]:0,&ignored,&view.layer);}
             view.completed=completed;
-            if(!offline&&progress.has_nozzle&&(progress.state==JOB_PRINTING||progress.state==JOB_PAUSED))view.nozzle=progress.nozzle;
         }
         if(tracking!=previous_follow)redraw=1;
         previous_follow=tracking;
@@ -207,7 +205,7 @@ static void start_worker(void){
     if(!rc){pthread_detach(thread);worker_started=1;}else snprintf(message,sizeof(message),"无法启动预览");
 }
 static void preview_deleted(Event *e){
-    if(e->code==38&&e->target==preview){preview=NULL;status_label=NULL;mode_label=NULL;follow_label=NULL;close_pending=1;}
+    if(e->code==38&&e->target==preview){preview=NULL;status_label=NULL;eta_label=NULL;mode_label=NULL;follow_button=NULL;close_pending=1;}
 }
 static void control(Event *e) {
     if(e->code!=7)return;
@@ -217,18 +215,17 @@ static void control(Event *e) {
     if(action==1){flat=!flat;yaw=flat?0:-0.45f;tilt=flat?0:0.75f;}
     if(action==2)zoom=fmaxf(0.3f,zoom/1.25f);
     if(action==3)zoom=fminf(6.0f,zoom*1.25f);
-    if(action==4){following=0;if(layer>0)layer--;}
-    if(action==5){following=0;if(layer+1<layers)layer++;}
-    if(action==6&&live_available)following=!following;
+    if(action==6&&live_available)following=1;
     request_frame();pthread_mutex_unlock(&mutex);
 }
 static void *button(void *parent,const char *s,int x,int y,int w,int h,int action){
     void *o=create(abi->stock_button_class,parent);if(!o)return NULL;
-    FN(lv_obj_remove_flag,void,void*,uint32_t)(o,(1u<<4)|(1u<<8)|(1u<<9)|(1u<<15));
+    FN(lv_obj_add_flag,void,void*,uint32_t)(o,2|(1u<<13));
+    FN(lv_obj_remove_flag,void,void*,uint32_t)(o,(1u<<2)|(1u<<4)|(1u<<8)|(1u<<9)|(1u<<15));
     pos(o,x,y);size(o,w,h);
     for(int prop=16;prop<=19;prop++)style(o,prop,0);
     style(o,12,10);style(o,28,0x292d33);style(o,29,255);style(o,48,0);style(o,60,0);
-    void *l=label(o,s,0,(h-20)/2);if(l){size(l,w,22);style(l,94,2);}
+    if(s){void *l=label(o,s,0,(h-20)/2);if(l){size(l,w,22);style(l,94,2);}}
     if(action<=6)add_event(o,control,7,(void*)(intptr_t)action);
     return o;
 }
@@ -241,13 +238,14 @@ static void touch(Event *e){
     FN(lv_indev_get_point,void,void*,int32_t*)(indev,point);
     if(e->code==1){
         last_x=point[0];last_y=point[1];
-        drag=point[1]>=260?2:point[1]>48?1:0;
+        drag=point[1]>=300?2:1;
     }
     if(!drag)return;
     pthread_mutex_lock(&mutex);
     if(drag==2&&layers){
-        int x=point[0]-60;if(x<0)x=0;if(x>360)x=360;
-        following=0;layer=(unsigned)((uint64_t)x*(layers-1)/360);request_frame();
+        int x=point[0]-12;if(x<0)x=0;if(x>456)x=456;
+        unsigned selected=(unsigned)(((uint64_t)x*(layers-1)+228)/456);
+        if(selected!=layer){following=0;layer=selected;request_frame();}
     } else if(e->code==2&&!flat) {
         yaw+=(point[0]-last_x)*0.012f;
         tilt=fmaxf(-1.4f,fminf(1.4f,tilt+(point[1]-last_y)*0.012f));request_frame();
@@ -269,17 +267,16 @@ static void open_preview(Event *e){
     FN(lv_obj_add_flag,void,void*,uint32_t)(preview,2|(1u<<13)|(1u<<18));
     FN(lv_obj_remove_flag,void,void*,uint32_t)(preview,(1u<<4)|(1u<<8)|(1u<<9)|(1u<<15));
     add_event(preview,touch,0,NULL);add_event(preview,preview_deleted,38,NULL);
-    if(!button(preview,"返回",8,6,68,36,0)){close_pending=1;return;}
-    void *follow=button(preview,"预览",88,6,174,36,6);
-    if(!follow){close_pending=1;return;}
-    follow_label=FN(lv_obj_get_child,void*,void*,int)(follow,0);
-    void *mode=button(preview,"3D",280,6,64,36,1);
+    if(!button(preview,"返回",8,8,60,34,0)){close_pending=1;return;}
+    follow_button=button(preview,"当前层",386,266,86,34,6);
+    if(!follow_button){close_pending=1;return;}
+    void *mode=button(preview,"3D",414,8,58,34,1);
     if(!mode){close_pending=1;return;}
     mode_label=FN(lv_obj_get_child,void*,void*,int)(mode,0);
-    button(preview,"−",352,6,54,36,2);button(preview,"+",414,6,58,36,3);
-    button(preview,"−",8,277,44,36,4);button(preview,"+",428,277,44,36,5);
-    status_label=label(preview,"正在读取路径…",66,285);
-    if(!status_label||!mode_label||!follow_label){close_pending=1;return;}
+    button(preview,"−",326,8,38,34,2);button(preview,"+",370,8,38,34,3);
+    status_label=label(preview,"正在读取路径…",12,258);
+    eta_label=label(preview,"",12,280);
+    if(!status_label||!eta_label||!mode_label){close_pending=1;return;}
     previous_status[0]=0;
     pthread_mutex_lock(&mutex);
     snprintf(filename,sizeof(filename),"%s",selected);
@@ -296,8 +293,18 @@ static void clear_thumbnail(void){
     if(!active)atomic_fetch_add(&generation,1);
     request_frame();pthread_mutex_unlock(&mutex);
 }
-static void badge_deleted(Event *e){
-    if(e->code==38&&e->target==badge){badge=NULL;source_image=NULL;inline_image=NULL;clear_thumbnail();}
+static void entry_deleted(Event *e){
+    if(e->code==38&&e->target==entry){entry=NULL;source_image=NULL;inline_image=NULL;clear_thumbnail();}
+}
+static void entry_touch(Event *e){
+    static int x,y,moved,pressed;
+    if(e->code==3){pressed=0;return;}
+    if(e->code!=1&&e->code!=2&&e->code!=7)return;
+    void *indev=FN(lv_event_get_indev,void*,Event*)(e);if(!indev)return;
+    int32_t point[2];FN(lv_indev_get_point,void,void*,int32_t*)(indev,point);
+    if(e->code==1){x=point[0];y=point[1];moved=0;pressed=1;}
+    if(abs(point[0]-x)>10||abs(point[1]-y)>10)moved=1;
+    if(e->code==7){if(pressed&&!moved)open_preview(e);pressed=0;}
 }
 static uintptr_t find_font(void *o,unsigned depth){
     if(!o||depth>14||!FN(lv_obj_is_visible,int,void*)(o))return 0;
@@ -310,6 +317,20 @@ static uintptr_t find_font(void *o,unsigned depth){
         uintptr_t f=find_font(FN(lv_obj_get_child,void*,void*,int)(o,i),depth+1);if(f)return f;
     }
     return 0;
+}
+static const char *machine_time(void *o,unsigned depth){
+    if(!o||depth>14||!FN(lv_obj_is_visible,int,void*)(o))return NULL;
+    if(*(uintptr_t*)o-base==abi->stock_label_class){
+        const char *s=FN(lv_label_get_text,const char*,void*)(o);
+        unsigned h,m;int used=0;
+        if(s&&(!strncmp(s,"剩余",strlen("剩余"))||
+               (sscanf(s,"%uh%um%n",&h,&m,&used)==2&&used>0&&!s[used])))return s;
+    }
+    unsigned n=FN(lv_obj_get_child_count,unsigned,void*)(o);
+    for(unsigned i=0;i<n&&i<256;i++){
+        const char *s=machine_time(FN(lv_obj_get_child,void*,void*,int)(o,i),depth+1);if(s)return s;
+    }
+    return NULL;
 }
 static int model_path(const char *src,char *out,size_t size){
     if(!src||strncmp(src,"A:/userdata/gcodes/",19))return 0;
@@ -337,7 +358,7 @@ static void scan(void *o,unsigned depth){
     if(!o||depth>14)return;
     if(!FN(lv_obj_is_visible,int,void*)(o))return;
     uintptr_t cls=*(uintptr_t*)o-base;
-    if(cls==abi->stock_image_class&&o!=preview&&!badge) {
+    if(cls==abi->stock_image_class&&o!=preview&&!entry) {
         const unsigned char *src=FN(lv_image_get_src,const unsigned char*,void*)(o);
         char candidate[sizeof(filename)];
         int32_t a[4];FN(lv_obj_get_coords,void,void*,int32_t*)(o,a);
@@ -347,12 +368,14 @@ static void scan(void *o,unsigned depth){
             source_image=o;
             inline_image=create(abi->stock_image_class,o);
             if(inline_image){
-                pos(inline_image,0,0);FN(lv_obj_add_flag,void,void*,uint32_t)(inline_image,1|2);
-                add_event(inline_image,open_preview,7,NULL);
+                pos(inline_image,0,0);FN(lv_obj_add_flag,void,void*,uint32_t)(inline_image,1);
             }
-            badge=button(o,w>=120?"路径预览":"路径",0,h-28,w,28,7);
-            if(badge){add_event(badge,open_preview,7,NULL);add_event(badge,badge_deleted,38,NULL);}
-            update_thumbnail(candidate,w,h-28);
+            entry=button(o,NULL,0,0,w,h,7);
+            if(!entry){if(inline_image)FN(lv_obj_delete,void,void*)(inline_image);inline_image=NULL;source_image=NULL;return;}
+            style(entry,29,0);
+            FN(lv_obj_set_local_style_prop,void,void*,int,uintptr_t,uint32_t)(entry,29,0,0x20);
+            add_event(entry,entry_touch,0,NULL);add_event(entry,entry_deleted,38,NULL);
+            update_thumbnail(candidate,w,h);
             return;
         }
     }
@@ -360,7 +383,7 @@ static void scan(void *o,unsigned depth){
     for(unsigned i=0;i<n&&i<256;i++)scan(FN(lv_obj_get_child,void*,void*,int)(o,i),depth+1);
 }
 static void pump(void){
-    static uint64_t last,scanned;static int refresh_set;
+    static uint64_t last,scanned,time_scanned;static int refresh_set;
     uint64_t now=milliseconds();if(now-last<22)return;last=now;
     FN(lv_lock,void,void)();
     void *current=FN(lv_display_get_screen_active,void*,void*)(NULL);
@@ -374,23 +397,30 @@ static void pump(void){
     if(close_pending){
         close_pending=0;
         pthread_mutex_lock(&mutex);active=0;atomic_fetch_add(&generation,1);request_frame();pthread_mutex_unlock(&mutex);
-        void *old=preview;preview=NULL;status_label=NULL;mode_label=NULL;follow_label=NULL;
+        void *old=preview;preview=NULL;status_label=NULL;eta_label=NULL;mode_label=NULL;follow_button=NULL;
         if(old)FN(lv_obj_delete,void,void*)(old);
     }
     if(preview&&pthread_mutex_trylock(&mutex)==0){
         if(frame_ready){memcpy(display_pixels,frame,sizeof(frame));frame_ready=0;FN(lv_obj_invalidate,void,void*)(preview);}
         char s[128];
         if(message[0])snprintf(s,sizeof(s),"%s",message);
-        else if(layers){
-            static const char *states[]={"预览","打印","暂停","完成","已取消","打印出错","连接中断"};
-            snprintf(s,sizeof(s),"%s %u / %u · %.2f mm",live_follow?states[job_state]:"层",layer+1,layers,layer_height);
-        }
+        else if(layers)snprintf(s,sizeof(s),"层 %u / %u · %.2f mm",layer+1,layers,layer_height);
         else snprintf(s,sizeof(s),"正在读取路径…");
         if(strcmp(s,previous_status)){text(status_label,s);snprintf(previous_status,sizeof(previous_status),"%s",s);}
         static int was_flat=-1;if(flat!=was_flat){text(mode_label,flat?"2D":"3D");was_flat=flat;}
-        const char *follow=live_follow?"实时打印":live_available?"跟随打印":"预览";
-        if(strcmp(FN(lv_label_get_text,const char*,void*)(follow_label),follow))text(follow_label,follow);
+        uintptr_t color=live_follow?0x2165d7:0x292d33;
+        if((FN(lv_obj_get_style_prop,uintptr_t,void*,uint32_t,int)(follow_button,0,28)&0xffffff)!=color)style(follow_button,28,color);
+        void *follow_label=FN(lv_obj_get_child,void*,void*,int)(follow_button,0);
+        color=live_available?0xffffff:0x89929b;
+        if(follow_label&&(FN(lv_obj_get_style_prop,uintptr_t,void*,uint32_t,int)(follow_label,0,88)&0xffffff)!=color)style(follow_label,88,color);
         pthread_mutex_unlock(&mutex);
+    }
+    if(preview&&now-time_scanned>=500){
+        time_scanned=now;
+        const char *native=machine_time(current,0);char value[80];
+        if(status_offline)snprintf(value,sizeof(value),"打印状态暂不可用");
+        else snprintf(value,sizeof(value),"%s%s",native&&strncmp(native,"剩余",strlen("剩余"))?"预计 ":"",native?native:"");
+        if(strcmp(FN(lv_label_get_text,const char*,void*)(eta_label),value))text(eta_label,value);
     }
     if(inline_image&&pthread_mutex_trylock(&mutex)==0){
         if(inline_show&&inline_ready){
@@ -406,17 +436,17 @@ static void pump(void){
     }
     if(!preview&&now-scanned>=500){
         scanned=now;
-        if(badge&&(!source_image||!FN(lv_obj_is_visible,int,void*)(source_image))){
-            void *old=badge,*old_image=inline_image;
-            badge=NULL;source_image=NULL;inline_image=NULL;clear_thumbnail();
+        if(entry&&(!source_image||!FN(lv_obj_is_visible,int,void*)(source_image))){
+            void *old=entry,*old_image=inline_image;
+            entry=NULL;source_image=NULL;inline_image=NULL;clear_thumbnail();
             if(old_image)FN(lv_obj_delete,void,void*)(old_image);
             FN(lv_obj_delete,void,void*)(old);
         }
-        if(badge&&source_image){
+        if(entry&&source_image){
             char candidate[4096];int32_t a[4];
             FN(lv_obj_get_coords,void,void*,int32_t*)(source_image,a);
             if(model_path(FN(lv_image_get_src,const char*,void*)(source_image),candidate,sizeof(candidate)))
-                update_thumbnail(candidate,a[2]-a[0]+1,a[3]-a[1]-27);
+                update_thumbnail(candidate,a[2]-a[0]+1,a[3]-a[1]+1);
             else clear_thumbnail();
         }
         if(current)scan(current,0);
