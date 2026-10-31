@@ -1,6 +1,6 @@
 # GPU architecture and UI reconstruction boundary
 
-Updated 2026-10-31. The runtime described here was accepted in stock-ui commit 7ba72da on vendor 2.1.0.157. The branch reorganization changes no installed code. The GPU foundation formerly named gui-gpu is now gpu; the new gui-gpu is an experimental descendant for factory UI rendering and reconstruction feasibility.
+Updated 2026-11-01. The daily runtime was accepted in stock-ui commit 7ba72da on vendor 2.1.0.157. The GPU foundation is gpu; gui-gpu holds factory drawing experiments and automatic reconstruction research. The new change corrects only the bounded repaint measurement. It does not add another renderer or change normal animation/sleep behavior.
 
 ## What runs today
 
@@ -42,12 +42,15 @@ gui-remote owns framebuffer capture, MPP video encoding, WebRTC and touch lifecy
 
 | Measurement | Accepted result | Interpretation |
 | --- | --- | --- |
-| Original home page, bounded forced redraw, GPU off/on | 28.3 → 39.1 actual rendered frames/s | Refresh cadence improved about 38%; ordinary widgets did not move to GPU |
+| Original homepage, corrected bounded repaint, GPU setting on | 45.0 / 45.2 complete frames/s; refresh p95 6.81 / 6.85 ms | Current CPU-widget page follows the configured 22 ms cadence; not every page or panel scanout |
+| Isolated original timer handler, setting off/on | 30.18 / 45.28 drawn frames/s | 33 / 22 ms policy; independent 7 / 37 ms timers retain identical callback counts |
 | Same 70,370-vertex G-code sample, readback/shared output, ABBA | Mean of run medians 39.31 → 28.69 ms | About 27% lower renderer/delivery time for this sample |
 | Helix complex model, shared output | 65.75 ms at 480×320; 46.31 ms at 317×193 | Roughly 15–22 complete redraws/s for this model, not a universal high-frame-rate claim |
 | Read-only WebRTC, both switch states | About 45 decoded frames/s, no drops in the measured five-second intervals | Video frame rate differs from newly rendered UI frames |
 
 The panel mode is about 45 Hz. There is no verified 60/120 Hz mode. A 22.2 ms frame budget is the relevant current target; idle screens should stop drawing. No long-print or acoustic acceptance follows from these short measurements.
+
+The earlier 28.3/39.1 forced-repaint result was limited by a second clock in the benchmark. Its refresh counters already showed about 30.2/45.2 opportunities per second, but some cycles were not invalidated. The correction keeps the page dirty during the explicit 1–15 second test and leaves cadence to the original timer. It is a measurement fix, not additional GPU or animation acceleration. Normal idle behavior is unchanged.
 
 ## Why a GPU switch does not convert every widget
 
@@ -55,13 +58,13 @@ The factory executable contains a statically linked LVGL 9.2-derived implementat
 
 A GPU copy of an already CPU-rendered frame does not remove the CPU drawing work. Conversely, moving each tiny rectangle to GPU and synchronizing after it can cost more. Existing isolated experiments measured a full-screen CPU fill around 0.24 ms versus about 1.18 ms for GPU drawing plus completion on a shared buffer. These are primitive tests, not complete page timings, but they reject a blanket per-widget conversion.
 
-The preferred next investigation belongs in gui-gpu: retain the original application, layouts and event handlers; adapt selected drawing work only where complete-page measurements justify it. Work is still needed for the two main display buffers, DIRECT double-buffer copying, mixed CPU/GPU access, clipping, alpha, production fonts and task lifetimes. The existing shared-output helper alone does not solve these requirements. A task must not be marked complete while the renderer still refers to its descriptor, or left waiting for a flush that itself waits for the task.
+The gui-gpu experiment now verifies exact GPU pixels in fifteen synthetic default-font scenes, using an ordered batch, 1,920-byte BGRA DMA buffers and framebuffer fetch for the original integer alpha semantics. The 204-glyph scene is still slower on GPU: 2.37 ms versus 1.37 ms through native CPU drawing and delivery. Atlas preparation is outside the warm GPU timing, while native CPU timing includes label layout. This candidate is rejected for daily use.
+
+The original homepage capture has seven fills, twelve labels and twelve images. Its measured CPU path fits the current panel budget, so retain the original application and widgets. Future GPU drawing work requires a measured expensive page and complete-frame benefit, including DIRECT copies, mixed CPU/GPU ownership and fbdev delivery. The shared-output helper alone does not replace these responsibilities. Native task descriptors must remain alive until drawing completes.
 
 ## Automatic reconstruction: evidence and limits
 
-Automatic acquisition is feasible. Historical home, files and detail captures already contain object hierarchy, rectangles, text and image references. They also contain hidden or overlapping alternatives without visibility flags. They lack complete styles, font/image bytes, event/state transitions and an embedded firmware hash. They are exploration evidence, not complete or current-version reconstruction fixtures.
-
-Separate isolated probes against the known 2.1 executable verified native drawing-task dispatch with GPU/software fallback and six default-font glyph replay cases. This supports reusing factory layout and drawing information; it does not prove complete control behavior or production-font coverage.
+The current versioned capture verifies the original homepage's frame and 31 drawing tasks without replacing dispatch. Eight isolated glyph/image cases verify owned resource copies and native replay after source assets are overwritten, including capacity failures that preserve original drawing. Those resource routines are not connected to the live capture. Replay still calls the original ELF's CPU drawing functions; it is not an independent UI or renderer.
 
 If a separate UI is required, its automation must capture versioned assets and states, generate views, then replay the same inputs and printer-status events through original and generated implementations. Compare images, focus, modal state, navigation and outgoing commands. Unsupported states must remain explicit gaps. Unknown CAN/GPIO behavior cannot be inferred from screenshots or replaced with guessed Moonraker calls. Do not run two independent printer controllers simultaneously.
 
@@ -71,4 +74,4 @@ For a source-owned reconstruction, LVGL's current NanoVG draw unit is a candidat
 
 gpu remains the reusable, accepted foundation. gui-gcode and the experimental gui-gpu follow it; gui-remote remains independent. Routine daily integration is gpu → gui-gcode → gui, plus gui-remote → gui, followed by gui and the other product features → stock-ui.
 
-gui-gpu starts with an evidence-bounded reconstruction plan. No replacement executable, selector or runtime hook is installed by that branch yet. It enters daily integration only after representative pages and state replay show equivalent behavior, repeatable complete-frame gains, correct software fallback, bounded memory and idle resource release. The existing firmware Actions remain sufficient for buildable candidates; a documentation-only branch change needs no firmware build or flash.
+gui-gpu contains source-owned diagnostics, measured results and a disabled-by-default observation entry point in the existing main-loop adapter. The probe libraries are not packaged into firmware. Its separate checks run host sanitizer tests and target compilation; the existing firmware Actions remain sufficient for future accepted candidates. It enters daily integration only after representative pages and state replay show equivalent behavior, repeatable complete-frame gains, correct software fallback, bounded memory and idle resource release. See the [experimental results](https://github.com/BICHENG/SnapmakerU1-Extended-Firmware/tree/gui-gpu/tools/native-ui).
