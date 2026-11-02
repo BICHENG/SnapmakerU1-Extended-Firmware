@@ -24,7 +24,7 @@ def render():
         function.restype, function.argtypes = result, args
         return function
 
-    fd = os.open('/dev/dri/card0', os.O_RDWR)
+    fd = os.open('/dev/dri/renderD128', os.O_RDWR)
     gbm = display = context = None
     initialized = False
     try:

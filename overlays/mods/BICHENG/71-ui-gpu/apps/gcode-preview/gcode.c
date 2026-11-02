@@ -33,6 +33,7 @@ static int segment(Model *m,const double *a,const double *b,unsigned tool,int ne
         p=realloc(m->line_end,cap/2*sizeof(uint64_t));if(!p)return fail(m,"内存不足");
         m->line_end=p;m->capacity=cap;
     }
+    m->tools_used|=1u<<tool;
     for(int j=0;j<2;j++) {
         const double *p=j?b:a;
         Vertex *v=&m->vertices[m->count++];
@@ -62,7 +63,7 @@ int gcode_load(Model *m,const char *path,const atomic_uint *generation,unsigned 
         char *p=line;while(isspace((unsigned char)*p))p++;
         if(!strncmp(p,";LAYER_CHANGE",13)||!strncmp(p,";LAYER:",7)){
             if(!explicit_layers){
-                m->count=0;m->layers=0;
+                m->count=0;m->layers=0;m->tools_used=0;
                 for(int k=0;k<3;k++){m->min[k]=INFINITY;m->max[k]=-INFINITY;}
             }
             explicit_layers=1;pending_layer=1;continue;

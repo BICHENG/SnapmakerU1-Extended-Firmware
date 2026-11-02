@@ -1,45 +1,29 @@
 diff --git a/Makefile b/Makefile
-index 8c370cc..7126967 100644
+index 8c370cc..f696f75 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -416,6 +416,12 @@ ENABLE_SCREENSAVER ?= yes
+@@ -416,6 +416,9 @@ ENABLE_SCREENSAVER ?= yes
  
  # Application C sources
  APP_C_SRCS := $(wildcard $(SRC_DIR)/*.c)
 +ifneq ($(PLATFORM_TARGET),snapmaker-u1)
 +    APP_C_SRCS := $(filter-out $(SRC_DIR)/ui-display.c,$(APP_C_SRCS))
 +endif
-+ifneq ($(PLATFORM_TARGET)-$(ENABLE_GLES_3D),snapmaker-u1-yes)
-+    APP_C_SRCS := $(filter-out $(SRC_DIR)/gpu_output.c,$(APP_C_SRCS))
-+endif
  APP_C_OBJS := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(APP_C_SRCS))
  
  # Application C++ sources (exclude test binaries, splash binary, and lvgl-demo)
-@@ -850,6 +856,10 @@ else ifneq ($(CROSS_COMPILE)$(filter x86 x86-fbdev x86-both,$(PLATFORM_TARGET)),
-     endif
-     # Add target-specific linker flags (e.g., -lstdc++fs for GCC 8)
-     LDFLAGS += $(TARGET_LDFLAGS)
-+    # The offscreen G-code renderer also needs EGL when the display uses fbdev.
-+    ifeq ($(ENABLE_GLES_3D),yes)
-+        LDFLAGS += -lEGL -lGLESv2 -lgbm
-+    endif
-     # DRM backend requires libdrm for display; libinput for LVGL input drivers
-     ifeq ($(DISPLAY_BACKEND),drm)
-         LDFLAGS += -ldrm
-diff --git a/docker/Dockerfile.snapmaker-u1 b/docker/Dockerfile.snapmaker-u1
-index 5efc6ff..9156624 100644
---- a/docker/Dockerfile.snapmaker-u1
-+++ b/docker/Dockerfile.snapmaker-u1
-@@ -56,6 +56,9 @@ RUN dpkg --add-architecture arm64 && apt-get update && apt-get install -y --no-i
-     zlib1g-dev:arm64 \
-     libzstd-dev:arm64 \
-     libdrm-dev:arm64 \
-+    libegl1-mesa-dev:arm64 \
-+    libgles2-mesa-dev:arm64 \
-+    libgbm-dev:arm64 \
-     libinput-dev:arm64 \
-     libudev-dev:arm64 \
-     libevdev-dev:arm64 \
+@@ -425,6 +428,11 @@ APP_SRCS := $(filter-out $(SRC_DIR)/test_dynamic_cards.cpp $(SRC_DIR)/test_respo
+ APP_SRCS := $(filter-out $(wildcard $(SRC_DIR)/tools/*.cpp),$(APP_SRCS))
+ # Exclude src/bluetooth/ — built as separate shared library (mk/bluetooth.mk)
+ APP_SRCS := $(filter-out $(wildcard $(SRC_DIR)/bluetooth/*.cpp),$(APP_SRCS))
++ifeq ($(PLATFORM_TARGET),snapmaker-u1)
++    APP_SRCS := $(filter-out $(SRC_DIR)/ui/ui_gcode_viewer.cpp,$(APP_SRCS))
++else
++    APP_SRCS := $(filter-out $(SRC_DIR)/ui/ui_gcode_viewer_u1.cpp,$(APP_SRCS))
++endif
+ # Exclude GLES renderer when not enabled
+ ifneq ($(ENABLE_GLES_3D),yes)
+     APP_SRCS := $(filter-out $(SRC_DIR)/rendering/gcode_gles_renderer.cpp,$(APP_SRCS))
 diff --git a/include/display_manager.h b/include/display_manager.h
 index 407c5f1..40c35fe 100644
 --- a/include/display_manager.h
@@ -75,419 +59,22 @@ index 407c5f1..40c35fe 100644
      void install_color_transform_hook();
  
      // Remote-screen frame mirror (fb0 sink on the Snapmaker U1). Fed from the
-diff --git a/include/gcode_geometry_builder.h b/include/gcode_geometry_builder.h
-index c51d25a..b6fd91e 100644
---- a/include/gcode_geometry_builder.h
-+++ b/include/gcode_geometry_builder.h
-@@ -244,7 +244,7 @@ using ColorCache = std::unordered_map<uint32_t, uint8_t>;
+diff --git a/include/ui_gcode_viewer.h b/include/ui_gcode_viewer.h
+index 34d17cb..60d9f2f 100644
+--- a/include/ui_gcode_viewer.h
++++ b/include/ui_gcode_viewer.h
+@@ -104,6 +104,11 @@ lv_obj_t* ui_gcode_viewer_create(lv_obj_t* parent);
   */
- struct ObjectRun {
-     uint32_t vertex_offset; ///< First vertex within the layer's VBO
--    uint16_t vertex_count;  ///< Always a multiple of 6 (a strip expands to 6 vertices)
-+    uint16_t vertex_count;  ///< Always a multiple of 3 (whole nondegenerate triangles)
-     int16_t object_index;   ///< Interned; matches ToolpathSegment::object_name_index
- };
- static_assert(sizeof(ObjectRun) == 8, "ObjectRun must stay 8 bytes — one per object per layer");
-@@ -271,8 +271,8 @@ struct ObjectRunSpan {
- /// only, no shell). 65536 runs is 512KB.
- inline constexpr size_t MAX_OBJECT_RUNS = 65536;
+ void ui_gcode_viewer_load_file(lv_obj_t* obj, const char* file_path);
  
--/// Largest vertex_count that fits uint16 while staying strip-aligned
--/// (6 vertices per strip). A longer stretch is split across several runs.
-+/// Maximum vertices per run, aligned to complete triangles.
-+/// A longer stretch is split across several runs.
- inline constexpr uint32_t MAX_RUN_VERTICES = 65532;
- 
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++// Exact Moonraker filename for the next load when file_path is a downloaded cache.
++void ui_gcode_viewer_set_job_filename(lv_obj_t* obj, const char* filename);
++#endif
++
  /**
-@@ -376,7 +376,7 @@ struct RibbonGeometry {
-         return total;
-     }
- 
--    /// Pre-computed interleaved vertex buffers for GPU upload (packed 20-byte layout — see
-+    /// Pre-computed interleaved vertex buffers for GPU upload (packed 12-byte layout — see
-     /// PackedVertex). Prepared on background thread to avoid blocking UI during VBO upload.
-     struct PreparedLayerBuffer {
-         std::vector<uint8_t>
-@@ -388,8 +388,8 @@ struct RibbonGeometry {
-     /**
-      * @brief Expand a run of triangle strips into packed GPU vertices.
-      *
--     * Each strip becomes 6 vertices (two triangles), so @p out must have room
--     * for `strip_count * 6` PackedVertex entries.
-+     * Repeated-index triangles are omitted. @p out must have room for
-+     * expanded_vertex_count(first_strip, strip_count) PackedVertex entries.
-      *
-      * Single definition of the strip→vertex expansion, shared by
-      * prepare_interleaved_buffers() and both of the renderer's upload paths.
-@@ -399,7 +399,15 @@ struct RibbonGeometry {
-      * Normals come straight from the vertex (already octahedral-encoded); color
-      * comes from strip_color_index[first_strip + s], one lookup per strip.
-      */
--    void expand_strips(size_t first_strip, size_t strip_count, PackedVertex* out) const;
-+    size_t expanded_vertex_count(size_t first_strip, size_t strip_count) const;
-+    size_t expand_strips(size_t first_strip, size_t strip_count, PackedVertex* out) const;
-+
-+    /// Exact payload of the per-layer GPU buffers, or nullopt for invalid/overflowing ranges.
-+    std::optional<size_t> expanded_upload_bytes() const;
-+
-+    /// Preflight before preparing buffers: CPU + payload + fixed GPU reserve + multiplier*payload.
-+    bool fits_gpu_memory_budget(size_t budget_bytes, size_t gpu_fixed_reserve_bytes,
-+                                size_t gpu_upload_multiplier) const;
- 
-     /**
-      * @brief Pre-compute interleaved vertex buffers for GPU upload.
-@@ -688,5 +696,10 @@ class GeometryBuilder {
-     QuantizationParams quant_params_;
- };
- 
-+/// Build using the viewer's memory budget, geometry settings, and cancellation policy.
-+std::unique_ptr<RibbonGeometry>
-+build_3d_geometry_in_budget(const ParsedGCodeFile& file, const char* context_tag,
-+                            const std::function<bool()>& should_cancel = {});
-+
- } // namespace gcode
- } // namespace helix
-diff --git a/include/gcode_gles_renderer.h b/include/gcode_gles_renderer.h
-index 7db5b8b..0eadd1c 100644
---- a/include/gcode_gles_renderer.h
-+++ b/include/gcode_gles_renderer.h
-@@ -13,6 +13,9 @@
- #include "gcode_render_memory.h"
- #include "gcode_selection_state.h"
- #include "gcode_selection_style.h"
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+#include "gpu_output.h"
-+#endif
- 
- #include <lvgl/lvgl.h>
- 
-@@ -29,6 +32,52 @@
- namespace helix {
- namespace gcode {
- 
-+namespace detail {
-+enum class LayerPass { Solid, Ghost };
-+
-+// Keep the original vertex order. Adjacent selected runs can share one draw;
-+// gaps and unselected objects stay opaque in the selection-tag channel.
-+template <typename Draw>
-+void for_each_layer_draw_range(size_t vertex_count, ObjectRunSpan runs,
-+                               const std::vector<bool>& highlighted, LayerPass pass, Draw&& draw) {
-+    if (!vertex_count)
-+        return;
-+    if (pass == LayerPass::Ghost || highlighted.empty() || runs.empty()) {
-+        draw(0, vertex_count, false);
-+        return;
-+    }
-+    size_t cursor = 0, selected_start = 0, selected_end = 0;
-+    auto flush_selected = [&] {
-+        if (selected_start == selected_end)
-+            return;
-+        if (cursor < selected_start)
-+            draw(cursor, selected_start - cursor, false);
-+        draw(selected_start, selected_end - selected_start, true);
-+        cursor = selected_end;
-+    };
-+    for (const auto& run : runs) {
-+        if (run.object_index < 0 || static_cast<size_t>(run.object_index) >= highlighted.size() ||
-+            !highlighted[static_cast<size_t>(run.object_index)] || !run.vertex_count)
-+            continue;
-+        const size_t first = run.vertex_offset;
-+        const size_t end = first + run.vertex_count;
-+        // Incremental upload can leave a VBO shorter than its geometry's runs.
-+        if (first < selected_end || end > vertex_count)
-+            continue;
-+        if (first == selected_end && selected_start != selected_end) {
-+            selected_end = end;
-+        } else {
-+            flush_selected();
-+            selected_start = first;
-+            selected_end = end;
-+        }
-+    }
-+    flush_selected();
-+    if (cursor < vertex_count)
-+        draw(cursor, vertex_count - cursor, false);
-+}
-+} // namespace detail
-+
- // ====== Named Constants (rendering parameters) ======
- 
- // Specular material defaults (plastic-like sheen)
-@@ -133,6 +182,8 @@ struct GLRenderbufferHandle {
- /// Renders to FBO, reads pixels back into lv_draw_buf_t for LVGL compositing.
- /// Requires DRM+EGL display backend.
- class GCodeGLESRenderer {
-+    friend struct GCodeGLESSelfTestAccess;
-+
-   public:
-     GCodeGLESRenderer();
-     ~GCodeGLESRenderer();
-@@ -145,6 +196,13 @@ class GCodeGLESRenderer {
-     void render(lv_layer_t* layer, const ParsedGCodeFile& gcode, const GCodeCamera& camera,
-                 const lv_area_t* widget_coords);
- 
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    // Call before supplying geometry. All later GL work belongs to the worker.
-+    void enable_async();
-+    void render_async(lv_layer_t* layer, std::shared_ptr<const ParsedGCodeFile> gcode,
-+                      const GCodeCamera& camera, const lv_area_t* widget_coords);
-+#endif
-+
-     void set_viewport_size(int width, int height);
-     void set_interaction_mode(bool interacting);
-     bool is_interaction_mode() const {
-@@ -152,25 +210,19 @@ class GCodeGLESRenderer {
-     }
- 
-     /// True while VBO upload is still in progress (caller should invalidate widget)
--    bool is_uploading() const {
--        return geometry_ && !geometry_uploaded_;
--    }
-+    bool is_uploading() const;
- 
-     /// True if geometry has been set via set_prebuilt_geometry(). Used by the
-     /// viewer widget to decide whether a live 2D→3D switch needs an on-demand
-     /// geometry build (initial load in 2D mode skips the build).
--    bool has_geometry() const {
--        return geometry_ != nullptr;
--    }
-+    bool has_geometry() const;
- 
--    /// True once a fatal GL error (out-of-memory / invalid-operation) was seen
--    /// during a draw batch. The viewer polls this after render() and switches
-+    /// True when GL initialization failed or a fatal draw error was seen.
-+    /// The viewer polls this after render() and switches
-     /// to the pure-CPU 2D renderer for the rest of the session rather than
-     /// risk a driver-side crash on constrained GPUs (e.g. Mali-G31 on CB1).
-     /// Sticky: once set it stays set until the renderer is destroyed.
--    bool render_failed() const {
--        return gl_render_failed_;
--    }
-+    bool render_failed() const;
- 
-     // ====== Color / Material ======
- 
-@@ -265,6 +317,11 @@ class GCodeGLESRenderer {
-     size_t get_triangle_count() const;
- 
-   private:
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    struct AsyncState;
-+    explicit GCodeGLESRenderer(const selection::Palette& palette);
-+    std::unique_ptr<AsyncState> async_;
-+#endif
-     // ====== GL Resource Management ======
- 
-     bool init_gl();
-@@ -295,7 +352,8 @@ class GCodeGLESRenderer {
- 
-     void render_to_fbo(const ParsedGCodeFile& gcode, const GCodeCamera& camera);
-     void draw_layers(const std::vector<LayerVBO>& vbos, int layer_start, int layer_end,
--                     float color_scale, float alpha);
-+                     float color_scale, float alpha, detail::LayerPass pass,
-+                     const std::vector<bool>& highlighted);
-     void blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_coords);
-     void draw_cached_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_coords);
- 
-@@ -319,40 +377,6 @@ class GCodeGLESRenderer {
-     /// image that gets blitted to LVGL. Matches the deleted TinyGL impl.
-     void render_brackets_3d(const ParsedGCodeFile& gcode, const glm::mat4& mvp);
- 
--    /// Lazily compile/link the tag program used by the selection silhouette.
--    bool init_shell_program();
--
--    /**
--     * @brief Mark the highlighted objects' visible pixels in the framebuffer alpha.
--     *
--     * The silhouette has to follow the real toolpath: an object's bounding box is
--     * a box, and EXCLUDE_OBJECT_DEFINE POLYGON= is the slicer's CONVEX HULL (a cat
--     * is described as an octagon), so neither can trace a concave shape. The mesh
--     * is the only thing that carries the true contour, and
--     * RibbonGeometry::object_runs is what makes a per-object subset of it drawable.
--     *
--     * This does NOT draw the rim. It re-draws the object's own triangles at the
--     * depth the lit pass already established, with the color mask set to alpha
--     * only, so every pixel where the object is VISIBLE ends up holding
--     * kSelectedAlpha. stroke_selection_rim() derives the white contour from that
--     * after readback, exactly as the software renderer does.
--     *
--     * The predecessor was an inverted hull: push the mesh out along its normals,
--     * cull front faces, let the lit pass overpaint the middle. That is
--     * dilate-and-overpaint, and it needs a watertight mesh to work. A toolpath is
--     * a stack of separate tubes, so on a sloped wall the pushed shell of one ring
--     * shows through the gap above it and keeps showing through - a test cone was
--     * mostly white by layer 130. Deriving the contour from the rendered pixels has
--     * no such failure mode, and it costs one depth-only draw instead of a full
--     * second rasterization of the object.
--     *
--     * @param mvp_dequant The lit pass's u_mvp — MVP with dequantization folded in.
--     * @param layer_start,layer_end Solid layer range only; ghost layers are faded
--     *        context and a full-strength rim there would read as a solid object.
--     */
--    void render_selection_tag(const ParsedGCodeFile& gcode, const glm::mat4& mvp_dequant,
--                              int layer_start, int layer_end);
--
-     // ====== Frame Skip ======
- 
-     struct CachedRenderState {
-@@ -407,13 +431,6 @@ class GCodeGLESRenderer {
-     int line_u_color_ = -1;
-     int line_a_position_ = -1;
-     unsigned int line_vbo_ = 0;
--    // Flat-color shell program for the selection silhouette. Consumes the same
--    // packed vertex layout as the lit program, so it draws straight from the
--    // layer VBOs with no extra buffer.
--    unsigned int shell_program_ = 0;
--    int shell_u_mvp_ = -1;
--    int shell_u_color_ = -1;
--    int shell_a_position_ = -1;
-     // Uniform locations
-     int u_mvp_ = -1;
-     int u_normal_matrix_ = -1;
-@@ -438,6 +455,9 @@ class GCodeGLESRenderer {
-     GLFramebufferHandle fbo_;
-     GLRenderbufferHandle color_rbo_;
-     GLRenderbufferHandle depth_rbo_;
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    UiGpuOutput* gpu_output_ = nullptr;
-+#endif
-     int fbo_width_ = 0;
-     int fbo_height_ = 0;
- 
-@@ -510,6 +530,9 @@ class GCodeGLESRenderer {
-     // ====== Readback Buffer (persistent to avoid per-frame allocation) ======
- 
-     std::vector<uint8_t> readback_buf_;
-+    // Worker output uses ordinary memory; only the UI thread owns LVGL buffers.
-+    std::vector<uint8_t> offscreen_pixels_;
-+    uint64_t offscreen_generation_ = 0;
- 
-     // ====== Render Deferral (avoid blocking panel animations) ======
- 
-diff --git a/include/gcode_latest_frame.h b/include/gcode_latest_frame.h
-new file mode 100644
-index 0000000..63c8bbe
---- /dev/null
-+++ b/include/gcode_latest_frame.h
-@@ -0,0 +1,84 @@
-+// SPDX-License-Identifier: GPL-3.0-or-later
-+#pragma once
-+
-+#include <condition_variable>
-+#include <cstdint>
-+#include <mutex>
-+#include <optional>
-+#include <utility>
-+
-+namespace helix::gcode::detail {
-+
-+// One renderer consumes the newest request. Completed frames remain usable while
-+// a newer camera position is rendering; invalidating a model rejects its frames.
-+template <typename Job, typename Frame> class LatestFrame {
-+  public:
-+    struct Request {
-+        uint64_t epoch, sequence;
-+        Job job;
-+    };
-+    void submit(Job job) {
-+        std::lock_guard<std::mutex> lock(mutex_);
-+        pending_ = Request{epoch_, ++submitted_, std::move(job)};
-+        changed_.notify_one();
-+    }
-+    void invalidate() {
-+        std::lock_guard<std::mutex> lock(mutex_);
-+        ++epoch_;
-+        pending_.reset();
-+        complete_.reset();
-+        consumed_ = submitted_;
-+    }
-+    bool take(Request& request) {
-+        std::unique_lock<std::mutex> lock(mutex_);
-+        changed_.wait(lock, [&] { return stopped_ || pending_.has_value(); });
-+        if (stopped_)
-+            return false;
-+        auto newest = std::move(*pending_);
-+        pending_.reset();
-+        lock.unlock();
-+        request = std::move(newest);
-+        return true;
-+    }
-+    bool superseded(const Request& request) const {
-+        std::lock_guard<std::mutex> lock(mutex_);
-+        return stopped_ || request.epoch != epoch_ || pending_.has_value();
-+    }
-+    void publish(const Request& request, Frame frame) {
-+        std::lock_guard<std::mutex> lock(mutex_);
-+        if (!stopped_ && request.epoch == epoch_) {
-+            complete_ = std::move(frame);
-+            completed_ = request.sequence;
-+        }
-+    }
-+    std::optional<Frame> consume() {
-+        std::lock_guard<std::mutex> lock(mutex_);
-+        if (!complete_)
-+            return std::nullopt;
-+        auto frame = std::move(complete_);
-+        complete_.reset();
-+        consumed_ = completed_;
-+        return frame;
-+    }
-+    bool needs_frame() const {
-+        std::lock_guard<std::mutex> lock(mutex_);
-+        return consumed_ != submitted_;
-+    }
-+    void stop() {
-+        std::lock_guard<std::mutex> lock(mutex_);
-+        stopped_ = true;
-+        pending_.reset();
-+        complete_.reset();
-+        changed_.notify_one();
-+    }
-+
-+  private:
-+    mutable std::mutex mutex_;
-+    std::condition_variable changed_;
-+    std::optional<Request> pending_;
-+    std::optional<Frame> complete_;
-+    uint64_t epoch_ = 0, submitted_ = 0, completed_ = 0, consumed_ = 0;
-+    bool stopped_ = false;
-+};
-+
-+} // namespace helix::gcode::detail
-diff --git a/mk/rules.mk b/mk/rules.mk
-index 7ce022c..1158e5b 100644
---- a/mk/rules.mk
-+++ b/mk/rules.mk
-@@ -172,7 +172,8 @@ endif
- 
- # Link binary (SDL2_LIB is empty if using system SDL2)
- # Keep broad filtering so non-object prerequisites can be added safely later.
--$(TARGET): $(SDL2_LIB) $(LIBHV_LIB) $(LIBHV_JSON_HEADER) $(CONTRIBUTORS_H) $(APP_C_OBJS) $(APP_OBJS) $(APP_MODULE_OBJS) $(REMOTE_LINENOISE_OBJ) $(OBJCPP_OBJS) $(LVGL_OBJS) $(HELIX_XML_OBJS) $(THORVG_OBJS) $(LVGL_OPENGLES_OBJS) $(LV_MARKDOWN_OBJS) $(QUIRC_OBJS) $(FONT_OBJS) $(TRANS_OBJS) $(APP_DNS_RESOLV_OBJ) $(WPA_DEPS)
-+HELIX_LINK_INPUTS := $(SDL2_LIB) $(LIBHV_LIB) $(LIBHV_JSON_HEADER) $(CONTRIBUTORS_H) $(APP_C_OBJS) $(APP_OBJS) $(APP_MODULE_OBJS) $(REMOTE_LINENOISE_OBJ) $(OBJCPP_OBJS) $(LVGL_OBJS) $(HELIX_XML_OBJS) $(THORVG_OBJS) $(LVGL_OPENGLES_OBJS) $(LV_MARKDOWN_OBJS) $(QUIRC_OBJS) $(FONT_OBJS) $(TRANS_OBJS) $(APP_DNS_RESOLV_OBJ) $(WPA_DEPS)
-+$(TARGET): $(HELIX_LINK_INPUTS)
- 	$(Q)mkdir -p $(BIN_DIR)
- 	$(ECHO) "$(MAGENTA)$(BOLD)[LD]$(RESET) $@"
- 	# Exclude header prerequisites (including .hpp generated deps like hv/json.hpp).
-@@ -188,6 +189,18 @@ $(TARGET): $(SDL2_LIB) $(LIBHV_LIB) $(LIBHV_JSON_HEADER) $(CONTRIBUTORS_H) $(APP
- 	@# the deploy targets use it to turn the matching runtime switch on.
- 	$(Q)printf 'remote_control=%s\n' "$(ENABLE_REMOTE_CONTROL)" > $(BIN_DIR)/.build-features
- 
-+ifeq ($(PLATFORM_TARGET)-$(ENABLE_GLES_3D),snapmaker-u1-yes)
-+.PHONY: gpu-self-test
-+gpu-self-test: $(BIN_DIR)/helix-gpu-self-test
-+ifeq ($(STRIP_BINARY),yes)
-+	$(Q)$(STRIP_CMD) $<
-+endif
-+
-+$(BIN_DIR)/helix-gpu-self-test: $(filter-out $(OBJ_DIR)/main.o,$(HELIX_LINK_INPUTS)) $(OBJ_DIR)/tools/gpu_self_test.o
-+	$(Q)mkdir -p $(BIN_DIR)
-+	$(Q)$(CXX) $(CXXFLAGS) $(filter-out %.a %.h %.hh %.hpp %.hxx,$^) -o $@ $(LDFLAGS)
-+endif
-+
- # Collect all .d dependency files for proper header tracking
- # These are generated during compilation with -MMD -MP flags
- DEPFILES := $(wildcard $(OBJ_DIR)/*.d $(OBJ_DIR)/**/*.d)
+  * @brief Set callback to be invoked when async file loading completes
+  * @param obj Viewer widget
 diff --git a/src/application/display_manager.cpp b/src/application/display_manager.cpp
 index 361f8c7..0fc229c 100644
 --- a/src/application/display_manager.cpp
@@ -597,2615 +184,900 @@ index 361f8c7..0fc229c 100644
          // Forward to the original backend flush
          if (self && self->m_original_flush_cb_for_color) {
              self->m_original_flush_cb_for_color(d, area, px_map);
-diff --git a/src/rendering/gcode_geometry_builder.cpp b/src/rendering/gcode_geometry_builder.cpp
-index 8f4286e..4e1abe0 100644
---- a/src/rendering/gcode_geometry_builder.cpp
-+++ b/src/rendering/gcode_geometry_builder.cpp
-@@ -15,6 +15,8 @@
- #include <algorithm>
- #include <chrono>
- #include <cmath>
-+#include <cstdlib>
-+#include <cstring>
- #include <glm/gtx/norm.hpp>
- #include <limits>
- #include <unordered_map>
-@@ -181,11 +183,33 @@ RibbonGeometry& RibbonGeometry::operator=(RibbonGeometry&& other) noexcept {
-     return *this;
- }
- 
--void RibbonGeometry::expand_strips(size_t first_strip, size_t strip_count,
--                                   PackedVertex* out) const {
-+namespace {
-+constexpr int kTriangleIndices[2][3] = {{0, 1, 2}, {1, 3, 2}};
-+
-+bool has_triangle(const TriangleStrip& strip, const int (&indices)[3]) {
-+    return strip[indices[0]] != strip[indices[1]] &&
-+           strip[indices[0]] != strip[indices[2]] && strip[indices[1]] != strip[indices[2]];
-+}
-+
-+size_t strip_vertex_count(const TriangleStrip& strip) {
-+    return 3u * (static_cast<unsigned>(has_triangle(strip, kTriangleIndices[0])) +
-+                 static_cast<unsigned>(has_triangle(strip, kTriangleIndices[1])));
-+}
-+} // namespace
-+
-+size_t RibbonGeometry::expanded_vertex_count(size_t first_strip, size_t strip_count) const {
-+    size_t count = 0;
-+    for (size_t s = first_strip; s < first_strip + strip_count; ++s) {
-+        count += strip_vertex_count(strips[s]);
-+    }
-+    return count;
-+}
-+
-+size_t RibbonGeometry::expand_strips(size_t first_strip, size_t strip_count,
-+                                      PackedVertex* out) const {
-     // Strip order: BL(0), BR(1), TL(2), TR(3)
-     // Triangle 1: BL-BR-TL,  Triangle 2: BR-TR-TL
--    static constexpr int TRI_INDICES[6] = {0, 1, 2, 1, 3, 2};
-+    size_t written = 0;
- 
-     for (size_t s = 0; s < strip_count; ++s) {
-         const size_t strip_idx = first_strip + s;
-@@ -196,26 +220,71 @@ void RibbonGeometry::expand_strips(size_t first_strip, size_t strip_count,
-         uint8_t rgba[4];
-         PackedVertex::encode_color(strip_color(strip_idx), rgba);
- 
--        for (int ti = 0; ti < 6; ++ti) {
--            const auto& vert = vertices[strip[static_cast<size_t>(TRI_INDICES[ti])]];
--
--            // Quantized coordinates go to the GPU as-is; the renderer folds the
--            // dequantization into its matrices.
--            out->position[0] = vert.position.x;
--            out->position[1] = vert.position.y;
--            out->position[2] = vert.position.z;
-+        for (const auto& triangle : kTriangleIndices) {
-+            if (!has_triangle(strip, triangle)) {
-+                continue;
-+            }
-+            for (int index : triangle) {
-+                const auto& vert = vertices[strip[static_cast<size_t>(index)]];
- 
--            out->color[0] = rgba[0];
--            out->color[1] = rgba[1];
--            out->color[2] = rgba[2];
--            out->color[3] = rgba[3];
-+                // Quantized positions and encoded normals reach the GPU unchanged.
-+                out->position[0] = vert.position.x;
-+                out->position[1] = vert.position.y;
-+                out->position[2] = vert.position.z;
-+                out->color[0] = rgba[0];
-+                out->color[1] = rgba[1];
-+                out->color[2] = rgba[2];
-+                out->color[3] = rgba[3];
-+                out->normal[0] = vert.normal[0];
-+                out->normal[1] = vert.normal[1];
-+                ++out;
-+                ++written;
-+            }
-+        }
-+    }
-+    return written;
-+}
- 
--            // Already octahedral-encoded at build time — straight copy.
--            out->normal[0] = vert.normal[0];
--            out->normal[1] = vert.normal[1];
--            ++out;
-+std::optional<size_t> RibbonGeometry::expanded_upload_bytes() const {
-+    if (strips.empty() || vertices.empty())
-+        return size_t{0};
-+    size_t total = 0;
-+    auto add_range = [&](size_t first, size_t count) {
-+        if (first > strips.size() || count > strips.size() - first ||
-+            count > std::numeric_limits<size_t>::max() / 6)
-+            return false;
-+        const size_t expanded = expanded_vertex_count(first, count);
-+        const size_t remaining_vertices =
-+            (std::numeric_limits<size_t>::max() - total) / PackedVertex::stride();
-+        if (expanded > remaining_vertices)
-+            return false;
-+        total += expanded * PackedVertex::stride();
-+        return true;
-+    };
-+    if (layer_strip_ranges.empty()) {
-+        if (!add_range(0, strips.size()))
-+            return std::nullopt;
-+    } else {
-+        for (const auto& range : layer_strip_ranges) {
-+            if (!add_range(range.first, range.second))
-+                return std::nullopt;
-         }
-     }
-+    return total;
-+}
-+
-+bool RibbonGeometry::fits_gpu_memory_budget(size_t budget_bytes, size_t gpu_fixed_reserve_bytes,
-+                                            size_t gpu_upload_multiplier) const {
-+    const auto payload = expanded_upload_bytes();
-+    if (!payload)
-+        return false;
-+    // Subtraction and division keep large reserves from wrapping into small estimates.
-+    for (size_t bytes : {memory_usage(), *payload, gpu_fixed_reserve_bytes}) {
-+        if (bytes > budget_bytes)
-+            return false;
-+        budget_bytes -= bytes;
-+    }
-+    return gpu_upload_multiplier == 0 || *payload <= budget_bytes / gpu_upload_multiplier;
- }
- 
- void RibbonGeometry::prepare_interleaved_buffers() {
-@@ -244,7 +313,7 @@ void RibbonGeometry::prepare_interleaved_buffers() {
-             continue;
-         }
- 
--        size_t total_verts = strip_count * 6; // 2 triangles per strip
-+        size_t total_verts = expanded_vertex_count(first_strip, strip_count);
-         prepared.vertex_count = total_verts;
-         prepared.data.resize(total_verts * STRIDE);
- 
-@@ -271,8 +340,7 @@ void RibbonGeometry::patch_prepared_buffer_colors() {
-     // in place rather than re-emitting whole vertices — the point is to avoid
-     // regenerating megabytes of buffer for a recolor. Any change to the vertex
-     // ordering in expand_strips() must be mirrored here. Color is per-strip, so
--    // the within-strip vertex permutation is irrelevant here: all 6 expanded
--    // vertices of a strip get the same bytes.
-+    // each surviving vertex of a strip gets the same bytes.
- 
-     for (size_t layer = 0; layer < num_layers; ++layer) {
-         size_t first_strip = 0;
-@@ -284,7 +352,7 @@ void RibbonGeometry::patch_prepared_buffer_colors() {
-         }
- 
-         auto& prepared = prepared_buffers[layer];
--        if (prepared.vertex_count != strip_count * 6) {
-+        if (prepared.vertex_count != expanded_vertex_count(first_strip, strip_count)) {
-             // Sizing drift on this layer — rebuild everything to be safe.
-             prepare_interleaved_buffers();
-             return;
-@@ -294,7 +362,8 @@ void RibbonGeometry::patch_prepared_buffer_colors() {
-         for (size_t s = 0; s < strip_count; ++s) {
-             uint8_t rgba[4];
-             PackedVertex::encode_color(strip_color(first_strip + s), rgba);
--            for (int ti = 0; ti < 6; ++ti) {
-+            const size_t count = strip_vertex_count(strips[first_strip + s]);
-+            for (size_t vertex = 0; vertex < count; ++vertex) {
-                 out->color[0] = rgba[0];
-                 out->color[1] = rgba[1];
-                 out->color[2] = rgba[2];
-@@ -396,8 +465,13 @@ void RibbonGeometry::validate() const {
-             ++issues;
-             continue;
-         }
--        const size_t layer_verts =
--            (layer < layer_strip_ranges.size()) ? layer_strip_ranges[layer].second * 6 : 0;
-+        size_t layer_verts = 0;
-+        if (layer < layer_strip_ranges.size()) {
-+            const auto [first, count] = layer_strip_ranges[layer];
-+            if (first <= strips.size() && count <= strips.size() - first) {
-+                layer_verts = expanded_vertex_count(first, count);
-+            }
-+        }
-         for (size_t r = rfirst; r < static_cast<size_t>(rfirst) + rcount; ++r) {
-             const auto& run = object_runs[r];
-             if (static_cast<size_t>(run.vertex_offset) + run.vertex_count > layer_verts) {
-@@ -896,9 +970,8 @@ RibbonGeometry GeometryBuilder::build(const ParsedGCodeFile& gcode,
-     }
- 
-     // Convert the accumulated strip-space runs into per-layer VBO vertex ranges.
--    // Each strip expands to exactly 6 vertices (expand_strips), and a layer's VBO is
--    // built from layer_strip_ranges[layer], so a run's vertex offset is
--    // (first_strip - layer_first_strip) * 6.
-+    // Compute packed offsets once during the build. Cap strips emit one triangle;
-+    // side strips emit two. Runs are sorted by layer and strip position.
-     if (collect_runs && !runs_abandoned && !pending_runs.empty()) {
-         // Group by layer so layer_object_runs() can hand out a contiguous span.
-         // Stable, so runs stay in ascending strip order within a layer.
-@@ -910,6 +983,7 @@ RibbonGeometry GeometryBuilder::build(const ParsedGCodeFile& gcode,
-         geometry.object_runs.reserve(pending_runs.size());
- 
-         bool overflowed = false;
-+        size_t counted_layer = SIZE_MAX, counted_strip = 0, counted_vertices = 0;
-         for (const PendingRun& pr : pending_runs) {
-             if (pr.layer >= geometry.layer_strip_ranges.size()) {
-                 continue;
-@@ -923,11 +997,20 @@ RibbonGeometry GeometryBuilder::build(const ParsedGCodeFile& gcode,
-                 continue;
-             }
- 
--            size_t offset = rel_strip * 6;
--            size_t remaining = pr.strip_count * 6;
-+            if (counted_layer != pr.layer) {
-+                counted_layer = pr.layer;
-+                counted_strip = layer_first_strip;
-+                counted_vertices = 0;
-+            }
-+            counted_vertices +=
-+                geometry.expanded_vertex_count(counted_strip, pr.first_strip - counted_strip);
-+            size_t offset = counted_vertices;
-+            size_t remaining = geometry.expanded_vertex_count(pr.first_strip, pr.strip_count);
-+            counted_strip = pr.first_strip + pr.strip_count;
-+            counted_vertices += remaining;
-             while (remaining > 0) {
-                 // Split rather than truncate: vertex_count is uint16, and
--                // MAX_RUN_VERTICES keeps every piece strip-aligned.
-+                // MAX_RUN_VERTICES keeps every piece triangle-aligned.
-                 const size_t chunk = std::min<size_t>(remaining, MAX_RUN_VERTICES);
-                 if (geometry.object_runs.size() >= MAX_OBJECT_RUNS) {
-                     overflowed = true;
-@@ -976,8 +1059,7 @@ RibbonGeometry GeometryBuilder::build(const ParsedGCodeFile& gcode,
- 
-     // Update final statistics
-     stats_.vertices_generated = geometry.vertices.size();
--    // Each TriangleStrip has 4 indices forming 2 triangles
--    stats_.triangles_generated = geometry.strips.size() * 2;
-+    stats_.triangles_generated = geometry.expanded_vertex_count(0, geometry.strips.size()) / 3;
-     stats_.memory_bytes = geometry.memory_usage();
- 
-     stats_.log();
-@@ -1533,5 +1615,92 @@ uint32_t GeometryBuilder::compute_segment_color(const ToolpathSegment& segment,
-            static_cast<uint32_t>(filament_b_);
- }
- 
-+std::unique_ptr<RibbonGeometry>
-+build_3d_geometry_in_budget(const ParsedGCodeFile& file, const char* context_tag,
-+                            const std::function<bool()>& should_cancel) {
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    const char* enabled = std::getenv("UI_GPU_ENABLED");
-+    if (enabled && std::strcmp(enabled, "0") == 0) {
-+        spdlog::info("[GCode Viewer] {}: GPU disabled — skipping 3D geometry", context_tag);
-+        return nullptr;
-+    }
-+#endif
-+    helix::gcode::GeometryBudgetManager budget_mgr;
-+    size_t available_kb = budget_mgr.read_system_available_kb();
-+    size_t budget = budget_mgr.calculate_budget(available_kb);
-+    // Size the tier on what the builder will actually build. GeometryBuilder
-+    // drops auxiliary (purge / prime tower) segments, so estimating from
-+    // total_segments charged the budget for mass that never becomes geometry
-+    // and could downgrade tubes - or refuse 3D outright - on a tower-heavy
-+    // multi-color file.
-+    auto budget_config = budget_mgr.select_tier(file.drawable_segments, budget);
-+
-+    spdlog::info(
-+        "[GCode Viewer] {}: {}MB available, {}MB budget, {} drawable of {} segments -> tier {}",
-+        context_tag, available_kb / 1024, budget / (1024 * 1024), file.drawable_segments,
-+        file.total_segments, budget_config.tier);
-+
-+    if (budget_config.tier > 3) {
-+        spdlog::info("[GCode Viewer] {}: tier {} — skipping 3D geometry build", context_tag,
-+                     budget_config.tier);
-+        return nullptr;
-+    }
-+
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    // Bound tube tessellation on the 480x320 display without loosening path precision.
-+    budget_config.tube_sides = std::min(budget_config.tube_sides, 4);
-+#endif
-+
-+    helix::gcode::GeometryBuilder builder;
-+    if (!file.tool_color_palette.empty()) {
-+        builder.set_tool_color_palette(file.tool_color_palette);
-+    }
-+    if (file.perimeter_extrusion_width_mm > 0.0f) {
-+        builder.set_extrusion_width(file.perimeter_extrusion_width_mm);
-+    } else if (file.extrusion_width_mm > 0.0f) {
-+        builder.set_extrusion_width(file.extrusion_width_mm);
-+    }
-+    builder.set_layer_height(file.layer_height_mm);
-+    builder.set_budget_tube_sides(budget_config.tube_sides);
-+    builder.set_budget_limit(budget_config.budget_bytes);
-+
-+    helix::gcode::SimplificationOptions opts{.tolerance_mm = budget_config.simplification_tolerance,
-+                                             .min_segment_length_mm = 0.05f,
-+                                             .max_direction_change_deg =
-+                                                 budget_config.tier >= 3   ? 45.0f
-+                                                 : budget_config.tier == 2 ? 30.0f
-+                                                                           : 15.0f};
-+
-+    auto geometry =
-+        std::make_unique<helix::gcode::RibbonGeometry>(builder.build(file, opts, should_cancel));
-+
-+    if (should_cancel && should_cancel()) {
-+        spdlog::info("[GCode Viewer] {}: build cancelled - discarding geometry", context_tag);
-+        return nullptr;
-+    }
-+    if (builder.was_budget_exceeded()) {
-+        spdlog::warn("[GCode Viewer] {}: budget exceeded — falling back to 2D", context_tag);
-+        return nullptr;
-+    }
-+
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    // N4 measurements: fixture 4.4 MiB, model GPU peak 5.68x upload payload.
-+    constexpr size_t GPU_FIXED_RESERVE = 8 * 1024 * 1024;
-+    constexpr size_t GPU_UPLOAD_MULTIPLIER = 6;
-+    if (!geometry->fits_gpu_memory_budget(budget, GPU_FIXED_RESERVE, GPU_UPLOAD_MULTIPLIER)) {
-+        spdlog::warn("[GCode Viewer] {}: CPU/upload/GPU memory exceeds {}MiB budget — using 2D",
-+                     context_tag, budget / (1024 * 1024));
-+        return nullptr;
-+    }
-+#endif
-+
-+    spdlog::info("[GCode Viewer] {}: built geometry: {} vertices, {} triangles (tier {})",
-+                 context_tag, geometry->vertices.size(),
-+                 geometry->extrusion_triangle_count + geometry->travel_triangle_count,
-+                 budget_config.tier);
-+    geometry->prepare_interleaved_buffers();
-+    return geometry;
-+}
-+
- } // namespace gcode
- } // namespace helix
-diff --git a/src/rendering/gcode_gles_renderer.cpp b/src/rendering/gcode_gles_renderer.cpp
-index 255abd7..81f4565 100644
---- a/src/rendering/gcode_gles_renderer.cpp
-+++ b/src/rendering/gcode_gles_renderer.cpp
-@@ -13,6 +13,11 @@
- #include "lv_draw_buf_guard.h"
- #include "runtime_config.h"
- #include "scoped_guard_file.h"
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+#include "gcode_latest_frame.h"
-+#include <atomic>
-+#include <thread>
-+#endif
- 
+diff --git a/src/ui/gcode_preview_setup.cpp b/src/ui/gcode_preview_setup.cpp
+index c4a029b..3307c88 100644
+--- a/src/ui/gcode_preview_setup.cpp
++++ b/src/ui/gcode_preview_setup.cpp
+@@ -13,6 +13,7 @@
  #include <spdlog/spdlog.h>
  
-@@ -35,6 +40,7 @@
- #include <algorithm>
- #include <chrono>
- #include <cmath>
-+#include <cstdlib>
- #include <cstring>
- #include <glm/gtc/matrix_transform.hpp>
- #include <glm/gtc/type_ptr.hpp>
-@@ -234,10 +240,7 @@ static const char* VERTEX_SHADER_DECLS = R"(
-     varying vec3 v_base_color;
- )";
+ #include <cstdlib>
++#include <cstring>
  
--/// The octahedral normal decoder, kept as ONE piece of GLSL text and spliced into
--/// every vertex shader that needs it (the lit pass and the selection shell). A
--/// second copy could drift, and a shell extruded along a differently-decoded
--/// normal would not wrap the surface it is meant to outline.
-+/// Octahedral normal decoder for the lit geometry shader.
- static const char* OCT_DECODE_GLSL = R"(
-     // Decode an octahedral-encoded normal (Meyer et al., 2010).
-     vec3 oct_decode(vec2 e) {
-@@ -323,6 +326,235 @@ static constexpr glm::vec3 LIGHT_FRONT_DIR{0.6985074f, 0.1397015f, 0.6985074f};
- // Construction / Destruction
- // ============================================================
+ namespace helix::ui {
  
+@@ -24,6 +25,11 @@ namespace {
+ 
+ /// Read the three live ladder sources once and resolve them.
+ PreviewModeDecision live_preview_mode() {
 +#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+struct GCodeGLESRenderer::AsyncState {
-+    struct Model {
-+        std::unique_ptr<RibbonGeometry> geometry; // Accessed only by the worker after publication.
-+        std::string filename;
-+        size_t triangles, colors, bytes;
-+        int max_layer;
-+    };
-+    struct Settings {
-+        int width, height;
-+        bool interaction, debug, travels, extrusions;
-+        GCodeColorPalette palette;
-+        selection::Palette selection_palette;
-+        glm::vec4 filament;
-+        float intensity, shininess, offset;
-+        int layer_start, layer_end, progress;
-+        SelectionState selection;
-+        lv_opa_t opacity, ghost_opacity;
-+        GhostRenderMode ghost_mode;
-+        std::vector<uint32_t> tool_colors;
-+        uint64_t palette_revision;
-+
-+        void apply(GCodeGLESRenderer& r) const {
-+            r.set_viewport_size(width, height);
-+            r.interaction_mode_ = interaction;
-+            r.sel_palette_ = selection_palette;
-+            r.filament_color_ = filament;
-+            r.specular_intensity_ = intensity;
-+            r.specular_shininess_ = shininess;
-+            r.debug_face_colors_ = debug;
-+            r.show_travels_ = travels;
-+            r.show_extrusions_ = extrusions;
-+            r.layer_start_ = layer_start;
-+            r.layer_end_ = layer_end;
-+            r.selection_ = selection;
-+            r.global_opacity_ = opacity;
-+            r.progress_layer_ = progress;
-+            r.ghost_opacity_ = ghost_opacity;
-+            r.ghost_render_mode_ = ghost_mode;
-+            r.content_offset_y_percent_ = offset;
-+            r.frame_dirty_ = true;
-+        }
-+    };
-+    struct Job {
-+        std::shared_ptr<Model> model;
-+        std::shared_ptr<const ParsedGCodeFile> file;
-+        GCodeCamera camera;
-+        Settings settings{};
-+    };
-+    struct View {
-+        glm::mat4 transform;
-+        int width, height, first_layer, last_layer;
-+        bool extrusions;
-+    };
-+    struct Frame {
-+        std::vector<uint8_t> pixels;
-+        View view;
-+        size_t triangles;
-+        RenderMemoryReport memory;
-+    };
-+
-+    detail::LatestFrame<Job, Frame> frames;
-+    std::thread thread;
-+    std::atomic<bool> failed{false};
-+    // The remaining fields belong exclusively to the UI thread.
-+    std::shared_ptr<Model> model;
-+    std::vector<uint32_t> baked_palette, effective_palette, tool_colors;
-+    std::unordered_map<uint8_t, uint8_t> tool_palette_map;
-+    uint64_t palette_revision = 0;
-+    glm::mat4 last_camera{0.0f};
-+    bool camera_valid = false;
-+    RenderMemoryReport memory;
-+    std::optional<View> shown;
-+
-+    explicit AsyncState(selection::Palette colors) {
-+        thread = std::thread([this, colors] {
-+            try {
-+                // Constructor and destructor do not access LVGL in this mode.
-+                GCodeGLESRenderer renderer(colors);
-+                std::shared_ptr<Model> active_model;
-+                uint64_t active_palette_revision = UINT64_MAX;
-+                detail::LatestFrame<Job, Frame>::Request request{};
-+                while (frames.take(request)) {
-+                    auto& job = request.job;
-+                    if (job.model != active_model) {
-+                        renderer.release_geometry();
-+                        renderer.offscreen_pixels_.clear();
-+                        active_model = job.model;
-+                        active_palette_revision = UINT64_MAX;
-+                        if (active_model) {
-+                            renderer.set_prebuilt_geometry(std::move(active_model->geometry),
-+                                                           active_model->filename);
-+                        }
-+                    }
-+                    if (!job.model || !job.file)
-+                        continue;
-+                    job.settings.apply(renderer);
-+                    if (active_palette_revision != job.settings.palette_revision) {
-+                        renderer.clear_tool_color_overrides();
-+                        renderer.set_tool_color_overrides(job.settings.tool_colors);
-+                        active_palette_revision = job.settings.palette_revision;
-+                    }
-+                    renderer.palette_ = job.settings.palette;
-+                    const lv_area_t area{0, 0, job.settings.width - 1, job.settings.height - 1};
-+                    const auto previous_frame = renderer.offscreen_generation_;
-+                    do {
-+                        if (frames.superseded(request))
-+                            break;
-+                        renderer.render(nullptr, *job.file, job.camera, &area);
-+                    } while (renderer.is_uploading() && !renderer.render_failed());
-+                    if (renderer.render_failed()) {
-+                        failed.store(true);
-+                        break;
-+                    }
-+                    if (renderer.offscreen_generation_ != previous_frame) {
-+                        auto memory = renderer.memory_report();
-+                        memory.add("worker_rgb", renderer.offscreen_pixels_.size());
-+                        frames.publish(request, Frame{renderer.offscreen_pixels_,
-+                                                       {renderer.build_mvp(job.camera), job.settings.width,
-+                                                        job.settings.height, job.settings.layer_start,
-+                                                        job.settings.layer_end, job.settings.extrusions},
-+                                                       renderer.triangles_rendered_, std::move(memory)});
-+                    }
-+                }
-+            } catch (const std::exception& error) {
-+                spdlog::error("[GCode GLES] Async renderer stopped: {}", error.what());
-+                failed.store(true);
-+            }
-+        });
-+    }
-+    ~AsyncState() {
-+        frames.stop();
-+        if (thread.joinable())
-+            thread.join();
-+    }
-+    Settings snapshot(const GCodeGLESRenderer& r) const {
-+        return {r.viewport_width_, r.viewport_height_, r.interaction_mode_, r.debug_face_colors_,
-+                r.show_travels_, r.show_extrusions_, r.palette_, r.sel_palette_, r.filament_color_,
-+                r.specular_intensity_, r.specular_shininess_, r.content_offset_y_percent_,
-+                r.layer_start_, r.layer_end_, r.progress_layer_, r.selection_, r.global_opacity_,
-+                r.ghost_opacity_, r.ghost_render_mode_, tool_colors, palette_revision};
-+    }
-+};
-+
-+GCodeGLESRenderer::GCodeGLESRenderer(const selection::Palette& palette) : sel_palette_(palette) {}
-+
-+void GCodeGLESRenderer::enable_async() {
-+    if (async_ || gl_initialized_ || geometry_)
-+        return;
-+    const char* enabled = std::getenv("UI_GPU_ENABLED");
-+    if (enabled && std::strcmp(enabled, "0") == 0) {
-+        gl_init_failed_ = true;
-+        return;
-+    }
-+    try {
-+        async_ = std::make_unique<AsyncState>(sel_palette_);
-+    } catch (const std::exception& error) {
-+        gl_init_failed_ = true;
-+        spdlog::error("[GCode GLES] Cannot start async renderer: {}", error.what());
-+    }
-+}
-+
-+void GCodeGLESRenderer::render_async(lv_layer_t* layer,
-+                                      std::shared_ptr<const ParsedGCodeFile> gcode,
-+                                      const GCodeCamera& camera, const lv_area_t* coords) {
-+    if (!async_ || render_failed() || !async_->model || !gcode)
-+        return;
-+    const auto matrix = camera.get_view_projection_matrix();
-+    const int width = lv_area_get_width(coords), height = lv_area_get_height(coords);
-+    if (width <= 0 || height <= 0)
-+        return;
-+    set_viewport_size(width, height);
-+    if (frame_dirty_ || !async_->camera_valid || matrix != async_->last_camera) {
-+        async_->frames.submit({async_->model, std::move(gcode), camera, async_->snapshot(*this)});
-+        async_->last_camera = matrix;
-+        async_->camera_valid = true;
-+        frame_dirty_ = false;
-+    }
-+    if (auto completed = async_->frames.consume()) {
-+        if (completed->view.width == width && completed->view.height == height) {
-+            if (!draw_buf_ || draw_buf_width_ != width || draw_buf_height_ != height) {
-+                helix::safe_draw_buf_destroy(draw_buf_, "gles_async_draw_buf");
-+                draw_buf_ = lv_draw_buf_create(width, height, LV_COLOR_FORMAT_RGB888, 0);
-+                draw_buf_width_ = width;
-+                draw_buf_height_ = height;
-+            } else {
-+                lv_draw_wait_for_finish();
-+            }
-+            if (!draw_buf_) {
-+                gl_render_failed_ = true;
-+                return;
-+            }
-+            for (int y = 0; y < height; ++y)
-+                std::memcpy(draw_buf_->data + static_cast<size_t>(y) * draw_buf_->header.stride,
-+                            completed->pixels.data() + static_cast<size_t>(y) * width * 3,
-+                            static_cast<size_t>(width) * 3);
-+            triangles_rendered_ = completed->triangles;
-+            async_->memory = std::move(completed->memory);
-+            async_->shown = completed->view;
-+        }
-+    }
-+    draw_cached_to_lvgl(layer, coords);
-+}
++    const char* gpu = std::getenv("UI_GPU_ENABLED");
++    if (gpu && std::strcmp(gpu, "0") == 0)
++        return {GcodeViewerRenderMode::Auto, PreviewModeSource::ThumbnailOnly, false};
 +#endif
-+
-+bool GCodeGLESRenderer::is_uploading() const {
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    if (async_)
-+        return async_->model && (!draw_buf_ || async_->frames.needs_frame());
-+#endif
-+    return geometry_ && !geometry_uploaded_;
-+}
-+
-+bool GCodeGLESRenderer::has_geometry() const {
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    if (async_)
-+        return async_->model != nullptr;
-+#endif
-+    return geometry_ != nullptr;
-+}
-+
-+bool GCodeGLESRenderer::render_failed() const {
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    if (async_ && async_->failed.load())
-+        return true;
-+#endif
-+    return gl_init_failed_ || gl_render_failed_;
-+}
-+
- GCodeGLESRenderer::GCodeGLESRenderer() {
-     // Selection cues from ui_xml/gcode_tokens.xml, resolved once here on the
-     // main thread — same place and same reason as GCodeLayerRenderer's ctor.
-@@ -334,6 +566,9 @@ GCodeGLESRenderer::GCodeGLESRenderer() {
- }
- 
- GCodeGLESRenderer::~GCodeGLESRenderer() {
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    async_.reset();
-+#endif
-     destroy_gl();
- 
-     // draw_buf_ is handed to the parallel render thread via dsc.src in
-@@ -467,6 +702,15 @@ bool GCodeGLESRenderer::init_gl() {
-     if (gl_init_failed_)
-         return false;
- 
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    const char* enabled = std::getenv("UI_GPU_ENABLED");
-+    if (enabled && std::strcmp(enabled, "0") == 0) {
-+        spdlog::info("[GCode GLES] Disabled by UI_GPU_ENABLED; using CPU 2D");
-+        gl_init_failed_ = true;
-+        return false;
-+    }
-+#endif
-+
-     // Layer 2 covers driver init too: loading the GPU driver can fault before any
-     // draw is reached. A graceful failure removes the guard on return and the
-     // viewer falls back to 2D for this session; only a fault inside leaves it for
-@@ -669,6 +913,31 @@ bool GCodeGLESRenderer::create_fbo(int width, int height) {
-         return false;
-     }
- 
-+    // Depth renderbuffer (16-bit)
-+    glGenRenderbuffers(1, &depth_rbo_.id);
-+    glBindRenderbuffer(GL_RENDERBUFFER, depth_rbo_.id);
-+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, width, height);
-+    if (!check_gl_error("glRenderbufferStorage(depth)")) {
-+        destroy_fbo();
-+        return false;
-+    }
-+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth_rbo_.id);
-+    check_gl_error("glFramebufferRenderbuffer(depth)");
-+
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    gpu_output_ = ui_gpu_output_create(static_cast<unsigned>(width), static_cast<unsigned>(height));
-+    if (gpu_output_) {
-+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-+                               ui_gpu_output_texture(gpu_output_), 0);
-+        if (!check_gl_error("glFramebufferTexture2D(output)") ||
-+            glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
-+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
-+            ui_gpu_output_destroy(gpu_output_);
-+            gpu_output_ = nullptr;
-+        }
-+    }
-+    if (!gpu_output_) {
-+#endif
-     // Color renderbuffer — use GL_RGBA8 (8 bits per channel) to match the
-     // GL_RGBA/GL_UNSIGNED_BYTE format used by glReadPixels in blit_to_lvgl().
-     // GL_RGBA4 would cause precision loss (4 bits stored, 8 bits read back).
-@@ -682,17 +951,10 @@ bool GCodeGLESRenderer::create_fbo(int width, int height) {
-     }
-     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, color_rbo_.id);
-     check_gl_error("glFramebufferRenderbuffer(color)");
--
--    // Depth renderbuffer (16-bit)
--    glGenRenderbuffers(1, &depth_rbo_.id);
--    glBindRenderbuffer(GL_RENDERBUFFER, depth_rbo_.id);
--    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT16, width, height);
--    if (!check_gl_error("glRenderbufferStorage(depth)")) {
--        destroy_fbo();
--        return false;
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-     }
--    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depth_rbo_.id);
--    check_gl_error("glFramebufferRenderbuffer(depth)");
-+    spdlog::debug("[GCode GLES] Output: {}", gpu_output_ ? "DMA-BUF" : "glReadPixels");
-+#endif
- 
-     GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-     if (status != GL_FRAMEBUFFER_COMPLETE) {
-@@ -715,6 +977,10 @@ void GCodeGLESRenderer::destroy_fbo() {
-     depth_rbo_ = GLRenderbufferHandle();
-     color_rbo_ = GLRenderbufferHandle();
-     fbo_ = GLFramebufferHandle();
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    ui_gpu_output_destroy(gpu_output_);
-+    gpu_output_ = nullptr;
-+#endif
-     fbo_width_ = 0;
-     fbo_height_ = 0;
- }
-@@ -747,10 +1013,6 @@ void GCodeGLESRenderer::destroy_gl() {
-             glDeleteBuffers(1, &line_vbo_);
-             line_vbo_ = 0;
-         }
--        if (shell_program_) {
--            glDeleteProgram(shell_program_);
--            shell_program_ = 0;
--        }
- 
-         // Unbind before destroying
-         SDL_GL_MakeCurrent(static_cast<SDL_Window*>(sdl_gl_window_), nullptr);
-@@ -798,10 +1060,6 @@ void GCodeGLESRenderer::destroy_gl() {
-         glDeleteBuffers(1, &line_vbo_);
-         line_vbo_ = 0;
-     }
--    if (shell_program_) {
--        glDeleteProgram(shell_program_);
--        shell_program_ = 0;
--    }
- 
-     if (egl_display_ && egl_context_) {
-         eglMakeCurrent(static_cast<EGLDisplay>(egl_display_), EGL_NO_SURFACE, EGL_NO_SURFACE,
-@@ -910,8 +1168,7 @@ void GCodeGLESRenderer::upload_geometry(const RibbonGeometry& geom, std::vector<
-             continue;
-         }
- 
--        // Each strip = 4 vertices → 2 triangles → 6 vertices (for GL_TRIANGLES)
--        size_t total_verts = strip_count * 6;
-+        size_t total_verts = geom.expanded_vertex_count(first_strip, strip_count);
-         size_t buf_bytes = total_verts * VERTEX_STRIDE;
-         if (buf.size() < buf_bytes) {
-             buf.resize(buf_bytes);
-@@ -998,7 +1255,7 @@ bool GCodeGLESRenderer::upload_geometry_chunk(const RibbonGeometry& geom,
-             }
-         } else {
-             // CPU fallback: expand strips inline (for color re-upload case)
--            size_t total_verts = strip_count * 6;
-+            size_t total_verts = geom.expanded_vertex_count(first_strip, strip_count);
-             size_t buf_bytes = total_verts * VERTEX_STRIDE;
-             if (buf.size() < buf_bytes) {
-                 buf.resize(buf_bytes);
-@@ -1076,8 +1333,10 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
- #else
-     EglContextGuard guard(egl_display_, egl_surface_, egl_context_);
- #endif
--    if (!guard.ok())
-+    if (!guard.ok()) {
-+        gl_render_failed_ = true;
-         return;
-+    }
- 
-     // Layer 1 — proactive GL_RENDERER denylist (issues #966 / #1084 / #1085).
-     // Evaluated exactly once, now that the GL context is current so GL_RENDERER
-@@ -1142,6 +1401,8 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
- 
-     // If deferring, draw the cached buffer and count down.
-     // If no cached buffer exists, skip the defer entirely — nothing to show.
-+    if (!layer)
-+        render_defer_frames_ = 0;
-     if (render_defer_frames_ > 0) {
-         if (draw_buf_) {
-             render_defer_frames_--;
-@@ -1168,7 +1429,7 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
- 
-     // Skip GPU render if state unchanged and we have a valid cached framebuffer.
-     // draw_cached_to_lvgl skips glReadPixels — just blits the existing draw_buf_.
--    if (!frame_dirty_ && current_state == cached_state_ && draw_buf_) {
-+    if (!frame_dirty_ && current_state == cached_state_ && (draw_buf_ || !offscreen_pixels_.empty())) {
-         draw_cached_to_lvgl(layer, widget_coords);
-         return;
-     }
-@@ -1253,6 +1514,7 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
- 
-     // Create/resize FBO
-     if (!create_fbo(render_w, render_h)) {
-+        gl_render_failed_ = true;
-         return;
-     }
- 
-@@ -1260,18 +1522,11 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
-     glViewport(0, 0, render_w, render_h);
- 
-     // Neutral gray background — light and dark filaments both contrast well
-+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-     glClearColor(BACKGROUND_GRAY, BACKGROUND_GRAY, BACKGROUND_GRAY_BLUE, 1.0f);
-     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-     glEnable(GL_DEPTH_TEST);
- 
--    // Alpha is not part of the picture: readback converts RGBA to RGB and throws
--    // the alpha byte away. So it is reserved as the selection tag channel, and
--    // masking it off here is what guarantees the tag means only one thing. Ghost
--    // layers blend with GL_ONE_MINUS_SRC_ALPHA, which would otherwise leave
--    // arbitrary alpha behind and put stray rim pixels on unselected geometry.
--    // Everything stays at the cleared 255 until render_selection_tag() unmasks.
--    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
--
-     // Select active geometry
-     auto* active_vbos = &layer_vbos_;
-     active_geometry_ = geometry_.get();
-@@ -1349,12 +1604,32 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
- 
-     triangles_rendered_ = 0;
- 
-+    // Alpha tags the same solid fragment that wins the existing LESS depth test.
-+    // Unlike the old LEQUAL replay, a coplanar hidden object cannot claim that pixel.
-+    std::vector<bool> highlighted;
-+    if (selection_.any_highlighted() && !active_geometry_->object_runs.empty()) {
-+        highlighted.assign(gcode.object_name_table.size(), false);
-+        bool any = false;
-+        for (const auto& name : selection_.highlighted()) {
-+            for (size_t i = 0; i < gcode.object_name_table.size(); ++i) {
-+                if (gcode.object_name_table[i] == name) {
-+                    highlighted[i] = true;
-+                    any = true;
-+                    break;
-+                }
-+            }
-+        }
-+        if (!any)
-+            highlighted.clear();
-+    }
-+
-     // Ghost / print progress rendering
-     if (progress_layer_ >= 0 && progress_layer_ < max_layer) {
-         // Pass 1: Solid layers (0 to progress_layer_)
-         int solid_end = std::min(progress_layer_, draw_end);
-         if (draw_start <= solid_end) {
--            draw_layers(*active_vbos, draw_start, solid_end, 1.0f, 1.0f);
-+            draw_layers(*active_vbos, draw_start, solid_end, 1.0f, 1.0f,
-+                        detail::LayerPass::Solid, highlighted);
-         }
- 
-         // Pass 2: Ghost layers (progress_layer_+1 to end) with alpha blending
-@@ -1366,33 +1641,21 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
-             glEnable(GL_BLEND);
-             glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-             glDepthMask(GL_FALSE); // Don't write ghost depth (prevents z-fighting)
--            draw_layers(*active_vbos, ghost_start, draw_end, GHOST_LIGHTEN_SCALE, alpha);
-+            draw_layers(*active_vbos, ghost_start, draw_end, GHOST_LIGHTEN_SCALE, alpha,
-+                        detail::LayerPass::Ghost, highlighted);
-             glDepthMask(GL_TRUE);
-             glDisable(GL_BLEND);
-         }
-     } else {
-         // Normal: all layers solid
--        draw_layers(*active_vbos, draw_start, draw_end, 1.0f, 1.0f);
-+        draw_layers(*active_vbos, draw_start, draw_end, 1.0f, 1.0f,
-+                    detail::LayerPass::Solid, highlighted);
-     }
- 
-     glUseProgram(0);
- 
--    // Tag the selected object's visible pixels AFTER the geometry is final, so
--    // "visible" means what actually survived depth testing. Solid layers only —
--    // the ghost pass is faded context, and a full-strength rim there would read as
--    // a solid object. The rim itself is drawn on the CPU after readback.
--    {
--        int tag_end = draw_end;
--        if (progress_layer_ >= 0 && progress_layer_ < max_layer) {
--            tag_end = std::min(progress_layer_, draw_end);
--        }
--        render_selection_tag(gcode, mvp_dequant, draw_start, tag_end);
--    }
--
--    // Selection brackets on top, using the same MVP as the geometry pass so
--    // brackets stay anchored to objects under rotation/zoom. Drawn last with
--    // depth test disabled inside render_brackets_3d(). Alpha is still masked, so
--    // the brackets cannot overwrite the tag they sit on top of.
-+    // Brackets and ghost layers must not overwrite the solid visibility tag.
-+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
-     render_brackets_3d(gcode, mvp);
- 
-     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-@@ -1400,11 +1663,15 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
- }
- 
- void GCodeGLESRenderer::draw_layers(const std::vector<LayerVBO>& vbos, int layer_start,
--                                    int layer_end, float color_scale, float alpha) {
-+                                    int layer_end, float color_scale, float alpha,
-+                                    detail::LayerPass pass, const std::vector<bool>& highlighted) {
-+    // Ghost opacity may be 255: the pass, not its opacity, determines tag ownership.
-+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, pass == detail::LayerPass::Solid ? GL_TRUE : GL_FALSE);
-     // Set uniforms for this draw batch
-     glUniform4fv(u_base_color_, 1, glm::value_ptr(filament_color_));
-     glUniform1f(u_color_scale_, color_scale);
-     glUniform1f(u_base_alpha_, alpha);
-+    float current_alpha = alpha;
- 
-     constexpr size_t STRIDE = PackedVertex::stride();
- 
-@@ -1443,8 +1710,19 @@ void GCodeGLESRenderer::draw_layers(const std::vector<LayerVBO>& vbos, int layer
-                                   reinterpret_cast<void*>(PackedVertex::color_offset()));
-         }
- 
--        glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(lv.vertex_count));
--        triangles_rendered_ += lv.vertex_count / 3;
-+        const auto runs = active_geometry_->layer_object_runs(static_cast<size_t>(layer));
-+        detail::for_each_layer_draw_range(
-+            lv.vertex_count, runs, highlighted, pass,
-+            [&](size_t first, size_t count, bool selected) {
-+                const float next_alpha = selected ? static_cast<float>(kSelectedAlpha) / 255.0f
-+                                                  : alpha;
-+                if (next_alpha != current_alpha) {
-+                    glUniform1f(u_base_alpha_, next_alpha);
-+                    current_alpha = next_alpha;
-+                }
-+                glDrawArrays(GL_TRIANGLES, static_cast<GLint>(first), static_cast<GLsizei>(count));
-+                triangles_rendered_ += count / 3;
-+            });
-     }
- 
-     glDisableVertexAttribArray(static_cast<GLuint>(a_position_));
-@@ -1476,7 +1754,7 @@ void GCodeGLESRenderer::draw_layers(const std::vector<LayerVBO>& vbos, int layer
- void GCodeGLESRenderer::draw_cached_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_coords) {
-     // Fast path: draw the existing draw_buf_ without GPU readback.
-     // Used when the frame hasn't changed (frame-skip) or during render deferral.
--    if (!draw_buf_ || !draw_buf_->data)
-+    if (!layer || !draw_buf_ || !draw_buf_->data)
-         return;
- 
-     lv_draw_image_dsc_t img_dsc;
-@@ -1492,7 +1770,7 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
-     int widget_h = lv_area_get_height(widget_coords);
- 
-     // Create or recreate draw buffer at widget size
--    if (!draw_buf_ || draw_buf_width_ != widget_w || draw_buf_height_ != widget_h) {
-+    if (layer && (!draw_buf_ || draw_buf_width_ != widget_w || draw_buf_height_ != widget_h)) {
-         // May still be in flight to the parallel render thread (#929 cluster).
-         helix::safe_draw_buf_destroy(draw_buf_, "gles_draw_buf");
-         draw_buf_ = lv_draw_buf_create(static_cast<uint32_t>(widget_w),
-@@ -1517,10 +1795,36 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
-     if (readback_buf_.size() != readback_size) {
-         readback_buf_.resize(readback_size);
-     }
--    glReadPixels(0, 0, fbo_width_, fbo_height_, GL_RGBA, GL_UNSIGNED_BYTE, readback_buf_.data());
--    check_gl_error("glReadPixels");
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    if (gpu_output_) {
-+        const uint8_t* pixels = ui_gpu_output_begin_read(gpu_output_);
-+        if (!pixels) {
-+            spdlog::error("[GCode GLES] DMA-BUF read synchronization failed; switching to CPU 2D");
-+            gl_render_failed_ = true;
-+            destroy_fbo();
-+            return;
-+        }
-+        const size_t row_bytes = static_cast<size_t>(fbo_width_) * 4;
-+        const size_t stride = ui_gpu_output_stride(gpu_output_);
-+        for (int y = 0; y < fbo_height_; ++y) {
-+            std::memcpy(readback_buf_.data() + static_cast<size_t>(y) * row_bytes,
-+                        pixels + static_cast<size_t>(y) * stride, row_bytes);
-+        }
-+        if (ui_gpu_output_end_read(gpu_output_) != 0) {
-+            spdlog::error("[GCode GLES] DMA-BUF release synchronization failed; switching to CPU 2D");
-+            gl_render_failed_ = true;
-+            destroy_fbo();
-+            return;
-+        }
-+    } else {
-+#endif
-+        glReadPixels(0, 0, fbo_width_, fbo_height_, GL_RGBA, GL_UNSIGNED_BYTE, readback_buf_.data());
-+        check_gl_error("glReadPixels");
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    }
-+#endif
- 
--    // The white silhouette, derived from the tag render_selection_tag() left in
-+    // The white silhouette, derived from the solid pass's visibility tag in
-     // the alpha byte. Byte 3 is alpha in the readback's RGBA and in the
-     // rasterizer's ARGB8888 alike, so the tag scan reads the same offset either
-     // way — but the rim COLOUR is an XML token and need not be grey, so the
-@@ -1545,15 +1849,17 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
-     glBindFramebuffer(GL_FRAMEBUFFER, 0);
- 
-     // Convert GL RGBA → LVGL RGB888 (BGR byte order), flip Y, and scale if needed
--    if (!draw_buf_->data) {
-+    if (layer && !draw_buf_->data) {
-         spdlog::error("[GCode GLES] draw_buf_ data is null");
-         return;
-     }
--    auto* dest = static_cast<uint8_t*>(draw_buf_->data);
-+    if (!layer)
-+        offscreen_pixels_.resize(static_cast<size_t>(widget_w) * widget_h * 3);
-+    auto* dest = layer ? static_cast<uint8_t*>(draw_buf_->data) : offscreen_pixels_.data();
-     const auto* src = readback_buf_.data();
-     bool needs_scale = (fbo_width_ != widget_w || fbo_height_ != widget_h);
-     // Use actual draw buffer stride (aligned to LV_DRAW_BUF_STRIDE_ALIGN)
--    uint32_t dst_stride = draw_buf_->header.stride;
-+    uint32_t dst_stride = layer ? draw_buf_->header.stride : static_cast<uint32_t>(widget_w) * 3;
- 
-     // Row-based conversion: RGBA→BGR with Y-flip
-     for (int dy = 0; dy < widget_h; ++dy) {
-@@ -1583,6 +1889,10 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
-         }
-     }
- 
-+    if (!layer) {
-+        ++offscreen_generation_;
-+        return;
-+    }
-     // Draw to LVGL layer
-     lv_draw_image_dsc_t img_dsc;
-     lv_draw_image_dsc_init(&img_dsc);
-@@ -1658,6 +1968,32 @@ void GCodeGLESRenderer::set_extrusion_color(lv_color_t color) {
- }
- 
- void GCodeGLESRenderer::set_tool_color_overrides(const std::vector<uint32_t>& ams_colors) {
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    if (async_) {
-+        if (!async_->model || ams_colors.empty())
-+            return;
-+        auto colors = async_->effective_palette;
-+        for (size_t tool = 0; tool < ams_colors.size(); ++tool) {
-+            const auto entry = async_->tool_palette_map.find(static_cast<uint8_t>(tool));
-+            if (entry != async_->tool_palette_map.end() && entry->second < colors.size())
-+                colors[entry->second] = ams_colors[tool];
-+        }
-+        if (colors != async_->effective_palette) {
-+            async_->effective_palette = std::move(colors);
-+            for (const auto& [tool, index] : async_->tool_palette_map) {
-+                if (index < async_->effective_palette.size()) {
-+                    if (async_->tool_colors.size() <= tool)
-+                        async_->tool_colors.resize(static_cast<size_t>(tool) + 1);
-+                    async_->tool_colors[tool] = async_->effective_palette[index];
-+                }
-+            }
-+            ++async_->palette_revision;
-+            palette_.has_override = false;
-+            frame_dirty_ = true;
-+        }
-+        return;
-+    }
-+#endif
-     if (!geometry_ || ams_colors.empty()) {
-         return;
-     }
-@@ -1714,6 +2050,17 @@ void GCodeGLESRenderer::set_tool_color_overrides(const std::vector<uint32_t>& am
- }
- 
- void GCodeGLESRenderer::clear_tool_color_overrides() {
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    if (async_) {
-+        if (async_->effective_palette != async_->baked_palette) {
-+            async_->effective_palette = async_->baked_palette;
-+            async_->tool_colors.clear();
-+            ++async_->palette_revision;
-+            frame_dirty_ = true;
-+        }
-+        return;
-+    }
-+#endif
-     if (!geometry_) {
-         return;
-     }
-@@ -1814,6 +2161,16 @@ void GCodeGLESRenderer::reset_colors() {
- }
- 
- void GCodeGLESRenderer::clear_cached_frame() {
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    if (async_) {
-+        async_->frames.invalidate();
-+        async_->shown.reset();
-+        if (!async_->model)
-+            async_->frames.submit({});
-+        async_->camera_valid = false;
-+        frame_dirty_ = true;
-+    }
-+#endif
-     // Free the cached draw buffer so stale frames aren't blitted during render deferral
-     // Frees the SAME draw_buf_ the destructor guards as a #929 hazard, but this
-     // site had no lv_draw_wait_for_finish() at all: a deferred-render clear could
-@@ -1854,7 +2211,10 @@ void GCodeGLESRenderer::set_ghost_opacity(lv_opa_t opacity) {
- }
- 
- void GCodeGLESRenderer::set_content_offset_y(float offset_percent) {
--    content_offset_y_percent_ = std::clamp(offset_percent, -1.0f, 1.0f);
-+    const float offset = std::clamp(offset_percent, -1.0f, 1.0f);
-+    if (offset == content_offset_y_percent_)
-+        return;
-+    content_offset_y_percent_ = offset;
-     frame_dirty_ = true;
- }
- 
-@@ -1864,6 +2224,10 @@ void GCodeGLESRenderer::set_ghost_render_mode(GhostRenderMode mode) {
- }
- 
- int GCodeGLESRenderer::get_max_layer_index() const {
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    if (async_)
-+        return async_->model ? async_->model->max_layer : 0;
-+#endif
-     if (geometry_)
-         return static_cast<int>(geometry_->max_layer_index);
-     return 0;
-@@ -1874,6 +2238,20 @@ int GCodeGLESRenderer::get_max_layer_index() const {
- // ============================================================
- 
- void GCodeGLESRenderer::release_geometry() {
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    if (async_) {
-+        async_->model.reset();
-+        async_->baked_palette.clear();
-+        async_->effective_palette.clear();
-+        async_->tool_palette_map.clear();
-+        async_->tool_colors.clear();
-+        async_->memory = {};
-+        async_->camera_valid = false;
-+        async_->frames.invalidate();
-+        async_->frames.submit({}); // Release the old model and its GL buffers on their owner thread.
-+        return;
-+    }
-+#endif
-     size_t freed = geometry_ ? geometry_->memory_usage() : 0;
- 
-     // Free GPU VBOs (requires GL context)
-@@ -1917,6 +2295,25 @@ void GCodeGLESRenderer::release_geometry() {
- 
- void GCodeGLESRenderer::set_prebuilt_geometry(std::unique_ptr<RibbonGeometry> geometry,
-                                               const std::string& filename) {
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    if (async_) {
-+        if (!geometry) {
-+            release_geometry();
-+            return;
-+        }
-+        clear_cached_frame();
-+        async_->baked_palette = geometry->color_palette;
-+        async_->effective_palette = async_->baked_palette;
-+        async_->tool_palette_map = geometry->tool_palette_map;
-+        async_->tool_colors.clear();
-+        ++async_->palette_revision;
-+        async_->model = std::make_shared<AsyncState::Model>(AsyncState::Model{
-+            nullptr, filename, geometry->extrusion_triangle_count, geometry->color_palette.size(),
-+            geometry->memory_usage(), static_cast<int>(geometry->max_layer_index)});
-+        async_->model->geometry = std::move(geometry);
-+        return;
-+    }
-+#endif
-     geometry_ = std::move(geometry);
-     {
-         // The snapshot describes the palette of the geometry just replaced.
-@@ -1943,12 +2340,25 @@ void GCodeGLESRenderer::set_prebuilt_coarse_geometry(std::unique_ptr<RibbonGeome
- // ============================================================
- 
- size_t GCodeGLESRenderer::get_geometry_color_count() const {
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    if (async_)
-+        return async_->model ? async_->model->colors : 0;
-+#endif
-     if (geometry_)
-         return geometry_->color_palette.size();
-     return 0;
- }
- 
- helix::gcode::RenderMemoryReport GCodeGLESRenderer::memory_report() const {
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    if (async_) {
-+        auto report = async_->memory;
-+        if (report.items().empty())
-+            report.add("pending_geometry", async_->model ? async_->model->bytes : 0);
-+        report.add("ui_rgb", draw_buf_ ? static_cast<size_t>(draw_buf_width_) * draw_buf_height_ * 3 : 0);
-+        return report;
-+    }
-+#endif
-     helix::gcode::RenderMemoryReport r;
- 
-     size_t geometry = 0;
-@@ -1993,6 +2403,10 @@ void GCodeGLESRenderer::log_memory_report(const char* when) const {
- }
- 
- size_t GCodeGLESRenderer::get_triangle_count() const {
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    if (async_)
-+        return async_->model ? async_->model->triangles : 0;
-+#endif
-     if (geometry_)
-         return geometry_->extrusion_triangle_count;
-     return 0;
-@@ -2141,216 +2555,6 @@ void GCodeGLESRenderer::render_brackets_3d(const ParsedGCodeFile& gcode, const g
-     glEnable(GL_DEPTH_TEST);
- }
- 
--// ============================================================
--// Selection Silhouette (3D shell pass, drawn under the lit geometry)
--// ============================================================
--
--static const char* SHELL_VERTEX_DECLS = R"(
--    // Selection tag. Consumes the same packed vertex layout as the lit program,
--    // so it draws straight from the layer VBOs with no extra buffer:
--    //   a_position : vec3, raw quantized int16 (dequantization folded into u_mvp)
--    // The normal is not read: this pass reproduces the object exactly where the
--    // lit pass already drew it, and writes nothing but alpha.
--    uniform mat4 u_mvp;
--    attribute vec3 a_position;
--)";
--
--static const char* SHELL_VERTEX_MAIN = R"(
--    void main() {
--        gl_Position = u_mvp * vec4(a_position, 1.0);
--    }
--)";
--
--/// Alpha written by the tag pass, matching the software rasterizer's tag so both
--/// renderers hand stroke_selection_rim() the same thing.
--static constexpr float SHELL_TAG_ALPHA = static_cast<float>(kSelectedAlpha) / 255.0f;
--
--bool GCodeGLESRenderer::init_shell_program() {
--    if (shell_program_)
--        return true;
--
--    const std::string vertex_src =
--        std::string(SHELL_VERTEX_DECLS) + OCT_DECODE_GLSL + SHELL_VERTEX_MAIN;
--    GLuint vs = compile_shader(GL_VERTEX_SHADER, vertex_src.c_str());
--    if (!vs)
--        return false;
--    // Same flat-color fragment shader the bracket program uses — one uniform color,
--    // no lighting. No reason for a second copy.
--    GLuint fs = compile_shader(GL_FRAGMENT_SHADER, LINE_FRAGMENT_SHADER);
--    if (!fs) {
--        glDeleteShader(vs);
--        return false;
--    }
--    GLuint prog = glCreateProgram();
--    glAttachShader(prog, vs);
--    glAttachShader(prog, fs);
--    glLinkProgram(prog);
--    glDeleteShader(vs);
--    glDeleteShader(fs);
--
--    GLint linked = GL_FALSE;
--    glGetProgramiv(prog, GL_LINK_STATUS, &linked);
--    if (!linked) {
--        GLchar log[512];
--        glGetProgramInfoLog(prog, sizeof(log), nullptr, log);
--        spdlog::error("[GCode GLES] Shell program link failed: {}", log);
--        glDeleteProgram(prog);
--        return false;
--    }
--
--    shell_u_mvp_ = glGetUniformLocation(prog, "u_mvp");
--    shell_u_color_ = glGetUniformLocation(prog, "u_color");
--    shell_a_position_ = glGetAttribLocation(prog, "a_position");
--
--    if (shell_a_position_ < 0) {
--        spdlog::error("[GCode GLES] Tag program missing a_position");
--        glDeleteProgram(prog);
--        return false;
--    }
--
--    shell_program_ = prog;
--    spdlog::debug("[GCode GLES] Selection tag program ready");
--    return true;
--}
--
--void GCodeGLESRenderer::render_selection_tag(const ParsedGCodeFile& gcode,
--                                             const glm::mat4& mvp_dequant, int layer_start,
--                                             int layer_end) {
--    // Gate before anything else, including the program link: an unselected plate
--    // must cost nothing at all.
--    if (!selection_.any_highlighted())
--        return;
--    if (!active_geometry_ || active_geometry_->object_runs.empty())
--        return; // no exclude-object metadata, or the run-count guard tripped
--    if (layer_end < layer_start)
--        return;
--
--    // Resolve the selected names to interned indices, once, into a flat lookup.
--    // This is the same table the geometry builder resolved
--    // segment.object_name_index against — the viewer builds the geometry from,
--    // and renders, one ParsedGCodeFile — so the indices in object_runs are
--    // directly comparable.
--    //
--    // A vector<int16_t> plus std::find was the first shape here, copied from the
--    // code it replaced. That is a linear scan per RUN per LAYER, inside a
--    // per-frame pass; an indexed array is the same information with the search
--    // removed, and it is what SelectionState::classify() already does on the 2D
--    // side.
--    std::vector<bool> wanted(gcode.object_name_table.size(), false);
--    bool any_wanted = false;
--    for (const auto& name : selection_.highlighted()) {
--        for (size_t i = 0; i < gcode.object_name_table.size(); ++i) {
--            if (gcode.object_name_table[i] == name) {
--                wanted[i] = true;
--                any_wanted = true;
--                break;
--            }
--        }
--    }
--    if (!any_wanted)
--        return;
--
--    if (!shell_program_ && !init_shell_program())
--        return;
--
--    // Save every piece of state this pass touches. render_brackets_3d brackets its
--    // own glDisable(GL_DEPTH_TEST) the same way; anything left unrestored here
--    // corrupts the frame.
--    GLint prev_program = 0;
--    glGetIntegerv(GL_CURRENT_PROGRAM, &prev_program);
--    GLint prev_buffer = 0;
--    glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &prev_buffer);
--    GLboolean prev_depth_mask = GL_TRUE;
--    glGetBooleanv(GL_DEPTH_WRITEMASK, &prev_depth_mask);
--    GLint prev_depth_func = GL_LESS;
--    glGetIntegerv(GL_DEPTH_FUNC, &prev_depth_func);
--
--    // Alpha only. The color channels already hold the lit image and must survive
--    // untouched; the rest of the frame runs with alpha writes masked off (see
--    // render_to_fbo) so nothing but this pass can put kSelectedAlpha anywhere.
--    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
--
--    // Depth test stays enabled, but the function MUST be relaxed to LEQUAL. The
--    // renderer never calls glDepthFunc, so it runs on the GL default of LESS, and
--    // re-drawing a triangle at exactly the depth it already wrote fails LESS on
--    // every single fragment — the pass drew its 125 runs and tagged zero pixels.
--    // With LEQUAL it passes exactly where this object is the frontmost thing and
--    // fails where something else occludes it, which is the definition of
--    // "visible" and so the contour we want. Depth WRITES go off: the buffer is
--    // already correct and re-writing it would be a no-op at best.
--    glDepthFunc(GL_LEQUAL);
--    glDepthMask(GL_FALSE);
--
--    glUseProgram(shell_program_);
--    glUniformMatrix4fv(shell_u_mvp_, 1, GL_FALSE, glm::value_ptr(mvp_dequant));
--    glUniform4f(shell_u_color_, 0.0f, 0.0f, 0.0f, SHELL_TAG_ALPHA);
--
--    glEnableVertexAttribArray(static_cast<GLuint>(shell_a_position_));
--
--    constexpr size_t STRIDE = PackedVertex::stride();
--    size_t runs_drawn = 0;
--
--    for (int layer = layer_start; layer <= layer_end; ++layer) {
--        if (layer < 0 || layer >= static_cast<int>(layer_vbos_.size()))
--            continue;
--        const auto& lv = layer_vbos_[static_cast<size_t>(layer)];
--        if (!lv.vbo || lv.vertex_count == 0)
--            continue;
--
--        const auto runs = active_geometry_->layer_object_runs(static_cast<size_t>(layer));
--        if (runs.empty())
--            continue;
--
--        bool bound = false;
--        for (const auto& run : runs) {
--            if (run.object_index < 0 || static_cast<size_t>(run.object_index) >= wanted.size() ||
--                !wanted[static_cast<size_t>(run.object_index)]) {
--                continue;
--            }
--            // Runs are validated at build time, but the VBO can lag the geometry
--            // during incremental upload — never let a stale run read past the buffer.
--            if (static_cast<size_t>(run.vertex_offset) + run.vertex_count > lv.vertex_count)
--                continue;
--
--            if (!bound) {
--                glBindBuffer(GL_ARRAY_BUFFER, lv.vbo);
--                glVertexAttribPointer(static_cast<GLuint>(shell_a_position_), 3, GL_SHORT, GL_FALSE,
--                                      static_cast<GLsizei>(STRIDE),
--                                      reinterpret_cast<void*>(PackedVertex::position_offset()));
--                bound = true;
--            }
--
--            glDrawArrays(GL_TRIANGLES, static_cast<GLint>(run.vertex_offset),
--                         static_cast<GLsizei>(run.vertex_count));
--            ++runs_drawn;
--        }
--    }
--
--    glDisableVertexAttribArray(static_cast<GLuint>(shell_a_position_));
--
--    // Restore, in the reverse order of the saves. Alpha writes go back to masked
--    // off, which is how the rest of the frame runs.
--    glBindBuffer(GL_ARRAY_BUFFER, static_cast<GLuint>(prev_buffer));
--    glDepthMask(prev_depth_mask);
--    glDepthFunc(static_cast<GLenum>(prev_depth_func));
--    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
--    glUseProgram(static_cast<GLuint>(prev_program));
--
--    // One error check for the whole pass, matching draw_layers. A fault here is
--    // the same class of driver failure and must fall back the same way.
--    GLenum tag_err = glGetError();
--    if (gl_draw_error_is_fatal(tag_err)) {
--        spdlog::error("[GCode GLES] Fatal GL error in selection tag pass: 0x{:04X} — disabling "
--                      "GPU rendering, falling back to 2D",
--                      tag_err);
--        gl_render_failed_ = true;
--        return;
--    }
--
--    spdlog::trace("[GCode GLES] Selection tag: {} runs over layers {}..{}", runs_drawn, layer_start,
--                  layer_end);
--}
--
- // ============================================================
- // Object Picking (CPU-side, no GL needed)
- // ============================================================
-@@ -2359,6 +2563,22 @@ std::optional<std::string> GCodeGLESRenderer::pick_object(const glm::vec2& scree
-                                                           const ParsedGCodeFile& gcode,
-                                                           const GCodeCamera& camera) const {
-     glm::mat4 transform = build_mvp(camera);
-+    int width = viewport_width_, height = viewport_height_;
-+    int first_layer = layer_start_, last_layer = layer_end_;
-+    bool extrusions = show_extrusions_;
-+#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    if (async_) {
-+        if (!async_->shown)
-+            return std::nullopt;
-+        const auto& shown = *async_->shown;
-+        transform = shown.transform;
-+        width = shown.width;
-+        height = shown.height;
-+        first_layer = shown.first_layer;
-+        last_layer = shown.last_layer;
-+        extrusions = shown.extrusions;
-+    }
-+#endif
-     float closest_distance = std::numeric_limits<float>::max();
-     std::optional<std::string> picked_object;
- 
-@@ -2399,7 +2619,7 @@ std::optional<std::string> GCodeGLESRenderer::pick_object(const glm::vec2& scree
-         // corner BEHIND the camera through and mirrored it onto the screen,
-         // corrupting the candidate box. project_aabb_to_screen() rejects w <= EPSILON.
-         const ScreenBounds sb =
--            project_aabb_to_screen(transform, box, viewport_width_, viewport_height_);
-+            project_aabb_to_screen(transform, box, width, height);
-         // A box that projects to nothing usable stays a candidate: better to pay
-         // for stage 2 than to drop a pick outright.
-         if (!sb.valid || sb.contains(screen_pos.x, screen_pos.y, PICK_THRESHOLD)) {
-@@ -2413,10 +2633,10 @@ std::optional<std::string> GCodeGLESRenderer::pick_object(const glm::vec2& scree
-         candidate.assign(candidate.size(), true);
-     }
- 
--    int ls = layer_start_;
--    int le = (layer_end_ < 0 || layer_end_ >= static_cast<int>(gcode.layers.size()))
-+    int ls = first_layer;
-+    int le = (last_layer < 0 || last_layer >= static_cast<int>(gcode.layers.size()))
-                  ? static_cast<int>(gcode.layers.size()) - 1
--                 : layer_end_;
-+                 : last_layer;
- 
-     for (int layer_idx = ls; layer_idx <= le; ++layer_idx) {
-         if (layer_idx < 0 || layer_idx >= static_cast<int>(gcode.layers.size()))
-@@ -2428,7 +2648,7 @@ std::optional<std::string> GCodeGLESRenderer::pick_object(const glm::vec2& scree
-             // tower) is dropped by the builder, so it must not be pickable
-             // here either - a tap on the blank tower area must select
-             // nothing, not an invisible object.
--            if (!segment_drawable(segment, /*is_support=*/false, show_extrusions_, show_extrusions_,
-+            if (!segment_drawable(segment, /*is_support=*/false, extrusions, extrusions,
-                                   /*show_travel=*/false)) {
-                 continue;
-             }
-@@ -2443,17 +2663,17 @@ std::optional<std::string> GCodeGLESRenderer::pick_object(const glm::vec2& scree
-             // Was std::abs(w) < EPSILON here too, with the same behind-camera
-             // defect as the candidate pass above.
-             const auto start_screen =
--                project_clip_to_screen(transform, segment.start, viewport_width_, viewport_height_);
-+                project_clip_to_screen(transform, segment.start, width, height);
-             const auto end_screen =
--                project_clip_to_screen(transform, segment.end, viewport_width_, viewport_height_);
-+                project_clip_to_screen(transform, segment.end, width, height);
-             if (!start_screen || !end_screen)
-                 continue;
- 
-             // Both endpoints must be on screen. This was spelled as an NDC range
-             // check on [-1, 1]; in screen pixels that is exactly the viewport rect.
-             const auto on_screen = [&](const glm::vec2& p) {
--                return p.x >= 0.0f && p.x <= static_cast<float>(viewport_width_) && p.y >= 0.0f &&
--                       p.y <= static_cast<float>(viewport_height_);
-+                return p.x >= 0.0f && p.x <= static_cast<float>(width) && p.y >= 0.0f &&
-+                       p.y <= static_cast<float>(height);
-             };
-             if (!on_screen(*start_screen) || !on_screen(*end_screen)) {
-                 continue;
-@@ -2480,7 +2700,7 @@ std::optional<std::string> GCodeGLESRenderer::pick_object(const glm::vec2& scree
-                 continue;
- 
-             const ScreenBounds sb =
--                project_aabb_to_screen(transform, bbox, viewport_width_, viewport_height_);
-+                project_aabb_to_screen(transform, bbox, width, height);
-             if (!sb.valid)
-                 continue;
- 
-diff --git a/src/tools/gpu_self_test.cpp b/src/tools/gpu_self_test.cpp
+     const auto* config = get_runtime_config();
+     return decide_preview_mode(config ? config->gcode_render_mode : -1,
+                                std::getenv("HELIX_GCODE_MODE") != nullptr,
+diff --git a/src/ui/ui_gcode_viewer_u1.cpp b/src/ui/ui_gcode_viewer_u1.cpp
 new file mode 100644
-index 0000000..23893bb
+index 0000000..f29520d
 --- /dev/null
-+++ b/src/tools/gpu_self_test.cpp
-@@ -0,0 +1,556 @@
++++ b/src/ui/ui_gcode_viewer_u1.cpp
+@@ -0,0 +1,780 @@
 +// SPDX-License-Identifier: GPL-3.0-or-later
++#include "ui_gcode_viewer.h"
++#include "gcode-preview.h"
 +
-+#include "async_lifetime_guard.h"
-+#include "gcode_gles_renderer.h"
-+#include "gcode_layer_renderer.h"
-+#include "helix-xml/src/xml/lv_xml.h"
-+#include <EGL/egl.h>
++#include "app_globals.h"
++#include "lv_draw_buf_guard.h"
++#include "printer_state.h"
++#include "theme_manager.h"
++
++#include <helix-xml/src/xml/lv_xml_parser.h>
++#include <helix-xml/src/xml/parsers/lv_xml_obj_parser.h>
++#include <lvgl/src/others/translation/lv_translation.h>
++#include <spdlog/spdlog.h>
++
 +#include <algorithm>
-+#include <chrono>
++#include <cmath>
 +#include <cstdio>
 +#include <cstdlib>
 +#include <cstring>
++#include <dlfcn.h>
 +#include <filesystem>
-+#include <fstream>
-+#include <iostream>
-+#include <stdexcept>
-+#include <thread>
-+
-+namespace helix::gcode {
-+struct GCodeGLESSelfTestAccess {
-+    static void redraw(GCodeGLESRenderer& renderer) { renderer.frame_dirty_ = true; }
-+    static bool initialized(const GCodeGLESRenderer& renderer) { return renderer.gl_initialized_; }
-+    static bool dma(const GCodeGLESRenderer& renderer) { return renderer.gpu_output_ != nullptr; }
-+    static const std::vector<uint8_t>& pixels(const GCodeGLESRenderer& renderer) {
-+        return renderer.readback_buf_;
-+    }
-+    static const lv_draw_buf_t* completed_image(const GCodeGLESRenderer& renderer) {
-+        return renderer.draw_buf_;
-+    }
-+    static int client_version(const GCodeGLESRenderer& renderer) {
-+        EGLint version = 0;
-+        if (renderer.gl_initialized_)
-+            eglQueryContext(renderer.egl_display_, renderer.egl_context_,
-+                            EGL_CONTEXT_CLIENT_VERSION, &version);
-+        return version;
-+    }
-+};
-+} // namespace helix::gcode
++#include <memory>
++#include <new>
++#include <string>
++#include <vector>
 +
 +namespace {
-+using namespace helix::gcode;
-+using Clock = std::chrono::steady_clock;
++using helix::GcodeViewerRenderMode;
++using helix::GcodeViewerState;
 +
-+void require(bool condition, const char* message) {
-+    if (!condition)
-+        throw std::runtime_error(message);
++const GcodePreviewApi* preview_api() {
++    const char* enabled = std::getenv("UI_GPU_ENABLED");
++    if (!HELIX_HAS_GCODE_VIEWER || (enabled && std::strcmp(enabled, "0") == 0))
++        return nullptr;
++    static const GcodePreviewApi* api = [] {
++        void* handle = dlopen(GCODE_PREVIEW_LIBRARY, RTLD_NOW | RTLD_LOCAL);
++        if (!handle) {
++            spdlog::warn("[U1 Preview] Shared renderer unavailable: {}", dlerror());
++            return static_cast<const GcodePreviewApi*>(nullptr);
++        }
++        auto get_api = reinterpret_cast<const GcodePreviewApi* (*)(uint32_t)>(
++            dlsym(handle, "gcode_preview_get_api"));
++        const auto* found = get_api ? get_api(GCODE_PREVIEW_ABI) : nullptr;
++        if (!found || found->abi != GCODE_PREVIEW_ABI || found->size < sizeof(GcodePreviewApi) ||
++            !found->create || !found->destroy || !found->load || !found->clear || !found->pause ||
++            !found->viewport || !found->action || !found->poll) {
++            spdlog::warn("[U1 Preview] Shared renderer ABI mismatch");
++            dlclose(handle);
++            return static_cast<const GcodePreviewApi*>(nullptr);
++        }
++        // The process owns this library handle; sessions may outlive static UI helpers.
++        return found;
++    }();
++    return api;
 +}
 +
-+ParsedGCodeFile parse(const char* path) {
-+    GCodeParser parser;
-+    if (path) {
-+        std::ifstream input(path);
-+        require(input.good(), "cannot open G-code input");
-+        for (std::string line; std::getline(input, line);)
-+            parser.parse_line(line);
++struct Viewer {
++    lv_obj_t* object = nullptr;
++    lv_obj_t* fullscreen = nullptr;
++    lv_obj_t* mode_label = nullptr;
++    lv_obj_t* layer_label = nullptr;
++    lv_obj_t* follow_button = nullptr;
++    lv_obj_t* slider = nullptr;
++    lv_timer_t* timer = nullptr;
++    lv_draw_buf_t* embedded_frame = nullptr;
++    lv_draw_buf_t* fullscreen_frame = nullptr;
++    const GcodePreviewApi* api = nullptr;
++    GcodePreview* preview = nullptr;
++    GcodePreviewStatus status{};
++    std::unique_ptr<uint8_t[]> pixels;
++    std::string filename, job_filename, next_job_filename, layer_text;
++    GcodeViewerState phase = GcodeViewerState::Empty;
++    GcodeViewerRenderMode mode = GcodeViewerRenderMode::Auto;
++    gcode_viewer_load_callback_t load_callback = nullptr, first_callback = nullptr;
++    void* load_user_data = nullptr;
++    void* first_user_data = nullptr;
++    ui_gcode_viewer_clear_cb_t clear_callback = nullptr;
++    void* clear_user_data = nullptr;
++    bool paused = false, load_notified = false, first_notified = false;
++    bool fallback_notified = false, slider_dragging = false, dragged = false;
++    bool manual_layer = false, wants_follow = false, applied_initial_mode = false;
++    lv_point_t last_pointer{}, press_origin{};
++    int requested_width = 0, requested_height = 0, requested_compact = -1;
++    helix::test_access::GcodeViewerWatchdogTrack watchdog;
++};
++
++std::vector<lv_obj_t*> viewers;
++
++Viewer* state(lv_obj_t* object) {
++    return object ? static_cast<Viewer*>(lv_obj_get_user_data(object)) : nullptr;
++}
++
++void wake(Viewer& viewer) {
++    if (viewer.timer)
++        lv_timer_resume(viewer.timer);
++}
++
++void action(Viewer& viewer, int command, float x = 0, float y = 0) {
++    if (viewer.preview) {
++        viewer.api->action(viewer.preview, command, x, y);
++        wake(viewer);
++    }
++}
++
++void clear_frames(Viewer& viewer) {
++    helix::safe_draw_buf_destroy(viewer.embedded_frame, "u1_preview_card");
++    helix::safe_draw_buf_destroy(viewer.fullscreen_frame, "u1_preview_full");
++    viewer.first_notified = false;
++    viewer.pixels.reset();
++}
++
++void close_fullscreen(Viewer& viewer) {
++    if (!viewer.fullscreen)
++        return;
++    lv_obj_t* overlay = viewer.fullscreen;
++    viewer.fullscreen = nullptr;
++    viewer.mode_label = viewer.layer_label = viewer.follow_button = viewer.slider = nullptr;
++    viewer.slider_dragging = false;
++    viewer.layer_text.clear();
++    viewer.requested_compact = -1;
++    lv_obj_delete(overlay);
++    wake(viewer);
++    if (viewer.object)
++        lv_obj_invalidate(viewer.object);
++}
++
++bool request_viewport(Viewer& viewer) {
++    lv_obj_t* target = viewer.fullscreen ? viewer.fullscreen : viewer.object;
++    const int compact = viewer.fullscreen ? 0 : 1;
++    const int width = compact ? std::clamp(lv_obj_get_width(target), 1, 480) : 480;
++    const int height = compact ? std::clamp(lv_obj_get_height(target), 1, 320) : 320;
++    if (viewer.requested_width == width && viewer.requested_height == height &&
++        viewer.requested_compact == compact)
++        return true;
++    if (viewer.api->viewport(viewer.preview, width, height, compact, 0) != 0)
++        return false;
++    viewer.requested_width = width;
++    viewer.requested_height = height;
++    viewer.requested_compact = compact;
++    return true;
++}
++
++void draw_frame(lv_event_t* event) {
++    auto* viewer = static_cast<Viewer*>(lv_event_get_user_data(event));
++    lv_obj_t* target = static_cast<lv_obj_t*>(lv_event_get_target(event));
++    auto* frame = target == viewer->fullscreen ? viewer->fullscreen_frame : viewer->embedded_frame;
++    if (!frame || !viewer->status.visible)
++        return;
++    lv_area_t bounds;
++    lv_obj_get_coords(target, &bounds);
++    lv_area_t image_area = helix::draw_buf_blit_area(*frame, bounds);
++    lv_draw_image_dsc_t image;
++    lv_draw_image_dsc_init(&image);
++    image.src = frame;
++    lv_draw_image(lv_event_get_layer(event), &image, &image_area);
++}
++
++bool copy_frame(Viewer& viewer) {
++    const auto& status = viewer.status;
++    if (!status.width || !status.height || status.width > 480 || status.height > 320)
++        return false;
++    auto*& frame = status.compact ? viewer.embedded_frame : viewer.fullscreen_frame;
++    if (!frame || frame->header.w != status.width || frame->header.h != status.height) {
++        helix::safe_draw_buf_destroy(frame, "u1_preview_resize");
++        frame = lv_draw_buf_create(status.width, status.height, LV_COLOR_FORMAT_ARGB8888, 0);
++        if (!frame)
++            return false;
 +    } else {
-+        parser.parse_line("G90");
-+        parser.parse_line("M83");
-+        parser.parse_line("EXCLUDE_OBJECT_DEFINE NAME=left CENTER=30,30");
-+        parser.parse_line("EXCLUDE_OBJECT_DEFINE NAME=right CENTER=70,30");
-+        for (int layer = 0; layer < 3; ++layer) {
-+            parser.parse_line("G1 Z" + std::to_string(0.2 * (layer + 1)));
-+            for (int object = 0; object < 2; ++object) {
-+                const int x = 20 + 40 * object;
-+                parser.parse_line(std::string("EXCLUDE_OBJECT_START NAME=") + (object ? "right" : "left"));
-+                parser.parse_line("G1 X" + std::to_string(x) + " Y20 F1200");
-+                parser.parse_line("G1 X" + std::to_string(x + 20) + " Y20 E1");
-+                parser.parse_line("G1 X" + std::to_string(x + 20) + " Y40 E1");
-+                parser.parse_line("G1 X" + std::to_string(x) + " Y40 E1");
-+                parser.parse_line("G1 X" + std::to_string(x) + " Y20 E1");
-+                parser.parse_line("EXCLUDE_OBJECT_END");
-+            }
++        lv_draw_wait_for_finish();
++    }
++    const size_t row_bytes = status.width * 4u;
++    for (uint32_t y = 0; y < status.height; ++y)
++        std::memcpy(frame->data + y * frame->header.stride,
++                    viewer.pixels.get() + y * row_bytes, row_bytes);
++    lv_obj_t* target = status.compact ? viewer.object : viewer.fullscreen;
++    if (target)
++        lv_obj_invalidate(target);
++    return true;
++}
++
++void update_controls(Viewer& viewer) {
++    if (!viewer.fullscreen)
++        return;
++    const auto& status = viewer.status;
++    char label[160];
++    std::snprintf(label, sizeof(label), "%s %u/%u  %.2f mm", lv_tr("Layer"),
++                  status.layers ? status.layer + 1 : 0, status.layers, status.layer_height);
++    std::string text(label);
++    if (status.live_available && !viewer.job_filename.empty() &&
++        viewer.job_filename == get_printer_state().get_effective_print_filename()) {
++        const int remaining = lv_subject_get_int(get_printer_state().get_print_time_left_subject());
++        if (remaining > 0) {
++            std::snprintf(label, sizeof(label), "  %s %dh%02dm", lv_tr("Remaining"),
++                          remaining / 3600, (remaining / 60) % 60);
++            text += label;
 +        }
 +    }
-+    auto result = parser.finalize(true);
-+    require(!result.layers.empty(), "G-code has no layers");
++    if (text != viewer.layer_text) {
++        viewer.layer_text = std::move(text);
++        lv_label_set_text(viewer.layer_label, viewer.layer_text.c_str());
++    }
++    const char* mode = status.flat ? "2D" : "3D";
++    if (std::strcmp(lv_label_get_text(viewer.mode_label), mode))
++        lv_label_set_text(viewer.mode_label, mode);
++    if (status.live_follow)
++        lv_obj_add_state(viewer.follow_button, LV_STATE_CHECKED);
++    else
++        lv_obj_remove_state(viewer.follow_button, LV_STATE_CHECKED);
++    if (status.live_available)
++        lv_obj_remove_state(viewer.follow_button, LV_STATE_DISABLED);
++    else
++        lv_obj_add_state(viewer.follow_button, LV_STATE_DISABLED);
++    const int max_layer = status.layers > 1 ? static_cast<int>(status.layers - 1) : 1;
++    if (lv_slider_get_max_value(viewer.slider) != max_layer)
++        lv_slider_set_range(viewer.slider, 0, max_layer);
++    if (!viewer.slider_dragging && lv_slider_get_value(viewer.slider) != static_cast<int>(status.layer))
++        lv_slider_set_value(viewer.slider, static_cast<int>(status.layer), LV_ANIM_OFF);
++}
++
++void tick(lv_timer_t* timer) {
++    auto* viewer = static_cast<Viewer*>(lv_timer_get_user_data(timer));
++    if (viewer->phase == GcodeViewerState::Empty) {
++        lv_timer_pause(timer);
++        return;
++    }
++    if (viewer->preview && viewer->phase != GcodeViewerState::Error) {
++        const bool initial_frame = !viewer->first_notified && !viewer->paused;
++        const bool visible = viewer->fullscreen || lv_obj_is_visible(viewer->object);
++        const bool render = viewer->phase == GcodeViewerState::Loaded && viewer->load_notified &&
++                            !viewer->paused && (visible || initial_frame);
++        if (render && !viewer->pixels) {
++            viewer->pixels.reset(new (std::nothrow) uint8_t[GCODE_PREVIEW_MAX_BYTES]);
++            if (!viewer->pixels) {
++                viewer->phase = GcodeViewerState::Error;
++                return;
++            }
++        }
++        viewer->api->pause(viewer->preview, render ? 0 : 1);
++        if (render)
++            request_viewport(*viewer);
++        const int result = viewer->api->poll(viewer->preview, &viewer->status,
++                                            render ? viewer->pixels.get() : nullptr,
++                                            render ? GCODE_PREVIEW_MAX_BYTES : 0);
++        if (result == -1)
++            return;
++        if (result == -2 || viewer->status.phase == GCODE_PREVIEW_ERROR) {
++            viewer->phase = GcodeViewerState::Error;
++        } else if (viewer->status.phase == GCODE_PREVIEW_LOADED) {
++            viewer->phase = GcodeViewerState::Loaded;
++            if (!viewer->applied_initial_mode) {
++                viewer->applied_initial_mode = true;
++                action(*viewer, GCODE_PREVIEW_FLAT,
++                       viewer->mode == GcodeViewerRenderMode::Layer2D ? 1.0f : 0.0f);
++                if (!viewer->wants_follow && viewer->status.layers)
++                    action(*viewer, GCODE_PREVIEW_LAYER,
++                           static_cast<float>(viewer->status.layers - 1));
++            }
++            if (viewer->wants_follow && !viewer->manual_layer && viewer->status.live_available &&
++                !viewer->status.following)
++                action(*viewer, GCODE_PREVIEW_FOLLOW);
++        }
++        if (result == 1 && !copy_frame(*viewer))
++            viewer->phase = GcodeViewerState::Error;
++    }
++    if (viewer->phase == GcodeViewerState::Error) {
++        if (viewer->preview)
++            viewer->api->pause(viewer->preview, 1);
++        if (!viewer->fallback_notified) {
++            viewer->fallback_notified = true;
++            close_fullscreen(*viewer);
++            clear_frames(*viewer);
++            if (viewer->clear_callback) {
++                viewer->clear_callback(viewer->object, viewer->clear_user_data);
++                return;
++            }
++        }
++        if (!viewer->load_notified) {
++            viewer->load_notified = true;
++            if (viewer->load_callback) {
++                viewer->load_callback(viewer->object, viewer->load_user_data, false);
++                return;
++            }
++        }
++        lv_timer_pause(timer);
++        return;
++    }
++    if (viewer->phase != GcodeViewerState::Loaded)
++        return;
++    if (!viewer->load_notified) {
++        viewer->load_notified = true;
++        if (viewer->load_callback) {
++            viewer->load_callback(viewer->object, viewer->load_user_data, true);
++            return;
++        }
++    }
++    update_controls(*viewer);
++    if (!viewer->first_notified && viewer->status.visible &&
++        (viewer->embedded_frame || viewer->fullscreen_frame)) {
++        viewer->first_notified = true;
++        if (viewer->first_callback) {
++            viewer->first_callback(viewer->object, viewer->first_user_data, true);
++            return;
++        }
++    }
++    if (viewer->paused)
++        lv_timer_pause(timer);
++}
++
++enum ButtonAction { Back, Flat, ZoomOut, ZoomIn, Follow };
++
++void button_clicked(lv_event_t* event) {
++    auto* button = static_cast<lv_obj_t*>(lv_event_get_target(event));
++    auto* viewer = static_cast<Viewer*>(lv_event_get_user_data(event));
++    const auto command = static_cast<ButtonAction>(reinterpret_cast<intptr_t>(lv_obj_get_user_data(button)));
++    switch (command) {
++    case Back:
++        close_fullscreen(*viewer);
++        break;
++    case Flat:
++        viewer->mode = viewer->status.flat ? GcodeViewerRenderMode::Render3D : GcodeViewerRenderMode::Layer2D;
++        action(*viewer, GCODE_PREVIEW_FLAT, viewer->status.flat ? 0.0f : 1.0f);
++        break;
++    case ZoomOut:
++        action(*viewer, GCODE_PREVIEW_ZOOM, 1.0f / 1.25f);
++        break;
++    case ZoomIn:
++        action(*viewer, GCODE_PREVIEW_ZOOM, 1.25f);
++        break;
++    case Follow:
++        viewer->manual_layer = false;
++        viewer->wants_follow = true;
++        action(*viewer, GCODE_PREVIEW_FOLLOW);
++        break;
++    }
++}
++
++lv_obj_t* button(Viewer& viewer, const char* text, ButtonAction command,
++                 lv_align_t alignment, int x, int y, int width) {
++    auto* object = lv_button_create(viewer.fullscreen);
++    lv_obj_set_size(object, width, 32);
++    lv_obj_align(object, alignment, x, y);
++    lv_obj_set_style_bg_color(object, lv_color_hex(0x272e34), 0);
++    lv_obj_set_style_bg_opa(object, 230, 0);
++    lv_obj_set_style_bg_color(object, lv_color_hex(0x1866ff), LV_STATE_CHECKED);
++    lv_obj_set_style_border_width(object, 0, 0);
++    lv_obj_set_style_radius(object, 10, 0);
++    lv_obj_set_style_pad_all(object, 0, 0);
++    lv_obj_set_style_shadow_width(object, 0, 0);
++    lv_obj_set_user_data(object, reinterpret_cast<void*>(static_cast<intptr_t>(command)));
++    lv_obj_add_event_cb(object, button_clicked, LV_EVENT_CLICKED, &viewer);
++    auto* label = lv_label_create(object);
++    lv_label_set_text(label, text);
++    lv_obj_set_style_text_font(label, theme_manager_get_font("font_small"), 0);
++    lv_obj_center(label);
++    if (command == Flat)
++        viewer.mode_label = label;
++    return object;
++}
++
++void slider_event(lv_event_t* event) {
++    auto* viewer = static_cast<Viewer*>(lv_event_get_user_data(event));
++    const auto code = lv_event_get_code(event);
++    if (code == LV_EVENT_PRESSED)
++        viewer->slider_dragging = true;
++    else if (code == LV_EVENT_RELEASED || code == LV_EVENT_PRESS_LOST)
++        viewer->slider_dragging = false;
++    else if (code == LV_EVENT_VALUE_CHANGED) {
++        viewer->manual_layer = true;
++        action(*viewer, GCODE_PREVIEW_LAYER, static_cast<float>(lv_slider_get_value(viewer->slider)));
++    }
++}
++
++void pointer_event(lv_event_t* event);
++
++void fullscreen_deleted(lv_event_t* event) {
++    auto* viewer = static_cast<Viewer*>(lv_event_get_user_data(event));
++    if (lv_event_get_target(event) != viewer->fullscreen)
++        return;
++    viewer->fullscreen = nullptr;
++    viewer->mode_label = viewer->layer_label = viewer->follow_button = viewer->slider = nullptr;
++    viewer->slider_dragging = false;
++    viewer->layer_text.clear();
++    viewer->requested_compact = -1;
++    wake(*viewer);
++}
++
++void open_fullscreen(Viewer& viewer) {
++    if (viewer.fullscreen || viewer.phase != GcodeViewerState::Loaded || !viewer.embedded_frame)
++        return;
++    viewer.fullscreen = lv_obj_create(lv_layer_top());
++    lv_obj_set_size(viewer.fullscreen, LV_PCT(100), LV_PCT(100));
++    lv_obj_set_style_pad_all(viewer.fullscreen, 0, 0);
++    lv_obj_set_style_border_width(viewer.fullscreen, 0, 0);
++    lv_obj_set_style_radius(viewer.fullscreen, 0, 0);
++    lv_obj_set_style_bg_color(viewer.fullscreen, lv_color_hex(0x101415), 0);
++    lv_obj_remove_flag(viewer.fullscreen, static_cast<lv_obj_flag_t>(
++        LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_SCROLL_CHAIN | LV_OBJ_FLAG_GESTURE_BUBBLE));
++    lv_obj_add_flag(viewer.fullscreen, static_cast<lv_obj_flag_t>(
++        LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_PRESS_LOCK));
++    lv_obj_add_event_cb(viewer.fullscreen, draw_frame, LV_EVENT_DRAW_MAIN, &viewer);
++    lv_obj_add_event_cb(viewer.fullscreen, pointer_event, LV_EVENT_ALL, &viewer);
++    lv_obj_add_event_cb(viewer.fullscreen, fullscreen_deleted, LV_EVENT_DELETE, &viewer);
++    button(viewer, lv_tr("Back"), Back, LV_ALIGN_TOP_LEFT, 8, 8, 64);
++    button(viewer, viewer.status.flat ? "2D" : "3D", Flat, LV_ALIGN_TOP_RIGHT, -112, 8, 48);
++    button(viewer, "-", ZoomOut, LV_ALIGN_TOP_RIGHT, -60, 8, 44);
++    button(viewer, "+", ZoomIn, LV_ALIGN_TOP_RIGHT, -8, 8, 44);
++    viewer.follow_button = button(viewer, lv_tr("Current layer"), Follow,
++                                  LV_ALIGN_BOTTOM_RIGHT, -8, -26, 100);
++    viewer.layer_label = lv_label_create(viewer.fullscreen);
++    lv_obj_set_style_text_font(viewer.layer_label, theme_manager_get_font("font_small"), 0);
++    lv_obj_set_style_text_color(viewer.layer_label, lv_color_hex(0xe5e8eb), 0);
++    lv_obj_set_width(viewer.layer_label, 350);
++    lv_label_set_long_mode(viewer.layer_label, LV_LABEL_LONG_WRAP);
++    lv_obj_align(viewer.layer_label, LV_ALIGN_BOTTOM_LEFT, 12, -28);
++    viewer.slider = lv_slider_create(viewer.fullscreen);
++    lv_obj_set_size(viewer.slider, 456, 14);
++    lv_obj_align(viewer.slider, LV_ALIGN_BOTTOM_MID, 0, -3);
++    for (auto part : {LV_PART_MAIN, LV_PART_INDICATOR, LV_PART_KNOB}) {
++        lv_obj_set_style_bg_opa(viewer.slider, LV_OPA_TRANSP, part);
++        lv_obj_set_style_border_width(viewer.slider, 0, part);
++        lv_obj_set_style_shadow_width(viewer.slider, 0, part);
++    }
++    lv_obj_set_ext_click_area(viewer.slider, 5);
++    lv_obj_add_event_cb(viewer.slider, slider_event, LV_EVENT_ALL, &viewer);
++    viewer.requested_compact = -1;
++    wake(viewer);
++    update_controls(viewer);
++}
++
++void pointer_event(lv_event_t* event) {
++    auto* viewer = static_cast<Viewer*>(lv_event_get_user_data(event));
++    const auto code = lv_event_get_code(event);
++    auto* target = static_cast<lv_obj_t*>(lv_event_get_target(event));
++    lv_indev_t* input = lv_indev_active();
++    if (!input || (code != LV_EVENT_PRESSED && code != LV_EVENT_PRESSING &&
++                   code != LV_EVENT_SHORT_CLICKED))
++        return;
++    lv_point_t point;
++    lv_indev_get_point(input, &point);
++    if (code == LV_EVENT_PRESSED) {
++        viewer->last_pointer = point;
++        viewer->press_origin = point;
++        viewer->dragged = false;
++    } else if (code == LV_EVENT_PRESSING) {
++        const int dx = point.x - viewer->last_pointer.x, dy = point.y - viewer->last_pointer.y;
++        if (std::abs(point.x - viewer->press_origin.x) + std::abs(point.y - viewer->press_origin.y) > 8)
++            viewer->dragged = true;
++        if (target == viewer->fullscreen && (dx || dy))
++            action(*viewer, GCODE_PREVIEW_ROTATE, dx * 0.012f, dy * 0.012f);
++        viewer->last_pointer = point;
++    } else if (target == viewer->object && !viewer->dragged) {
++        open_fullscreen(*viewer);
++    }
++}
++
++void deleted(lv_event_t* event) {
++    auto* object = static_cast<lv_obj_t*>(lv_event_get_target(event));
++    std::unique_ptr<Viewer> viewer(state(object));
++    if (!viewer)
++        return;
++    lv_obj_set_user_data(object, nullptr);
++    viewer->object = nullptr;
++    viewers.erase(std::remove(viewers.begin(), viewers.end(), object), viewers.end());
++    if (viewer->timer) {
++        lv_timer_delete(viewer->timer);
++        viewer->timer = nullptr;
++    }
++    close_fullscreen(*viewer);
++    if (viewer->preview)
++        viewer->api->destroy(viewer->preview);
++    clear_frames(*viewer);
++}
++} // namespace
++
++lv_obj_t* ui_gcode_viewer_create(lv_obj_t* parent) {
++    auto* object = lv_obj_create(parent);
++    auto viewer = std::make_unique<Viewer>();
++    viewer->object = object;
++    const char* mode = std::getenv("HELIX_GCODE_MODE");
++    if (mode && std::strcmp(mode, "2D") == 0)
++        viewer->mode = GcodeViewerRenderMode::Layer2D;
++    lv_obj_set_user_data(object, viewer.get());
++    lv_obj_set_style_pad_all(object, 0, 0);
++    lv_obj_set_style_border_width(object, 0, 0);
++    lv_obj_set_style_bg_opa(object, LV_OPA_TRANSP, 0);
++    lv_obj_remove_flag(object, static_cast<lv_obj_flag_t>(
++        LV_OBJ_FLAG_SCROLLABLE | LV_OBJ_FLAG_SCROLL_CHAIN | LV_OBJ_FLAG_GESTURE_BUBBLE));
++    lv_obj_add_flag(object, static_cast<lv_obj_flag_t>(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_PRESS_LOCK));
++    lv_obj_add_event_cb(object, draw_frame, LV_EVENT_DRAW_MAIN, viewer.get());
++    lv_obj_add_event_cb(object, pointer_event, LV_EVENT_ALL, viewer.get());
++    lv_obj_add_event_cb(object, deleted, LV_EVENT_DELETE, nullptr);
++    viewer->timer = lv_timer_create(tick, 22, viewer.get());
++    lv_timer_pause(viewer->timer);
++    viewers.push_back(object);
++    viewer.release();
++    return object;
++}
++
++void ui_gcode_viewer_set_job_filename(lv_obj_t* object, const char* filename) {
++    if (auto* viewer = state(object))
++        viewer->next_job_filename = filename ? filename : "";
++}
++
++void ui_gcode_viewer_load_file(lv_obj_t* object, const char* path) {
++    auto* viewer = state(object);
++    if (!viewer)
++        return;
++    close_fullscreen(*viewer);
++    if (viewer->preview)
++        viewer->api->clear(viewer->preview);
++    clear_frames(*viewer);
++    viewer->status = {};
++    viewer->phase = GcodeViewerState::Loading;
++    std::error_code path_error;
++    viewer->filename = path && *path ? std::filesystem::canonical(path, path_error).string() : "";
++    viewer->job_filename = std::move(viewer->next_job_filename);
++    viewer->next_job_filename.clear();
++    viewer->load_notified = viewer->fallback_notified = viewer->manual_layer = false;
++    viewer->applied_initial_mode = false;
++    viewer->requested_compact = -1;
++    const auto* available_api = preview_api();
++    if (!available_api && viewer->preview) {
++        viewer->api->destroy(viewer->preview);
++        viewer->preview = nullptr;
++    }
++    viewer->api = available_api;
++    if (viewer->api && !viewer->preview)
++        viewer->preview = viewer->api->create();
++    if (!viewer->preview || viewer->filename.empty() || path_error) {
++        viewer->phase = GcodeViewerState::Error;
++    } else {
++        const uint32_t width = static_cast<uint32_t>(std::clamp(lv_obj_get_width(object), 1, 480));
++        const uint32_t height = static_cast<uint32_t>(std::clamp(lv_obj_get_height(object), 1, 320));
++        const GcodePreviewSource source{viewer->filename.c_str(),
++            viewer->job_filename.empty() ? nullptr : viewer->job_filename.c_str(), width, height, 1, 0};
++        viewer->api->pause(viewer->preview, 1);
++        if (viewer->api->load(viewer->preview, &source) != 0)
++            viewer->phase = GcodeViewerState::Error;
++    }
++    wake(*viewer);
++}
++
++void ui_gcode_viewer_set_load_callback(lv_obj_t* object, gcode_viewer_load_callback_t callback, void* data) {
++    if (auto* viewer = state(object)) {
++        viewer->load_callback = callback;
++        viewer->load_user_data = data;
++    }
++}
++
++void ui_gcode_viewer_set_first_frame_callback(lv_obj_t* object, gcode_viewer_load_callback_t callback, void* data) {
++    if (auto* viewer = state(object)) {
++        viewer->first_callback = callback;
++        viewer->first_user_data = data;
++    }
++}
++
++void ui_gcode_viewer_set_clear_callback(lv_obj_t* object, ui_gcode_viewer_clear_cb_t callback, void* data) {
++    if (auto* viewer = state(object)) {
++        viewer->clear_callback = callback;
++        viewer->clear_user_data = data;
++    }
++}
++
++void ui_gcode_viewer_clear(lv_obj_t* object) {
++    auto* viewer = state(object);
++    if (!viewer)
++        return;
++    close_fullscreen(*viewer);
++    if (viewer->preview)
++        viewer->api->clear(viewer->preview);
++    clear_frames(*viewer);
++    viewer->filename.clear();
++    viewer->job_filename.clear();
++    viewer->next_job_filename.clear();
++    viewer->status = {};
++    viewer->phase = GcodeViewerState::Empty;
++    viewer->wants_follow = false;
++    lv_timer_pause(viewer->timer);
++    lv_obj_invalidate(object);
++    if (viewer->clear_callback)
++        viewer->clear_callback(object, viewer->clear_user_data);
++}
++
++void ui_gcode_viewer_clear_all_active() {
++    const auto active = viewers;
++    for (auto* viewer : active)
++        if (lv_obj_is_valid(viewer))
++            ui_gcode_viewer_clear(viewer);
++}
++
++bool ui_gcode_viewer_has_content(lv_obj_t* object) {
++    auto* viewer = state(object);
++    return viewer && viewer->phase == GcodeViewerState::Loaded && viewer->status.layers;
++}
++
++void ui_gcode_viewer_set_paused(lv_obj_t* object, bool paused) {
++    if (auto* viewer = state(object)) {
++        viewer->paused = paused;
++        if (paused)
++            close_fullscreen(*viewer);
++        if (viewer->preview)
++            viewer->api->pause(viewer->preview, paused ? 1 : 0);
++        wake(*viewer);
++    }
++}
++
++bool ui_gcode_viewer_is_paused(lv_obj_t* object) {
++    auto* viewer = state(object);
++    return !viewer || viewer->paused;
++}
++
++void ui_gcode_viewer_force_redraw(lv_obj_t* object) {
++    if (auto* viewer = state(object)) {
++        action(*viewer, GCODE_PREVIEW_REFRESH);
++        lv_obj_invalidate(object);
++    }
++}
++
++void ui_gcode_viewer_set_render_mode(lv_obj_t* object, GcodeViewerRenderMode mode) {
++    if (auto* viewer = state(object)) {
++        viewer->mode = mode;
++        action(*viewer, GCODE_PREVIEW_FLAT, mode == GcodeViewerRenderMode::Layer2D ? 1.0f : 0.0f);
++    }
++}
++
++bool ui_gcode_viewer_is_using_2d_mode(lv_obj_t* object) {
++    auto* viewer = state(object);
++    return viewer && viewer->mode == GcodeViewerRenderMode::Layer2D;
++}
++
++void ui_gcode_viewer_zoom(lv_obj_t* object, float factor) {
++    if (auto* viewer = state(object); viewer && std::isfinite(factor) && factor > 0)
++        action(*viewer, GCODE_PREVIEW_ZOOM, factor);
++}
++
++void ui_gcode_viewer_reset_camera(lv_obj_t* object) {
++    if (auto* viewer = state(object)) {
++        action(*viewer, GCODE_PREVIEW_RESET);
++        action(*viewer, GCODE_PREVIEW_FLAT, viewer->mode == GcodeViewerRenderMode::Layer2D ? 1.0f : 0.0f);
++        viewer->manual_layer = false;
++    }
++}
++
++void ui_gcode_viewer_set_view(lv_obj_t* object, helix::GcodeViewerPresetView preset) {
++    if (preset == helix::GcodeViewerPresetView::Top)
++        ui_gcode_viewer_set_render_mode(object, GcodeViewerRenderMode::Layer2D);
++    else {
++        ui_gcode_viewer_set_render_mode(object, GcodeViewerRenderMode::Render3D);
++        ui_gcode_viewer_reset_camera(object);
++        if (auto* viewer = state(object)) {
++            if (preset == helix::GcodeViewerPresetView::Front)
++                action(*viewer, GCODE_PREVIEW_ROTATE, .45f, .6f);
++            else if (preset == helix::GcodeViewerPresetView::Side)
++                action(*viewer, GCODE_PREVIEW_ROTATE, 2.0207963f, .6f);
++        }
++    }
++}
++
++void ui_gcode_viewer_set_camera_azimuth(lv_obj_t* object, float degrees) {
++    if (auto* viewer = state(object); viewer && viewer->preview && std::isfinite(degrees)) {
++        if (viewer->api->poll(viewer->preview, &viewer->status, nullptr, 0) >= 0)
++            action(*viewer, GCODE_PREVIEW_ROTATE, degrees * .0174532925f - viewer->status.yaw, 0);
++    }
++}
++
++void ui_gcode_viewer_set_camera_elevation(lv_obj_t* object, float degrees) {
++    if (auto* viewer = state(object); viewer && viewer->preview && std::isfinite(degrees)) {
++        if (viewer->api->poll(viewer->preview, &viewer->status, nullptr, 0) >= 0)
++            action(*viewer, GCODE_PREVIEW_ROTATE, 0, degrees * .0174532925f - viewer->status.tilt);
++    }
++}
++
++void ui_gcode_viewer_set_camera_zoom(lv_obj_t* object, float zoom) {
++    if (auto* viewer = state(object); viewer && viewer->preview && std::isfinite(zoom) && zoom > 0) {
++        if (viewer->api->poll(viewer->preview, &viewer->status, nullptr, 0) >= 0 && viewer->status.zoom > 0)
++            action(*viewer, GCODE_PREVIEW_ZOOM, zoom / viewer->status.zoom);
++    }
++}
++
++void ui_gcode_viewer_set_print_progress(lv_obj_t* object, int layer) {
++    if (auto* viewer = state(object)) {
++        viewer->wants_follow = layer >= 0;
++        if (viewer->manual_layer)
++            return;
++        if (layer >= 0 && viewer->status.live_available)
++            action(*viewer, GCODE_PREVIEW_FOLLOW);
++        else if (layer < 0 && viewer->status.layers)
++            action(*viewer, GCODE_PREVIEW_LAYER, static_cast<float>(viewer->status.layers - 1));
++    }
++}
++
++int ui_gcode_viewer_get_max_layer(lv_obj_t* object) {
++    auto* viewer = state(object);
++    return viewer && viewer->status.layers ? static_cast<int>(viewer->status.layers - 1) : -1;
++}
++
++int ui_gcode_viewer_get_layer_count(lv_obj_t* object) {
++    auto* viewer = state(object);
++    return viewer ? static_cast<int>(viewer->status.layers) : 0;
++}
++
++const char* ui_gcode_viewer_get_filename(lv_obj_t* object) {
++    auto* viewer = state(object);
++    return viewer && !viewer->filename.empty() ? viewer->filename.c_str() : nullptr;
++}
++
++float ui_gcode_viewer_get_load_progress(lv_obj_t* object) {
++    auto* viewer = state(object);
++    return viewer && viewer->phase == GcodeViewerState::Loading ? 0.0f : 1.0f;
++}
++
++bool ui_gcode_viewer_pump_offscreen_2d(lv_obj_t* object) {
++    auto* viewer = state(object);
++    if (!viewer || !ui_gcode_viewer_is_using_2d_mode(object))
++        return false;
++    wake(*viewer);
++    return viewer->embedded_frame != nullptr;
++}
++
++std::set<int> ui_gcode_viewer_get_tools_used(lv_obj_t* object) {
++    std::set<int> result;
++    if (auto* viewer = state(object))
++        for (int tool = 0; tool < 4; ++tool)
++            if (viewer->status.tools_used & (1u << tool))
++                result.insert(tool);
 +    return result;
 +}
 +
-+struct Scene {
-+    ParsedGCodeFile& file;
-+    GCodeGLESRenderer gpu;
-+    GCodeLayerRenderer cpu;
-+    GCodeCamera camera;
-+    bool off;
-+    double render_ms = 0;
-+    size_t geometry_vertices = 0;
-+    size_t geometry_triangles = 0;
-+    size_t gpu_upload_vertices = 0;
++// The shared native renderer has no object hit testing or host palette overrides.
++// Exclusion remains in Helix's explicit object list; preview gestures never issue commands.
++const char* ui_gcode_viewer_pick_object(lv_obj_t*, int, int) { return nullptr; }
++void ui_gcode_viewer_set_object_tap_callback(lv_obj_t*, gcode_viewer_object_tap_callback_t, void*) {}
++void ui_gcode_viewer_set_object_long_press_callback(lv_obj_t*, gcode_viewer_object_long_press_callback_t, void*) {}
++void ui_gcode_viewer_set_highlighted_objects(lv_obj_t*, const std::unordered_set<std::string>&) {}
++void ui_gcode_viewer_set_excluded_objects(lv_obj_t*, const std::unordered_set<std::string>&) {}
++void ui_gcode_viewer_set_tool_colors(lv_obj_t*, const std::vector<uint32_t>&) {}
++void ui_gcode_viewer_clear_tool_colors(lv_obj_t*) {}
++std::vector<uint32_t> ui_gcode_viewer_get_tool_colors(lv_obj_t*) { return {}; }
++bool ui_gcode_viewer_apply_ams_tool_colors(lv_obj_t*) { return false; }
++const helix::gcode::ParsedGCodeFile* ui_gcode_viewer_get_parsed_file(lv_obj_t*) { return nullptr; }
++std::vector<std::string> ui_gcode_viewer_get_tool_palette(lv_obj_t*) { return {}; }
++bool ui_gcode_viewer_adopt_palette_if_empty(lv_obj_t*, std::vector<std::string>&) { return false; }
++const char* ui_gcode_viewer_get_filament_type(lv_obj_t*) { return nullptr; }
++void ui_gcode_viewer_set_extrusion_color(lv_obj_t*, lv_color_t) {}
++void ui_gcode_viewer_set_specular(lv_obj_t*, float, float) {}
++void ui_gcode_viewer_set_debug_colors(lv_obj_t*, bool) {}
++void ui_gcode_viewer_set_show_travels(lv_obj_t*, bool) {}
++void ui_gcode_viewer_set_ghost_mode(lv_obj_t*, int) {}
++void ui_gcode_viewer_set_thumbnail_parity(lv_obj_t*, bool) {}
++void ui_gcode_viewer_disable_streaming(lv_obj_t*) {}
++void ui_gcode_viewer_set_bottom_occluder(lv_obj_t*, lv_obj_t*) {}
 +
-+    Scene(ParsedGCodeFile& source, bool disabled) : file(source), off(disabled) {
-+        auto geometry = build_3d_geometry_in_budget(file, "GPU self-test");
-+        if (off) {
-+            require(!geometry, "GPU-disabled build allocated 3D geometry");
-+        } else {
-+            require(geometry && !geometry->vertices.empty(), "budgeted G-code geometry unavailable");
-+            geometry_vertices = geometry->vertices.size();
-+            geometry_triangles = geometry->extrusion_triangle_count + geometry->travel_triangle_count;
-+            for (const auto& buffer : geometry->prepared_buffers)
-+                gpu_upload_vertices += buffer.vertex_count;
-+            gpu.set_prebuilt_geometry(std::move(geometry), "gpu-self-test");
-+            gpu.set_filament_color("#FF6B35");
-+            if (!file.object_name_table.empty())
-+                gpu.set_highlighted_object(file.object_name_table.front());
-+        }
-+        cpu.set_gcode(&file);
-+        cpu.set_current_layer(static_cast<int>(file.layers.size()) - 1);
-+    }
-+
-+    static void draw(lv_event_t* event) {
-+        auto& scene = *static_cast<Scene*>(lv_event_get_user_data(event));
-+        lv_area_t area;
-+        lv_obj_get_coords(static_cast<lv_obj_t*>(lv_event_get_target(event)), &area);
-+        auto start = Clock::now();
-+        scene.gpu.render(lv_event_get_layer(event), scene.file, scene.camera, &area);
-+        if (scene.off && scene.gpu.render_failed())
-+            scene.cpu.render(lv_event_get_layer(event), &area);
-+        scene.render_ms = std::chrono::duration<double, std::milli>(Clock::now() - start).count();
-+    }
-+};
-+
-+void write_ppm(const std::filesystem::path& path, const lv_draw_buf_t& image) {
-+    std::ofstream output(path, std::ios::binary);
-+    output << "P6\n" << image.header.w << ' ' << image.header.h << "\n255\n";
-+    bool varied = false;
-+    for (uint32_t y = 0; y < image.header.h; ++y) {
-+        const auto* row = image.data + static_cast<size_t>(y) * image.header.stride;
-+        for (uint32_t x = 0; x < image.header.w; ++x) {
-+            varied |= std::memcmp(row + x * 4, image.data, 3) != 0;
-+            const char rgb[] = {static_cast<char>(row[x * 4 + 2]),
-+                                static_cast<char>(row[x * 4 + 1]), static_cast<char>(row[x * 4])};
-+            output.write(rgb, sizeof(rgb));
-+        }
-+    }
-+    require(output.good(), "cannot write snapshot");
-+    require(varied, "snapshot contains only one color");
++static void* xml_create(lv_xml_parser_state_t* parser, const char**) {
++    return ui_gcode_viewer_create(static_cast<lv_obj_t*>(lv_xml_state_get_parent(parser)));
++}
++static void xml_apply(lv_xml_parser_state_t* parser, const char** attributes) {
++    lv_xml_obj_apply(parser, attributes);
++}
++void ui_gcode_viewer_register() {
++    static const char* const languages[] = {"zh", nullptr};
++    static const char* const tags[] = {"Current layer", "Remaining", nullptr};
++    static const char* const translations[] = {"当前层", "剩余"};
++    lv_translation_add_static(languages, tags, translations);
++    lv_xml_register_widget("gcode_viewer", xml_create, xml_apply);
 +}
 +
-+void run_case(Scene& scene, lv_obj_t* object, int width, int height, float azimuth, float elevation,
-+              const std::filesystem::path& prefix, std::ostream& report) {
-+    scene.gpu.set_viewport_size(width, height);
-+    scene.camera.set_viewport_size(width, height);
-+    scene.camera.set_azimuth(azimuth);
-+    scene.camera.set_elevation(elevation);
-+    scene.camera.fit_to_bounds(scene.file.global_bounding_box);
-+    scene.cpu.set_canvas_size(width, height);
-+    scene.cpu.auto_fit();
-+    lv_obj_set_size(object, width, height);
-+    lv_obj_update_layout(object);
-+    lv_draw_buf_t* snapshot = lv_snapshot_create_draw_buf(object, LV_COLOR_FORMAT_ARGB8888);
-+    require(snapshot != nullptr, "snapshot allocation failed");
-+    std::unique_ptr<lv_draw_buf_t, decltype(&lv_draw_buf_destroy)> image(snapshot, lv_draw_buf_destroy);
-+    auto draw_frame = [&]() {
-+        GCodeGLESSelfTestAccess::redraw(scene.gpu);
-+        require(lv_snapshot_take_to_draw_buf(object, LV_COLOR_FORMAT_ARGB8888, snapshot) == LV_RESULT_OK,
-+                "snapshot render failed");
-+    };
-+    for (int frame = 0; frame < 120; ++frame) {
-+        draw_frame();
-+        if (frame >= 3 && !scene.gpu.is_uploading() &&
-+            (!scene.off || !scene.cpu.needs_more_frames()))
-+            break;
-+    }
-+    require(!scene.gpu.is_uploading(), "geometry upload did not finish");
-+    std::vector<double> render_times;
-+    for (int frame = 0; frame < 20; ++frame) {
-+        draw_frame();
-+        render_times.push_back(scene.render_ms);
-+    }
-+    const bool initialized = GCodeGLESSelfTestAccess::initialized(scene.gpu);
-+    const bool dma = GCodeGLESSelfTestAccess::dma(scene.gpu);
-+    const int client_version = GCodeGLESSelfTestAccess::client_version(scene.gpu);
-+    const auto& rgba = GCodeGLESSelfTestAccess::pixels(scene.gpu);
-+    if (scene.off) {
-+        require(!initialized && scene.gpu.render_failed() && rgba.empty(), "off mode initialized GLES");
-+    } else {
-+        require(initialized && !scene.gpu.render_failed() && client_version == 2, "GLES2 rendering failed");
-+        require(rgba.size() == static_cast<size_t>(width) * height * 4, "wrong RGBA buffer size");
-+        const char* mode = std::getenv("UI_GPU_OUTPUT");
-+        if (mode && std::strcmp(mode, "readback") == 0)
-+            require(!dma, "readback mode used DMA-BUF");
-+        else
-+            require(dma, "shared output unavailable; renderer fell back to readback");
-+        std::ofstream raw(prefix.string() + ".rgba", std::ios::binary);
-+        raw.write(reinterpret_cast<const char*>(rgba.data()), static_cast<std::streamsize>(rgba.size()));
-+        require(raw.good(), "cannot write RGBA output");
-+    }
-+    size_t selected = 0;
-+    for (size_t i = 3; i < rgba.size(); i += 4)
-+        selected += rgba[i] == kSelectedAlpha;
-+    if (!scene.off && !scene.file.object_name_table.empty())
-+        require(selected > 0, "selected object has no alpha tags");
-+    write_ppm(prefix.string() + ".ppm", *snapshot);
-+    std::sort(render_times.begin(), render_times.end());
-+    const size_t count = render_times.size();
-+    const double median = (render_times[(count - 1) / 2] + render_times[count / 2]) * 0.5;
-+    report << "{\"width\":" << width << ",\"height\":" << height
-+           << ",\"gles_initialized\":" << (initialized ? "true" : "false")
-+           << ",\"gles_client_version\":" << client_version
-+           << ",\"output\":\"" << (scene.off ? "cpu2d" : dma ? "dmabuf" : "readback")
-+           << "\",\"selected_alpha_pixels\":" << selected
-+           << ",\"render_median_ms\":" << median
-+           << ",\"render_p95_ms\":" << render_times[(count * 95 + 99) / 100 - 1]
-+           << ",\"measured_frames\":" << render_times.size() << "}";
++namespace helix::test_access {
++GcodeViewerWatchdogTrack gcode_viewer_watchdog_track(lv_obj_t* object) {
++    auto* viewer = state(object);
++    return viewer ? viewer->watchdog : GcodeViewerWatchdogTrack{};
 +}
-+
-+void check_progress_alpha(const std::filesystem::path& output) {
-+    GCodeParser parser;
-+    parser.parse_line("G90");
-+    parser.parse_line("M83");
-+    parser.parse_line("EXCLUDE_OBJECT_DEFINE NAME=selected CENTER=50,30");
-+    parser.parse_line("EXCLUDE_OBJECT_DEFINE NAME=other CENTER=50,70");
-+    for (int layer = 0; layer < 2; ++layer) {
-+        parser.parse_line("G1 Z" + std::to_string(0.2 * (layer + 1)));
-+        for (int object = 0; object < 2; ++object) {
-+            const int x = 20 + layer * 40, y = 20 + object * 40;
-+            parser.parse_line(std::string("EXCLUDE_OBJECT_START NAME=") + (object ? "other" : "selected"));
-+            parser.parse_line("G1 X" + std::to_string(x) + " Y" + std::to_string(y) + " F1200");
-+            parser.parse_line("G1 X" + std::to_string(x + 20) + " Y" + std::to_string(y) + " E1");
-+            parser.parse_line("G1 X" + std::to_string(x + 20) + " Y" + std::to_string(y + 20) + " E1");
-+            parser.parse_line("G1 X" + std::to_string(x) + " Y" + std::to_string(y + 20) + " E1");
-+            parser.parse_line("G1 X" + std::to_string(x) + " Y" + std::to_string(y) + " E1");
-+            parser.parse_line("EXCLUDE_OBJECT_END");
-+        }
-+    }
-+    auto file = parser.finalize(true);
-+    require(file.layers.size() == 2, "alpha fixture must have two layers");
-+    Scene scene(file, false);
-+    constexpr int width = 317, height = 193;
-+    scene.gpu.set_viewport_size(width, height);
-+    scene.camera.set_viewport_size(width, height);
-+    scene.camera.set_azimuth(0);
-+    scene.camera.set_elevation(85);
-+    scene.camera.fit_to_bounds(file.global_bounding_box);
-+    lv_obj_t* object = lv_obj_create(lv_screen_active());
-+    lv_obj_remove_style_all(object);
-+    lv_obj_remove_flag(object, LV_OBJ_FLAG_SCROLLABLE);
-+    lv_obj_set_size(object, width, height);
-+    lv_obj_add_event_cb(object, Scene::draw, LV_EVENT_DRAW_MAIN, &scene);
-+    lv_obj_update_layout(object);
-+    std::unique_ptr<lv_draw_buf_t, decltype(&lv_draw_buf_destroy)> snapshot(
-+        lv_snapshot_create_draw_buf(object, LV_COLOR_FORMAT_ARGB8888), lv_draw_buf_destroy);
-+    require(snapshot != nullptr, "alpha snapshot allocation failed");
-+    auto draw = [&] {
-+        GCodeGLESSelfTestAccess::redraw(scene.gpu);
-+        require(lv_snapshot_take_to_draw_buf(object, LV_COLOR_FORMAT_ARGB8888, snapshot.get()) == LV_RESULT_OK,
-+                "alpha snapshot failed");
-+        require(!scene.gpu.render_failed(), "alpha fixture GLES failed");
-+    };
-+    for (int frame = 0; frame < 8; ++frame) {
-+        draw();
-+        if (frame >= 3 && !scene.gpu.is_uploading())
-+            break;
-+    }
-+    require(!scene.gpu.is_uploading(), "alpha fixture upload incomplete");
-+    std::ofstream raw(output / "alpha-fixture.rgba", std::ios::binary);
-+    std::ofstream report(output / "alpha-checks.json");
-+    report << "{\"width\":" << width << ",\"height\":" << height << ",\"frames\":[";
-+    bool first = true;
-+    auto capture = [&](const char* name) {
-+        draw();
-+        auto rgba = GCodeGLESSelfTestAccess::pixels(scene.gpu);
-+        require(rgba.size() == static_cast<size_t>(width) * height * 4, "alpha fixture RGBA size");
-+        size_t selected = 0;
-+        for (size_t i = 3; i < rgba.size(); i += 4) {
-+            require(rgba[i] == 255 || rgba[i] == kSelectedAlpha, "ghost contaminated alpha tag channel");
-+            selected += rgba[i] == kSelectedAlpha;
-+        }
-+        if (!first) report << ',';
-+        first = false;
-+        report << "{\"name\":\"" << name << "\",\"offset\":" << raw.tellp()
-+               << ",\"bytes\":" << rgba.size() << ",\"selected_alpha_pixels\":" << selected << '}';
-+        raw.write(reinterpret_cast<const char*>(rgba.data()), static_cast<std::streamsize>(rgba.size()));
-+        return rgba;
-+    };
-+    auto alpha = [](const std::vector<uint8_t>& rgba) {
-+        std::vector<uint8_t> result;
-+        result.reserve(rgba.size() / 4);
-+        for (size_t i = 3; i < rgba.size(); i += 4) result.push_back(rgba[i]);
-+        return result;
-+    };
-+    scene.gpu.set_layer_range(0, 0);
-+    scene.gpu.set_print_progress_layer(-1);
-+    const auto lower = capture("solid_lower");
-+    const auto lower_alpha = alpha(lower);
-+    require(std::count(lower_alpha.begin(), lower_alpha.end(), kSelectedAlpha) > 0,
-+            "solid lower layer must have selected pixels");
-+    scene.gpu.set_layer_range(0, 1);
-+    scene.gpu.set_print_progress_layer(0);
-+    scene.gpu.set_ghost_opacity(64);
-+    const auto ghost64 = capture("ghost_64");
-+    require(alpha(ghost64) == lower_alpha && ghost64 != lower, "half-transparent ghost changed tags or was not drawn");
-+    scene.gpu.set_ghost_opacity(255);
-+    const auto ghost255 = capture("ghost_255");
-+    require(alpha(ghost255) == lower_alpha && ghost255 != ghost64,
-+            "opaque ghost changed tags or ignored opacity");
-+    scene.gpu.set_print_progress_layer(-1);
-+    const auto all_alpha = alpha(capture("solid_all"));
-+    require(std::count(all_alpha.begin(), all_alpha.end(), kSelectedAlpha) >
-+                std::count(lower_alpha.begin(), lower_alpha.end(), kSelectedAlpha),
-+            "upper fixture layer must contain visible selected pixels");
-+    scene.gpu.set_highlighted_objects({});
-+    const auto none = alpha(capture("none_selected"));
-+    require(std::all_of(none.begin(), none.end(), [](uint8_t value) { return value == 255; }),
-+            "clearing selection left stale tags");
-+    scene.gpu.set_highlighted_object("other");
-+    const auto other = alpha(capture("other_selected"));
-+    require(std::count(other.begin(), other.end(), kSelectedAlpha) > 0, "second object was not tagged");
-+    for (size_t i = 0; i < other.size(); ++i)
-+        require(other[i] != kSelectedAlpha || all_alpha[i] != kSelectedAlpha,
-+                "disjoint objects share selection tags");
-+    scene.gpu.set_highlighted_object("selected");
-+    scene.gpu.set_layer_range(0, 0);
-+    require(alpha(capture("solid_lower_again")) == lower_alpha, "state changes left stale alpha");
-+    report << "],\"passed\":true}\n";
-+    require(raw.good() && report.good(), "cannot write alpha evidence");
-+    lv_obj_delete(object);
++void gcode_viewer_set_watchdog_track(lv_obj_t* object, const GcodeViewerWatchdogTrack& track) {
++    if (auto* viewer = state(object))
++        viewer->watchdog = track;
 +}
-+
-+struct AsyncScene {
-+    std::shared_ptr<const ParsedGCodeFile> file;
-+    std::unique_ptr<GCodeGLESRenderer> gpu = std::make_unique<GCodeGLESRenderer>();
-+    GCodeCamera camera;
-+    std::vector<double> callback_times;
-+
-+    explicit AsyncScene(std::shared_ptr<const ParsedGCodeFile> source) : file(std::move(source)) {
-+        gpu->enable_async();
-+        require(!gpu->render_failed(), "cannot enable async GLES renderer");
-+    }
-+    void load(const char* name) {
-+        auto geometry = build_3d_geometry_in_budget(*file, "Async GPU self-test");
-+        require(geometry && !geometry->vertices.empty(), "async geometry unavailable");
-+        gpu->set_prebuilt_geometry(std::move(geometry), name);
-+        camera.set_viewport_size(317, 193);
-+        camera.set_azimuth(45);
-+        camera.set_elevation(35);
-+        camera.fit_to_bounds(file->global_bounding_box);
-+    }
-+    static void draw(lv_event_t* event) {
-+        auto& scene = *static_cast<AsyncScene*>(lv_event_get_user_data(event));
-+        lv_area_t area;
-+        lv_obj_get_coords(lv_event_get_target_obj(event), &area);
-+        const auto start = Clock::now();
-+        scene.gpu->render_async(lv_event_get_layer(event), scene.file, scene.camera, &area);
-+        scene.callback_times.push_back(
-+            std::chrono::duration<double, std::milli>(Clock::now() - start).count());
-+    }
-+};
-+
-+void check_async(std::shared_ptr<const ParsedGCodeFile> source,
-+                 const std::filesystem::path& output, std::ostream& report) {
-+    AsyncScene scene(std::move(source));
-+    scene.load("async-initial");
-+    scene.gpu->set_extrusion_color(lv_color_hex(0xFF6B35));
-+    std::unique_ptr<lv_obj_t, decltype(&lv_obj_delete)> object(
-+        lv_obj_create(lv_screen_active()), lv_obj_delete);
-+    lv_obj_remove_style_all(object.get());
-+    lv_obj_remove_flag(object.get(), LV_OBJ_FLAG_SCROLLABLE);
-+    lv_obj_set_size(object.get(), 317, 193);
-+    lv_obj_add_event_cb(object.get(), AsyncScene::draw, LV_EVENT_DRAW_MAIN, &scene);
-+    lv_obj_update_layout(object.get());
-+    std::unique_ptr<lv_draw_buf_t, decltype(&lv_draw_buf_destroy)> snapshot(
-+        lv_snapshot_create_draw_buf(object.get(), LV_COLOR_FORMAT_ARGB8888), lv_draw_buf_destroy);
-+    require(snapshot != nullptr, "async snapshot allocation failed");
-+
-+    bool reject_old_orange = false;
-+    size_t checked_blue_frames = 0;
-+    auto draw = [&] {
-+        require(lv_snapshot_take_to_draw_buf(object.get(), LV_COLOR_FORMAT_ARGB8888,
-+                                            snapshot.get()) == LV_RESULT_OK,
-+                "async snapshot failed");
-+        require(!scene.gpu->render_failed(), "async GLES failed");
-+        const auto* image = GCodeGLESSelfTestAccess::completed_image(*scene.gpu);
-+        if (reject_old_orange && image) {
-+            size_t blue = 0;
-+            for (uint32_t y = 0; y < image->header.h; ++y) {
-+                const auto* row = image->data + static_cast<size_t>(y) * image->header.stride;
-+                for (uint32_t x = 0; x < image->header.w; ++x) {
-+                    require(row[x * 3 + 2] <= row[x * 3] + 2,
-+                            "old orange model reappeared after reload");
-+                    blue += row[x * 3] > row[x * 3 + 2] + 20;
-+                }
-+            }
-+            require(blue > 0, "reloaded blue model has no visible geometry");
-+            ++checked_blue_frames;
-+        }
-+    };
-+    auto settle = [&] {
-+        const auto start = Clock::now();
-+        do {
-+            draw();
-+            if (!scene.gpu->is_uploading() &&
-+                GCodeGLESSelfTestAccess::completed_image(*scene.gpu))
-+                return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
-+            require(Clock::now() - start < std::chrono::seconds(90),
-+                    "async renderer did not complete its latest request");
-+            std::this_thread::sleep_for(std::chrono::milliseconds(2));
-+        } while (true);
-+    };
-+
-+    require(!GCodeGLESSelfTestAccess::completed_image(*scene.gpu),
-+            "new async renderer already contains an image");
-+    const double first_ms = settle();
-+    write_ppm(output / "async-first.ppm", *snapshot);
-+    for (int i = 0; i < 48; ++i) {
-+        scene.camera.rotate(4.0f, 0.0f);
-+        draw();
-+    }
-+    const double latest_ms = settle();
-+    write_ppm(output / "async-latest.ppm", *snapshot);
-+
-+    // Leave orange work pending, then exercise the viewer's exact clear order.
-+    scene.camera.rotate(29.0f, 0.0f);
-+    draw();
-+    const bool clear_while_pending = scene.gpu->is_uploading();
-+    scene.gpu->release_geometry();
-+    scene.gpu->clear_cached_frame();
-+    require(!scene.gpu->has_geometry() &&
-+                !GCodeGLESSelfTestAccess::completed_image(*scene.gpu),
-+            "release/clear retained a model or image");
-+    draw();
-+    require(!GCodeGLESSelfTestAccess::completed_image(*scene.gpu),
-+            "cleared model republished an image");
-+
-+    // A controlled two-object model makes stale-color and picking checks exact,
-+    // even when the optional input has no EXCLUDE_OBJECT metadata.
-+    scene.file = std::make_shared<const ParsedGCodeFile>(parse(nullptr));
-+    std::weak_ptr<const ParsedGCodeFile> reloaded_lifetime = scene.file;
-+    scene.load("async-reloaded");
-+    scene.gpu->set_extrusion_color(lv_color_hex(0x2266FF));
-+    scene.gpu->set_highlighted_objects({});
-+    reject_old_orange = true;
-+    const double reload_ms = settle();
-+    write_ppm(output / "async-reloaded.ppm", *snapshot);
-+
-+    GCodeGLESRenderer picker; // CPU picking creates no EGL context.
-+    picker.set_viewport_size(317, 193);
-+    std::vector<glm::vec2> points;
-+    std::vector<std::optional<std::string>> next;
-+    const auto shown_camera = scene.camera;
-+    scene.camera.rotate(90.0f, 0.0f);
-+    size_t hits = 0, changed = 0;
-+    for (int y = 4; y < 193; y += 8) {
-+        for (int x = 4; x < 317; x += 8) {
-+            const glm::vec2 point(x, y);
-+            const auto before = picker.pick_object(point, *scene.file, shown_camera);
-+            const auto after = picker.pick_object(point, *scene.file, scene.camera);
-+            hits += before.has_value();
-+            changed += before != after;
-+            require(scene.gpu->pick_object(point, *scene.file, scene.camera) == before,
-+                    "picking followed a camera whose image is not displayed yet");
-+            points.push_back(point);
-+            next.push_back(after);
-+        }
-+    }
-+    require(hits > 0 && changed > 0, "picking fixture does not distinguish camera positions");
-+    settle();
-+    for (size_t i = 0; i < points.size(); ++i)
-+        require(scene.gpu->pick_object(points[i], *scene.file, shown_camera) == next[i],
-+                "picking did not advance with the latest completed image");
-+
-+    bool destroy_while_pending = false;
-+    for (int attempt = 0; attempt < 8 && !destroy_while_pending; ++attempt) {
-+        scene.camera.rotate(17.0f, 0.0f);
-+        draw();
-+        destroy_while_pending = scene.gpu->is_uploading();
-+    }
-+    object.reset();
-+    scene.file.reset();
-+    const auto destroy_start = Clock::now();
-+    scene.gpu.reset();
-+    const double destroy_ms =
-+        std::chrono::duration<double, std::milli>(Clock::now() - destroy_start).count();
-+    require(reloaded_lifetime.expired(), "destroyed renderer retained its parsed model");
-+    std::sort(scene.callback_times.begin(), scene.callback_times.end());
-+    const size_t count = scene.callback_times.size();
-+    require(count > 0, "async test never entered the draw callback");
-+    report << "{\"mode\":\"async\",\"first_complete_ms\":" << first_ms
-+           << ",\"latest_complete_ms\":" << latest_ms << ",\"reload_complete_ms\":" << reload_ms
-+           << ",\"callback_median_ms\":" << scene.callback_times[count / 2]
-+           << ",\"callback_p95_ms\":" << scene.callback_times[(count * 95 + 99) / 100 - 1]
-+           << ",\"callback_max_ms\":" << scene.callback_times.back()
-+           << ",\"callbacks\":" << count << ",\"clear_while_pending_observed\":"
-+           << (clear_while_pending ? "true" : "false")
-+           << ",\"checked_blue_frames\":" << checked_blue_frames
-+           << ",\"picking_points\":" << points.size() << ",\"picking_changes\":" << changed
-+           << ",\"destroy_while_pending_observed\":" << (destroy_while_pending ? "true" : "false")
-+           << ",\"destroy_ms\":" << destroy_ms
-+           << ",\"model_released\":true,\"passed\":true}\n";
++bool gcode_viewer_watchdog_can_draw(lv_obj_t* object) {
++    auto* viewer = state(object);
++    return viewer && !viewer->paused && lv_obj_is_visible(object);
 +}
-+
-+} // namespace
-+
-+int main(int argc, char** argv) {
-+    const bool async = argc > 1 && std::strcmp(argv[1], "--async") == 0;
-+    const int first_argument = async ? 2 : 1;
-+    if (argc < first_argument + 1 || argc > first_argument + 2) {
-+        std::fprintf(stderr, "Usage: helix-gpu-self-test [--async] OUTPUT_DIRECTORY [GCODE_FILE]\n");
-+        return 2;
-+    }
-+    try {
-+        const std::filesystem::path output = std::filesystem::absolute(argv[first_argument]);
-+        std::filesystem::create_directories(output / "config");
-+        setenv("HELIX_CONFIG_DIR", (output / "config").c_str(), 1);
-+        helix::internal::set_main_thread_id();
-+        spdlog::set_level(spdlog::level::debug);
-+        auto file = parse(argc == first_argument + 2 ? argv[first_argument + 1] : nullptr);
-+        lv_init();
-+        lv_tick_set_cb([]() -> uint32_t {
-+            return static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
-+                Clock::now().time_since_epoch()).count());
-+        });
-+        lv_xml_init();
-+        lv_display_t* display = lv_display_create(480, 320);
-+        require(display != nullptr, "memory display allocation failed");
-+        std::vector<uint8_t> framebuffer(480 * 320 * 4);
-+        lv_display_set_color_format(display, LV_COLOR_FORMAT_ARGB8888);
-+        lv_display_set_buffers(display, framebuffer.data(), nullptr, framebuffer.size(),
-+                               LV_DISPLAY_RENDER_MODE_FULL);
-+        lv_display_set_flush_cb(display, [](lv_display_t* d, const lv_area_t*, uint8_t*) {
-+            lv_display_flush_ready(d);
-+        });
-+        std::ofstream report(output / "result.json");
-+        require(report.good(), "cannot open report");
-+        const char* enabled = std::getenv("UI_GPU_ENABLED");
-+        const bool off = enabled && std::strcmp(enabled, "0") == 0;
-+        if (async) {
-+            require(!off, "--async requires UI_GPU_ENABLED=1; use the default mode for GPU-off checks");
-+            check_async(std::make_shared<const ParsedGCodeFile>(std::move(file)), output, report);
-+        } else {
-+            Scene scene(file, off);
-+            lv_obj_t* object = lv_obj_create(lv_screen_active());
-+            lv_obj_remove_style_all(object);
-+            lv_obj_remove_flag(object, LV_OBJ_FLAG_SCROLLABLE);
-+            lv_obj_add_event_cb(object, Scene::draw, LV_EVENT_DRAW_MAIN, &scene);
-+            report << "{\"geometry_vertices\":" << scene.geometry_vertices
-+                   << ",\"geometry_triangles\":" << scene.geometry_triangles
-+                   << ",\"gpu_upload_vertices\":" << scene.gpu_upload_vertices
-+                   << ",\"cases\":[";
-+            run_case(scene, object, 480, 320, 45, 35, output / "full", report);
-+            report << ',';
-+            run_case(scene, object, 317, 193, 0, 85, output / "compact", report);
-+            report << "]}\n";
-+            lv_obj_delete(object);
-+        }
-+        if (!async && !off)
-+            check_progress_alpha(output);
-+        lv_deinit();
-+        lv_xml_deinit();
-+        require(report.good(), "cannot write report");
-+        return 0;
-+    } catch (const std::exception& error) {
-+        std::fprintf(stderr, "GPU self-test failed: %s\n", error.what());
-+        return 1;
-+    }
-+}
-diff --git a/src/ui/ui_gcode_viewer.cpp b/src/ui/ui_gcode_viewer.cpp
-index deda7f1..ef29a16 100644
---- a/src/ui/ui_gcode_viewer.cpp
-+++ b/src/ui/ui_gcode_viewer.cpp
-@@ -22,7 +22,6 @@
- #include "gcode_streaming_config.h"
- #include "gcode_streaming_controller.h"
- #include "gcode_viewer_watchdog.h"
--#include "geometry_budget_manager.h"
- #include "lvgl/src/others/translation/lv_translation.h"
- #include "memory_utils.h"
- #include "print_status_preview_decision.h"
-@@ -84,6 +83,9 @@ class GCodeViewerState {
-         camera_ = std::make_unique<helix::gcode::GCodeCamera>();
- #ifdef ENABLE_3D_RENDERER
-         renderer_ = std::make_unique<GCode3DRenderer>();
++} // namespace helix::test_access
+diff --git a/src/ui/ui_panel_print_status.cpp b/src/ui/ui_panel_print_status.cpp
+index 99e3dc9..fb66daa 100644
+--- a/src/ui/ui_panel_print_status.cpp
++++ b/src/ui/ui_panel_print_status.cpp
+@@ -1816,6 +1816,15 @@ void PrintStatusPanel::load_gcode_file(const char* file_path) {
+ 
+     spdlog::debug("[{}] Loading G-code file: {}", get_name(), file_path);
+ 
 +#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+        renderer_->enable_async();
++    ui_gcode_viewer_set_first_frame_callback(
++        gcode_viewer_, [](lv_obj_t*, void* data, bool success) {
++            auto* self = static_cast<PrintStatusPanel*>(data);
++            if (success && self->lifecycle_.want_viewer())
++                self->show_gcode_viewer(true);
++        }, this);
 +#endif
-         spdlog::debug("[GCode Viewer] 3D renderer available");
- #else
-         renderer_ = std::make_unique<helix::gcode::GCodeRenderer>();
-@@ -244,7 +246,7 @@ class GCodeViewerState {
-     // ========================================================================
- 
-     // G-code data
--    std::unique_ptr<helix::gcode::ParsedGCodeFile> gcode_file;
-+    std::shared_ptr<helix::gcode::ParsedGCodeFile> gcode_file;
-     GcodeViewerState viewer_state{GcodeViewerState::Empty};
- 
-     // Rendering components (exposed for callbacks)
-@@ -482,76 +484,6 @@ static bool has_gcode_data(const gcode_viewer_state_t* st) {
-     return st->gcode_file || (st->streaming_controller_ && st->streaming_controller_->is_open());
- }
- 
--#ifdef ENABLE_3D_RENDERER
--/// Build a 3D RibbonGeometry from a parsed gcode file using the memory budget
--/// system. Returns nullptr if the budget tier forces 2D or the build exceeds
--/// the budget. Shared between the initial async-load path and the on-demand
--/// path that fires when the user switches to 3D mode after starting in 2D.
--static std::unique_ptr<helix::gcode::RibbonGeometry>
--build_3d_geometry_in_budget(const helix::gcode::ParsedGCodeFile& file, const char* context_tag,
--                            const std::function<bool()>& should_cancel = {}) {
--    helix::gcode::GeometryBudgetManager budget_mgr;
--    size_t available_kb = budget_mgr.read_system_available_kb();
--    size_t budget = budget_mgr.calculate_budget(available_kb);
--    // Size the tier on what the builder will actually build. GeometryBuilder
--    // drops auxiliary (purge / prime tower) segments, so estimating from
--    // total_segments charged the budget for mass that never becomes geometry
--    // and could downgrade tubes - or refuse 3D outright - on a tower-heavy
--    // multi-color file.
--    auto budget_config = budget_mgr.select_tier(file.drawable_segments, budget);
--
--    spdlog::info(
--        "[GCode Viewer] {}: {}MB available, {}MB budget, {} drawable of {} segments -> tier {}",
--        context_tag, available_kb / 1024, budget / (1024 * 1024), file.drawable_segments,
--        file.total_segments, budget_config.tier);
--
--    if (budget_config.tier > 3) {
--        spdlog::info("[GCode Viewer] {}: tier {} — skipping 3D geometry build", context_tag,
--                     budget_config.tier);
--        return nullptr;
--    }
--
--    helix::gcode::GeometryBuilder builder;
--    if (!file.tool_color_palette.empty()) {
--        builder.set_tool_color_palette(file.tool_color_palette);
--    }
--    if (file.perimeter_extrusion_width_mm > 0.0f) {
--        builder.set_extrusion_width(file.perimeter_extrusion_width_mm);
--    } else if (file.extrusion_width_mm > 0.0f) {
--        builder.set_extrusion_width(file.extrusion_width_mm);
--    }
--    builder.set_layer_height(file.layer_height_mm);
--    builder.set_budget_tube_sides(budget_config.tube_sides);
--    builder.set_budget_limit(budget_config.budget_bytes);
--
--    helix::gcode::SimplificationOptions opts{.tolerance_mm = budget_config.simplification_tolerance,
--                                             .min_segment_length_mm = 0.05f,
--                                             .max_direction_change_deg =
--                                                 budget_config.tier >= 3   ? 45.0f
--                                                 : budget_config.tier == 2 ? 30.0f
--                                                                           : 15.0f};
--
--    auto geometry =
--        std::make_unique<helix::gcode::RibbonGeometry>(builder.build(file, opts, should_cancel));
--
--    if (should_cancel && should_cancel()) {
--        spdlog::info("[GCode Viewer] {}: build cancelled - discarding geometry", context_tag);
--        return nullptr;
--    }
--    if (builder.was_budget_exceeded()) {
--        spdlog::warn("[GCode Viewer] {}: budget exceeded — falling back to 2D", context_tag);
--        return nullptr;
--    }
--
--    spdlog::info("[GCode Viewer] {}: built geometry: {} vertices, {} triangles (tier {})",
--                 context_tag, geometry->vertices.size(),
--                 geometry->extrusion_triangle_count + geometry->travel_triangle_count,
--                 budget_config.tier);
--    geometry->prepare_interleaved_buffers();
--    return geometry;
--}
--#endif
--
- // ==============================================
- // Event Callbacks
- // ==============================================
-@@ -783,7 +715,11 @@ static void gcode_viewer_draw_cb(lv_event_t* e) {
-         }
-         gcode_viewer_refresh_content_offset(st, obj, lv_area_get_width(&widget_coords),
-                                             lv_area_get_height(&widget_coords));
-+#if defined(HELIX_PLATFORM_SNAPMAKER_U1) && defined(ENABLE_GLES_3D)
-+        st->renderer_->render_async(layer, st->gcode_file, *st->camera_, &widget_coords);
-+#else
-         st->renderer_->render(layer, *st->gcode_file, *st->camera_, &widget_coords);
-+#endif
- 
- #ifdef ENABLE_3D_RENDERER
-         // A fatal GL draw error (out-of-memory / invalid-operation) means the
-@@ -1904,7 +1840,7 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
-                 // Segments are deliberately retained even after the build so the 2D
-                 // renderer can walk them when the user switches back.
-                 if (!st->is_using_2d_mode()) {
--                    result->geometry = build_3d_geometry_in_budget(
-+                    result->geometry = helix::gcode::build_3d_geometry_in_budget(
-                         *result->gcode_file, "Initial load", [st]() { return st->is_cancelled(); });
-                     if (!result->geometry) {
-                         result->force_2d = true;
-@@ -2293,7 +2229,7 @@ void ui_gcode_viewer_set_render_mode(lv_obj_t* obj, GcodeViewerRenderMode mode)
-     // the 3D viewer paints an empty background after a live 2D→3D switch.
-     if (!st->is_using_2d_mode() && st->gcode_file && st->renderer_ &&
-         !st->renderer_->has_geometry()) {
--        auto geometry = build_3d_geometry_in_budget(*st->gcode_file, "On-demand 3D switch");
-+        auto geometry = helix::gcode::build_3d_geometry_in_budget(*st->gcode_file, "On-demand 3D switch");
-         if (geometry) {
-             st->renderer_->set_prebuilt_geometry(std::move(geometry), st->gcode_file->filename);
-             if (st->camera_) {
-diff --git a/tests/standalone/gcode_latest_frame.cpp b/tests/standalone/gcode_latest_frame.cpp
-new file mode 100644
-index 0000000..1d906ae
---- /dev/null
-+++ b/tests/standalone/gcode_latest_frame.cpp
-@@ -0,0 +1,81 @@
-+// SPDX-License-Identifier: GPL-3.0-or-later
-+#include "gcode_latest_frame.h"
 +
-+#include <cassert>
-+#include <future>
-+#include <memory>
-+#include <thread>
-+
-+using helix::gcode::detail::LatestFrame;
-+
-+int main() {
-+    using Queue = LatestFrame<std::shared_ptr<int>, int>;
-+    Queue frames;
-+    Queue::Request current{};
-+    auto first = std::make_shared<int>(1);
-+    std::weak_ptr<int> old = first;
-+    frames.submit(std::move(first));
-+    frames.submit(std::make_shared<int>(2));
-+    assert(old.expired()); // An unstarted job does not keep an obsolete model alive.
-+    assert(frames.take(current) && *current.job == 2);
-+
-+    frames.submit(std::make_shared<int>(3));
-+    assert(frames.superseded(current));
-+    frames.publish(current, 2);
-+    assert(frames.consume() == 2); // New camera work may display the last complete frame.
-+    assert(frames.needs_frame());
-+    assert(frames.take(current) && *current.job == 3);
-+    frames.publish(current, 3);
-+    assert(frames.consume() == 3 && !frames.needs_frame());
-+
-+    frames.submit(std::make_shared<int>(4));
-+    assert(frames.take(current));
-+    frames.invalidate(); // A file change must reject an in-flight old model.
-+    frames.publish(current, 4);
-+    assert(!frames.consume() && !frames.needs_frame());
-+    assert(frames.superseded(current));
-+
-+    std::promise<void> entered;
-+    std::thread idle([&] {
-+        entered.set_value();
-+        assert(!frames.take(current));
-+    });
-+    entered.get_future().wait();
-+    frames.stop();
-+    idle.join(); // Destruction wakes an idle worker without a final rendering job.
-+
-+    // The caller may release a model while a job is running. Its worker-owned
-+    // shared pointer must keep it alive until that job has finished.
-+    Queue ownership;
-+    auto model = std::make_shared<int>(5);
-+    std::weak_ptr<int> life = model;
-+    ownership.submit(model);
-+    assert(ownership.take(current));
-+    model.reset();
-+    ownership.invalidate();
-+    assert(!life.expired());
-+    current.job.reset();
-+    assert(life.expired());
-+    ownership.stop();
-+
-+    LatestFrame<int, int> burst;
-+    std::promise<void> started, release;
-+    auto continue_rendering = release.get_future();
-+    std::thread renderer([&] {
-+        LatestFrame<int, int>::Request request{};
-+        assert(burst.take(request) && request.job == 1);
-+        started.set_value();
-+        continue_rendering.wait();
-+        burst.publish(request, request.job);
-+        assert(burst.take(request) && request.job == 1000);
-+        burst.publish(request, request.job);
-+    });
-+    burst.submit(1);
-+    started.get_future().wait();
-+    for (int n = 2; n <= 1000; ++n)
-+        burst.submit(n);
-+    release.set_value();
-+    renderer.join();
-+    assert(burst.consume() == 1000 && !burst.needs_frame());
-+    burst.stop();
-+}
-diff --git a/tests/unit/test_gcode_geometry_builder.cpp b/tests/unit/test_gcode_geometry_builder.cpp
-index 2c59d13..2e49c05 100644
---- a/tests/unit/test_gcode_geometry_builder.cpp
-+++ b/tests/unit/test_gcode_geometry_builder.cpp
-@@ -7,6 +7,10 @@
- 
- #include <glm/gtc/matrix_transform.hpp>
- 
-+#include <cstring>
-+#include <cstdlib>
-+#include <limits>
-+
- #include "../catch_amalgamated.hpp"
- 
- using namespace helix::gcode;
-@@ -1151,11 +1155,12 @@ TEST_CASE("prepare_interleaved_buffers produces correct buffer count and vertex
-     // Buffer count matches number of layers
-     REQUIRE(geom.prepared_buffers.size() == geom.layer_strip_ranges.size());
- 
--    // Each buffer's vertex_count == strip_count * 6 (2 triangles = 6 verts per strip)
-+    // Buffers contain only triangles with three distinct indices.
-     for (size_t i = 0; i < geom.layer_strip_ranges.size(); ++i) {
--        size_t strip_count = geom.layer_strip_ranges[i].second;
--        REQUIRE(geom.prepared_buffers[i].vertex_count == strip_count * 6);
--        // Data is raw bytes — one PackedVertex (20B) per vertex.
-+        const auto [first_strip, strip_count] = geom.layer_strip_ranges[i];
-+        REQUIRE(geom.prepared_buffers[i].vertex_count ==
-+                geom.expanded_vertex_count(first_strip, strip_count));
-+        // Data is raw bytes — one PackedVertex per vertex.
-         REQUIRE(geom.prepared_buffers[i].data.size() ==
-                 geom.prepared_buffers[i].vertex_count * PackedVertex::stride());
-     }
-@@ -1237,6 +1242,152 @@ TEST_CASE("prepare_interleaved_buffers data matches manual expansion",
-     }
- }
- 
-+TEST_CASE("Expanded strips omit repeated-index triangles without changing surviving bytes",
-+          "[gcode][geometry][prepared_buffers]") {
-+    RibbonGeometry geom;
-+    for (int16_t i = 0; i < 4; ++i) {
-+        geom.vertices.push_back({{i, static_cast<int16_t>(10 + i), 20}, {42, -17}});
-+    }
-+    geom.strips = {{0, 1, 2, 3}, {0, 1, 2, 2}, {0, 0, 1, 2}, {0, 0, 0, 0}};
-+    geom.color_palette = {0x123456};
-+    geom.strip_color_index = {0, 0, 0, 0};
-+    geom.layer_strip_ranges = {{0, 2}, {2, 2}};
-+
-+    // Original triangle order, with only repeated indices removed.
-+    const std::array<int16_t, 12> expected_x{0, 1, 2, 1, 3, 2, 0, 1, 2, 0, 2, 1};
-+    std::array<PackedVertex, 13> output{};
-+    std::memset(&output.back(), 0x5a, sizeof(PackedVertex));
-+    CHECK(geom.expanded_vertex_count(0, 4) == 12);
-+    CHECK(geom.expand_strips(0, 4, output.data()) == 12);
-+    for (size_t i = 0; i < expected_x.size(); ++i) {
-+        CHECK(output[i].position[0] == expected_x[i]);
-+        CHECK(output[i].position[1] == 10 + expected_x[i]);
-+        CHECK(output[i].position[2] == 20);
-+        CHECK(output[i].normal[0] == 42);
-+        CHECK(output[i].normal[1] == -17);
-+        CHECK(output[i].color[0] == 0x12);
-+        CHECK(output[i].color[1] == 0x34);
-+        CHECK(output[i].color[2] == 0x56);
-+        CHECK(output[i].color[3] == 255);
-+    }
-+    const auto* guard = reinterpret_cast<const uint8_t*>(&output.back());
-+    for (size_t i = 0; i < sizeof(PackedVertex); ++i) {
-+        CHECK(guard[i] == 0x5a);
-+    }
-+
-+    geom.prepare_interleaved_buffers();
-+    REQUIRE(geom.prepared_buffers.size() == 2);
-+    CHECK(geom.prepared_buffers[0].vertex_count == 9);
-+    CHECK(geom.prepared_buffers[1].vertex_count == 3);
-+    CHECK(std::memcmp(geom.prepared_buffers[0].data.data(), output.data(),
-+                      9 * sizeof(PackedVertex)) == 0);
-+    CHECK(std::memcmp(geom.prepared_buffers[1].data.data(), output.data() + 9,
-+                      3 * sizeof(PackedVertex)) == 0);
-+
-+    geom.color_palette[0] = 0xfedcba;
-+    geom.patch_prepared_buffer_colors();
-+    size_t index = 0;
-+    for (const auto& buffer : geom.prepared_buffers) {
-+        const auto* packed = reinterpret_cast<const PackedVertex*>(buffer.data.data());
-+        for (size_t i = 0; i < buffer.vertex_count; ++i, ++index) {
-+            CHECK(std::memcmp(&packed[i], &output[index], PackedVertex::color_offset()) == 0);
-+            CHECK(packed[i].color[0] == 0xfe);
-+            CHECK(packed[i].color[1] == 0xdc);
-+            CHECK(packed[i].color[2] == 0xba);
-+            CHECK(packed[i].color[3] == 255);
-+        }
-+    }
-+}
-+
-+TEST_CASE("Geometry validation reports an invalid layer range without reading it",
-+          "[gcode][geometry][objectruns]") {
-+    RibbonGeometry geometry;
-+    geometry.vertices.resize(4);
-+    geometry.strips.push_back({0, 1, 2, 3});
-+    geometry.color_palette = {0x123456};
-+    geometry.strip_color_index = {0};
-+    geometry.layer_strip_ranges = {{16, 1}};
-+    geometry.object_runs = {{0, 3, 0}};
-+    geometry.layer_object_run_ranges = {{0, 1}};
-+    REQUIRE_NOTHROW(geometry.validate());
-+}
-+
-+TEST_CASE("GPU upload preflight counts the actual layer payload and keeps allocation deferred",
-+          "[gcode][geometry][gpu_budget]") {
-+    RibbonGeometry geometry;
-+    geometry.vertices.resize(4);
-+    geometry.strips = {{0, 1, 2, 3}, {0, 1, 2, 2}};
-+    geometry.layer_strip_ranges = {{0, 2}, {1, 1}};
-+    // The second layer deliberately repeats the cap: it really uploads again.
-+    CHECK(geometry.expanded_upload_bytes() == 144);
-+    const size_t cpu = geometry.memory_usage();
-+    CHECK(geometry.fits_gpu_memory_budget(cpu + 144 + 32 + 6 * 144, 32, 6));
-+    CHECK_FALSE(geometry.fits_gpu_memory_budget(cpu + 144 + 32 + 6 * 144 - 1, 32, 6));
-+    CHECK_FALSE(geometry.fits_gpu_memory_budget(cpu - 1, 0, 0));
-+    CHECK_FALSE(geometry.fits_gpu_memory_budget(cpu + 143, 0, 0));
-+    CHECK_FALSE(geometry.fits_gpu_memory_budget(cpu + 144 + 31, 32, 0));
-+    const size_t max = std::numeric_limits<size_t>::max();
-+    CHECK_FALSE(geometry.fits_gpu_memory_budget(max, max, 0));
-+    CHECK_FALSE(geometry.fits_gpu_memory_budget(max, 0, max));
-+    CHECK(geometry.fits_gpu_memory_budget(max, 32, 6));
-+    CHECK(geometry.prepared_buffers.empty());
-+
-+    geometry.prepare_interleaved_buffers();
-+    REQUIRE(geometry.prepared_buffers.size() == 2);
-+    CHECK(geometry.prepared_buffers[0].data.size() == 108);
-+    CHECK(geometry.prepared_buffers[1].data.size() == 36);
-+    CHECK(geometry.expanded_upload_bytes() ==
-+          geometry.prepared_buffers[0].data.size() + geometry.prepared_buffers[1].data.size());
-+
-+    geometry.layer_strip_ranges.clear();
-+    CHECK(geometry.expanded_upload_bytes() == 108);
-+    geometry.layer_strip_ranges = {{0, 0}, {1, 1}};
-+    CHECK(geometry.expanded_upload_bytes() == 36);
-+    geometry.layer_strip_ranges = {{2, 1}};
-+    CHECK_FALSE(geometry.expanded_upload_bytes().has_value());
-+    CHECK_FALSE(geometry.fits_gpu_memory_budget(max, 0, 0));
-+    geometry.layer_strip_ranges = {{1, max}};
-+    CHECK_FALSE(geometry.expanded_upload_bytes().has_value());
-+    geometry.layer_strip_ranges = {{max, 1}};
-+    CHECK_FALSE(geometry.expanded_upload_bytes().has_value());
-+}
-+
-+TEST_CASE("GPU upload preflight charges fixed driver memory even for an empty model",
-+          "[gcode][geometry][gpu_budget]") {
-+    RibbonGeometry geometry;
-+    CHECK(geometry.expanded_upload_bytes() == 0);
-+    CHECK(geometry.fits_gpu_memory_budget(8, 8, 6));
-+    CHECK_FALSE(geometry.fits_gpu_memory_budget(7, 8, 6));
-+}
-+
-+TEST_CASE("Only U1 skips 3D construction when the GPU switch is explicitly off",
-+          "[gcode][geometry][gpu_budget]") {
-+    struct RestoreEnvironment {
-+        std::optional<std::string> previous;
-+        RestoreEnvironment() {
-+            if (const char* value = std::getenv("UI_GPU_ENABLED"))
-+                previous = value;
-+        }
-+        ~RestoreEnvironment() {
-+            if (previous) setenv("UI_GPU_ENABLED", previous->c_str(), 1);
-+            else unsetenv("UI_GPU_ENABLED");
-+        }
-+    } restore;
-+    REQUIRE(setenv("UI_GPU_ENABLED", "0", 1) == 0);
-+    bool reached_builder = false;
-+    ParsedGCodeFile file;
-+    auto geometry = build_3d_geometry_in_budget(file, "GPU-off test", [&] {
-+        reached_builder = true;
-+        return true;
-+    });
-+    CHECK_FALSE(geometry);
+     // Register callback to be notified when loading completes
+     ui_gcode_viewer_set_load_callback(
+         gcode_viewer_,
+@@ -1854,7 +1863,12 @@ void PrintStatusPanel::load_gcode_file(const char* file_path) {
+             // Show viewer if print is active or in terminal state (user can see
+             // where print stopped). Only skip in Idle.
+             if (self->lifecycle_.want_viewer()) {
 +#ifdef HELIX_PLATFORM_SNAPMAKER_U1
-+    CHECK_FALSE(reached_builder);
++                // Keep the thumbnail until the shared renderer has a complete frame.
++                ui_gcode_viewer_set_paused(viewer, false);
 +#else
-+    CHECK(reached_builder);
+                 self->show_gcode_viewer(true);
 +#endif
-+}
-+
- TEST_CASE("prepare_interleaved_buffers on empty geometry is no-op",
-           "[gcode][geometry][prepared_buffers]") {
-     RibbonGeometry geom;
-@@ -1479,7 +1630,8 @@ TEST_CASE("Geometry Builder: object runs cover each object's vertices with no ga
-         auto runs = geometry.layer_object_runs(layer);
-         REQUIRE(runs.count == 3);
+             }
  
--        const size_t layer_vertices = geometry.layer_strip_ranges[layer].second * 6;
-+        const size_t layer_vertices = geometry.expanded_vertex_count(geometry.layer_strip_ranges[layer].first,
-+                                                                   geometry.layer_strip_ranges[layer].second);
-         REQUIRE(layer_vertices > 0);
+             // Force layout recalculation now that viewer is visible
+@@ -3700,6 +3714,9 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
+             spdlog::info("[{}] Using cached G-code file ({} bytes): {}", get_name(), cached_size,
+                          temp_path);
+             temp_gcode_path_ = temp_path;
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++            ui_gcode_viewer_set_job_filename(gcode_viewer_, filename.c_str());
++#endif
+             load_gcode_file(temp_path.c_str());
+             return;
+         } else {
+@@ -3724,11 +3741,14 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
+         auto inner_token = lifetime_.token();
+         api_->transfers().download_file_to_path(
+             root, download_filename, temp_path,
+-            [this, inner_token, temp_path](const std::string& path) {
+-                inner_token.defer("PrintStatusPanel::gcode_download_ok", [this, path]() {
++            [this, inner_token, temp_path, filename](const std::string& path) {
++                inner_token.defer("PrintStatusPanel::gcode_download_ok", [this, path, filename]() {
+                     temp_gcode_path_ = path;
+                     spdlog::debug("[{}] Streamed G-code to disk, loading into viewer: {}",
+                                   get_name(), path);
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++                    ui_gcode_viewer_set_job_filename(gcode_viewer_, filename.c_str());
++#endif
+                     load_gcode_file(path.c_str());
+                 });
+             },
+diff --git a/src/ui/ui_print_select_detail_view.cpp b/src/ui/ui_print_select_detail_view.cpp
+index 24533d3..0ef90bb 100644
+--- a/src/ui/ui_print_select_detail_view.cpp
++++ b/src/ui/ui_print_select_detail_view.cpp
+@@ -263,6 +263,10 @@ lv_obj_t* PrintSelectDetailView::create(lv_obj_t* parent_screen) {
+     print_button_ = lv_obj_find_by_name(overlay_root_, "print_button");
  
-         // Object identity, in file order.
-@@ -1492,7 +1644,7 @@ TEST_CASE("Geometry Builder: object runs cover each object's vertices with no ga
-         size_t expected_offset = 0;
-         for (const auto& run : runs) {
-             CHECK(run.vertex_offset == expected_offset);
--            CHECK(run.vertex_count % 6 == 0); // strip-aligned
-+            CHECK(run.vertex_count % 3 == 0); // triangle-aligned
-             // Offsets stay inside THIS layer's VBO — they are not indices into
-             // the global vertex array.
-             CHECK(static_cast<size_t>(run.vertex_offset) + run.vertex_count <= layer_vertices);
-@@ -1507,7 +1659,7 @@ TEST_CASE("Geometry Builder: object runs cover each object's vertices with no ga
-     }
+     // Find and configure G-code viewer widget
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    if (auto* row = lv_obj_find_by_name(overlay_root_, "sliced_colors_row"))
++        lv_obj_delete(row); // The shared native palette has no sliced/AMS override mode.
++#endif
+     gcode_viewer_ = lv_obj_find_by_name(overlay_root_, "detail_gcode_viewer");
+     if (gcode_viewer_) {
+         spdlog::debug("[DetailView] G-code viewer widget found");
+@@ -2310,6 +2314,11 @@ void PrintSelectDetailView::begin_viewer_load(const std::string& path) {
+             spdlog::debug("[DetailView] G-code preview loaded successfully");
+         },
+         this);
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    const std::string job_filename = current_path_.empty() ? current_filename_ :
++                                    current_path_ + "/" + current_filename_;
++    ui_gcode_viewer_set_job_filename(gcode_viewer_, job_filename.c_str());
++#endif
+     ui_gcode_viewer_load_file(gcode_viewer_, path.c_str());
  }
  
--TEST_CASE("Geometry Builder: an object run longer than uint16 splits at a strip boundary",
-+TEST_CASE("Geometry Builder: an object run longer than uint16 splits at a triangle boundary",
-           "[gcode][geometry][objectruns]") {
-     // One object, one layer, enough contiguous segments that its vertex stretch
-     // cannot fit in ObjectRun::vertex_count. Truncating instead of splitting would
-@@ -1519,7 +1671,8 @@ TEST_CASE("Geometry Builder: an object run longer than uint16 splits at a strip
-     SimplificationOptions opts = no_merge_options();
-     RibbonGeometry geometry = builder.build(gcode, opts);
- 
--    const size_t layer_vertices = geometry.layer_strip_ranges[0].second * 6;
-+    const size_t layer_vertices = geometry.expanded_vertex_count(geometry.layer_strip_ranges[0].first,
-+                                                               geometry.layer_strip_ranges[0].second);
-     REQUIRE(layer_vertices > MAX_RUN_VERTICES);
- 
-     auto runs = geometry.layer_object_runs(0);
-@@ -1529,7 +1682,7 @@ TEST_CASE("Geometry Builder: an object run longer than uint16 splits at a strip
-     for (const auto& run : runs) {
-         CHECK(run.object_index == 0);
-         CHECK(run.vertex_count <= MAX_RUN_VERTICES);
--        CHECK(run.vertex_count % 6 == 0);
-+        CHECK(run.vertex_count % 3 == 0);
-         CHECK(run.vertex_offset == expected_offset);
-         expected_offset += run.vertex_count;
-     }
-@@ -1537,6 +1690,40 @@ TEST_CASE("Geometry Builder: an object run longer than uint16 splits at a strip
-     CHECK(expected_offset == layer_vertices);
- }
- 
-+TEST_CASE("Compacted object runs tag the intended colored vertices across an unowned gap",
-+          "[gcode][geometry][objectruns]") {
-+    auto gcode = make_run_fixture({{0, -1, 1, 0}}, {"A", "B"});
-+    const int tools[] = {0, 1, 2, 0};
-+    for (size_t i = 0; i < 4; ++i) {
-+        gcode.layers[0].segments[i].tool_index = tools[i];
-+    }
-+    GeometryBuilder builder;
-+    builder.set_budget_tube_sides(4);
-+    builder.set_tool_color_palette({"#112233", "#445566", "#778899"});
-+    auto geometry = builder.build(gcode, no_merge_options());
-+    geometry.prepare_interleaved_buffers();
-+    auto runs = geometry.layer_object_runs(0);
-+    REQUIRE(runs.count == 3);
-+    REQUIRE(geometry.prepared_buffers[0].vertex_count == 144);
-+    const auto* vertices = reinterpret_cast<const PackedVertex*>(geometry.prepared_buffers[0].data.data());
-+    const uint32_t expected_offsets[] = {0, 72, 108};
-+    const int16_t expected_objects[] = {0, 1, 0};
-+    const uint8_t expected_red[] = {0x11, 0x77, 0x11};
-+    for (size_t i = 0; i < 3; ++i) {
-+        CHECK(runs.first[i].vertex_offset == expected_offsets[i]);
-+        CHECK(runs.first[i].vertex_count == 36);
-+        CHECK(runs.first[i].object_index == expected_objects[i]);
-+        for (size_t j = 0; j < runs.first[i].vertex_count; ++j) {
-+            const auto& vertex = vertices[runs.first[i].vertex_offset + j];
-+            CHECK(vertex.color[0] == expected_red[i]);
-+            CHECK(vertex.color[3] == 255);
-+        }
-+    }
-+    for (size_t i = 36; i < 72; ++i) {
-+        CHECK(vertices[i].color[0] == 0x44);
-+    }
-+}
-+
- TEST_CASE("Geometry Builder: the run-count guard leaves the run table empty",
-           "[gcode][geometry][objectruns][slow]") {
-     // Alternating objects every segment defeats run coalescing entirely, so the
-@@ -1623,7 +1810,8 @@ TEST_CASE("Geometry Builder: every feature type of a selected object joins a run
-     CHECK(runs.first[0].object_index == 0);
-     CHECK(runs.first[0].vertex_offset == 0);
- 
--    const size_t layer_vertices = geometry.layer_strip_ranges[0].second * 6;
-+    const size_t layer_vertices = geometry.expanded_vertex_count(geometry.layer_strip_ranges[0].first,
-+                                                               geometry.layer_strip_ranges[0].second);
-     REQUIRE(layer_vertices > 0);
-     CHECK(runs.first[0].vertex_count == layer_vertices);
- 
-@@ -1659,7 +1847,8 @@ TEST_CASE("Geometry Builder: segments outside any object do not join a run",
-     // the first one ended.
-     CHECK(runs.first[1].vertex_offset >
-           static_cast<uint32_t>(runs.first[0].vertex_offset + runs.first[0].vertex_count));
--    const size_t layer_vertices = geometry.layer_strip_ranges[0].second * 6;
-+    const size_t layer_vertices = geometry.expanded_vertex_count(geometry.layer_strip_ranges[0].first,
-+                                                               geometry.layer_strip_ranges[0].second);
-     CHECK(static_cast<size_t>(runs.first[1].vertex_offset) + runs.first[1].vertex_count <=
-           layer_vertices);
- }
-diff --git a/tests/unit/test_gcode_memory_lifecycle.cpp b/tests/unit/test_gcode_memory_lifecycle.cpp
-index c4ba230..4e5e3d5 100644
---- a/tests/unit/test_gcode_memory_lifecycle.cpp
-+++ b/tests/unit/test_gcode_memory_lifecycle.cpp
-@@ -178,41 +178,14 @@ TEST_CASE("Geometry data supports CPU re-expansion after prepared_buffers cleare
-     REQUIRE(geom->strip_color_index.size() == geom->strips.size());
-     REQUIRE(!geom->layer_strip_ranges.empty());
- 
--    // Manually re-expand first layer (mirrors upload_geometry_chunk CPU fallback,
--    // packed 12-byte PackedVertex layout — quantized int16 positions go to the
--    // GPU as-is, with dequantization folded into the renderer's matrices).
-+    // Re-expand through the same fallback used after the GPU upload releases
-+    // prepared buffers. Compacted caps must still reproduce the original bytes.
-     auto [first_strip, strip_count] = geom->layer_strip_ranges[0];
-     REQUIRE(strip_count > 0);
--
--    size_t total_verts = strip_count * 6;
-+    const size_t total_verts = geom->expanded_vertex_count(first_strip, strip_count);
-     std::vector<uint8_t> re_expanded(total_verts * PackedVertex::stride());
--    static constexpr int TRI_INDICES[6] = {0, 1, 2, 1, 3, 2};
--
--    auto* out = reinterpret_cast<PackedVertex*>(re_expanded.data());
--    for (size_t s = 0; s < strip_count; ++s) {
--        const size_t strip_idx = first_strip + s;
--        const auto& strip = geom->strips[strip_idx];
--
--        // Color is per-strip; normals come pre-encoded off the vertex.
--        uint32_t rgb = 0x26A69A;
--        if (strip_idx < geom->strip_color_index.size() &&
--            geom->strip_color_index[strip_idx] < geom->color_palette.size()) {
--            rgb = geom->color_palette[geom->strip_color_index[strip_idx]];
--        }
--
--        for (int ti = 0; ti < 6; ++ti) {
--            const auto& vert = geom->vertices[strip[static_cast<size_t>(TRI_INDICES[ti])]];
--
--            out->position[0] = vert.position.x;
--            out->position[1] = vert.position.y;
--            out->position[2] = vert.position.z;
--
--            PackedVertex::encode_color(rgb, out->color);
--            out->normal[0] = vert.normal[0];
--            out->normal[1] = vert.normal[1];
--            ++out;
--        }
--    }
-+    CHECK(geom->expand_strips(first_strip, strip_count,
-+                             reinterpret_cast<PackedVertex*>(re_expanded.data())) == total_verts);
- 
-     // Re-expanded bytes should match what prepared_buffers held.
-     REQUIRE(re_expanded.size() == reference_data.size());

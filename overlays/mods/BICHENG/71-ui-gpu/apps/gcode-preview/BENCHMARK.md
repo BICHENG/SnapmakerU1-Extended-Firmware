@@ -2,8 +2,9 @@
 
 `make bench-gpu` builds a standalone diagnostic executable. It is not installed
 by the firmware build. The normal library does not compile the profiling fields,
-clock calls or extra `glFinish` calls. The `gpu_render` ABI stays unchanged, so
-the existing ctypes quality checks can still load the normal library.
+clock calls or extra `glFinish` calls. The parser and renderer are the native
+implementation shared by Stock UI and Helix. Their internal functions are not
+exported; runtime consumers use `gcode_preview_get_api` from `gcode-preview.h`.
 
 Run only while the printer is idle, heater targets are zero, and no other GPU
 benchmark or live G-code viewport is active. The executable reads one G-code

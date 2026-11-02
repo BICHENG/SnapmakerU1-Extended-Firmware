@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
-#include "gpu.h"
-#include "progress.h"
+#include "gcode-preview.h"
+#define WIDTH 480
+#define HEIGHT 320
 #include "stock-abi.h"
 #include <dlfcn.h>
 #include <link.h>
@@ -9,12 +10,10 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
-#include <pthread.h>
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <time.h>
-#include <math.h>
 #include <stdarg.h>
 void stock_log(const char *format,...) {
     FILE *f=fopen("/tmp/stock-ui.log","a");if(!f)return;
@@ -29,22 +28,15 @@ static const StockAbi *abi;
 #define FN(off,ret,...) ((ret(*)(__VA_ARGS__))(base+abi->off))
 typedef struct {void *target,*original;uint32_t code;void *user,*param,*prev;uint8_t flags;} Event;
 typedef struct {uint8_t magic,cf;uint16_t flags,w,h,stride,reserved;uint32_t size;const uint8_t *data;void *r1,*r2;} Image;
-static pthread_mutex_t mutex=PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t cond=PTHREAD_COND_INITIALIZER;
-static atomic_uint generation;
-static int worker_started,wanted,active,frame_ready,flat,close_pending;
-static int worker_idle=1;
-static atomic_int guard_armed;
-static int following=1,live_available,live_follow,inline_ready;
-static atomic_int inline_show,status_offline;
-static int thumb_width,thumb_height,inline_frame_width,inline_frame_height;
+static const GcodePreviewApi *engine;
+static GcodePreview *session;
+static GcodePreviewStatus status;
+static int active,close_pending,guard_armed,inline_show;
+static int thumb_width,thumb_height;
 static uint64_t started;
-static unsigned layers,layer;
-static float layer_height,yaw=-0.45f,tilt=0.75f,zoom=1;
 static char filename[4096],thumbnail[4096],message[128];
 static char previous_status[128];
-static uint8_t frame[WIDTH*HEIGHT*4],display_pixels[WIDTH*HEIGHT*4];
-static uint8_t inline_frame[WIDTH*HEIGHT*4],inline_pixels[WIDTH*HEIGHT*4];
+static uint8_t display_pixels[WIDTH*HEIGHT*4],inline_pixels[WIDTH*HEIGHT*4];
 static void *entry,*source_image,*preview,*screen,*status_label,*eta_label,*mode_label,*follow_button,*inline_image;
 static uintptr_t font;
 static Image descriptor={.magic=0x19,.cf=0x10,.w=WIDTH,.h=HEIGHT,.stride=WIDTH*4,.size=sizeof(display_pixels),.data=display_pixels};
@@ -72,141 +64,15 @@ static void *label(void *parent,const char *s,int x,int y){
     if(font)style(o,90,font);
     style(o,88,0xffffff);text(o,s);pos(o,x,y);return o;
 }
-static void request_frame(void){wanted=1;pthread_cond_signal(&cond);}
-static int progress_path(const PrintProgress *p,char *path,size_t size){
-    if(!p->filename[0])return 0;
-    char candidate[4096];
-    int n=snprintf(candidate,sizeof(candidate),"/userdata/gcodes/%s",p->filename);
-    if(n<0||(size_t)n>=sizeof(candidate))return 0;
-    char real[4096];if(!realpath(candidate,real)||strncmp(real,"/userdata/gcodes/",17))return 0;
-    snprintf(path,size,"%s",real);return 1;
-}
-static void *worker(void *unused) {
-    (void)unused;
-    Model m={0};Gpu *g=NULL;unsigned loaded=0;
-    ProgressClient *client=progress_create();
-    PrintProgress progress={.state=JOB_OFFLINE};
-    uint64_t queried=0;int offline=1,previous_follow=0,polling=0;
-    size_t completed=0;char loaded_path[4096]={0};
-    uint8_t *pixels=malloc(sizeof(frame));
-    if(!pixels){
-        pthread_mutex_lock(&mutex);snprintf(message,sizeof(message),"内存不足");
-        worker_started=0;worker_idle=1;pthread_mutex_unlock(&mutex);progress_destroy(client);return NULL;
-    }
-    for(;;) {
-        pthread_mutex_lock(&mutex);
-        if(!wanted){
-            if(active||thumbnail[0]){
-                unsigned interval=progress.state==JOB_PRINTING||progress.state==JOB_PAUSED?250:1000;
-                uint64_t elapsed=milliseconds()-queried;
-                unsigned delay=polling?22:elapsed>=interval?1:interval-(unsigned)elapsed;
-                struct timespec until;clock_gettime(CLOCK_REALTIME,&until);
-                until.tv_nsec+=(long)delay*1000000;if(until.tv_nsec>=1000000000){until.tv_sec++;until.tv_nsec-=1000000000;}
-                pthread_cond_timedwait(&cond,&mutex,&until);
-            }else while(!wanted)pthread_cond_wait(&cond,&mutex);
-        }
-        int redraw=wanted;wanted=0;
-        int modal=active,follow=following;unsigned seq=atomic_load(&generation);
-        RenderView view={.layer=layer,.flat=modal?flat:0,.width=modal?WIDTH:thumb_width,.height=modal?HEIGHT:thumb_height,
-                         .compact=!modal,.yaw=modal?yaw:-.45f,.tilt=modal?tilt:.75f,.zoom=modal?zoom:1,.completed=SIZE_MAX};
-        char path[sizeof(filename)];snprintf(path,sizeof(path),"%s",modal?filename:thumbnail);
-        pthread_mutex_unlock(&mutex);
-        uint64_t now=milliseconds();
-        unsigned interval=progress.state==JOB_PRINTING||progress.state==JOB_PAUSED?250:1000;
-        if(path[0]&&(polling||!queried||now-queried>=interval)){
-            PrintProgress next;
-            if(!client)client=progress_create();
-            if(!polling)queried=now;
-            int result=progress_poll(client,&next);polling=result==1;
-            if(!result){
-                if(offline||next.state!=progress.state||strcmp(next.filename,progress.filename)||
-                   next.file_position!=progress.file_position||next.file_size!=progress.file_size)redraw=1;
-                progress=next;offline=0;
-            }else if(result<0){if(!offline)redraw=1;offline=1;}
-        }
-        if(!path[0]){progress_cancel(client);polling=0;}
-        char printing_path[4096]={0};
-        int known=progress_path(&progress,printing_path,sizeof(printing_path));
-        if(modal&&follow&&previous_follow&&known&&progress.state==JOB_PRINTING&&strcmp(path,printing_path)){
-            snprintf(path,sizeof(path),"%s",printing_path);
-            pthread_mutex_lock(&mutex);
-            if(seq==atomic_load(&generation))snprintf(filename,sizeof(filename),"%s",path);
-            pthread_mutex_unlock(&mutex);
-        }
-        int matches=known&&!strcmp(path,printing_path)&&
-            (progress.state==JOB_PRINTING||progress.state==JOB_PAUSED||progress.state==JOB_COMPLETE);
-        int tracking=matches&&(!modal||follow);
-        int run=path[0]&&(modal||matches);
-        pthread_mutex_lock(&mutex);
-        if(seq==atomic_load(&generation)){
-            live_available=matches;live_follow=tracking;status_offline=offline;
-            if(!run||modal)inline_show=0;
-            if(run)worker_idle=0;
-        }
-        pthread_mutex_unlock(&mutex);
-        if(!run||seq!=atomic_load(&generation)){
-            gpu_destroy(g);g=NULL;gcode_free(&m);loaded=0;loaded_path[0]=0;previous_follow=0;
-            pthread_mutex_lock(&mutex);worker_idle=1;pthread_mutex_unlock(&mutex);
-            continue;
-        }
-        if(loaded!=seq||strcmp(path,loaded_path)){
-            arm_guard();if(strcmp(path,loaded_path))completed=0;redraw=1;
-            gpu_destroy(g);g=NULL;
-            int ok=gcode_load(&m,path,&generation,seq);
-            if(atomic_load(&generation)!=seq)continue;
-            if(!ok)g=gpu_create(&m,m.error,sizeof(m.error));
-            pthread_mutex_lock(&mutex);
-            if(atomic_load(&generation)==seq){
-                layers=m.layers;layer=m.layers?m.layers-1:0;view.layer=layer;
-                snprintf(message,sizeof(message),"%s",g?"":m.error);
-                if(!g){inline_show=0;worker_idle=1;}
-            }
-            pthread_mutex_unlock(&mutex);loaded=seq;snprintf(loaded_path,sizeof(loaded_path),"%s",path);
-        }
-        if(tracking&&g){
-            if(completed>m.count)completed=m.count;
-            if(!offline&&progress.state==JOB_COMPLETE){completed=m.count;view.layer=m.layers?m.layers-1:0;}
-            else if(!offline&&(progress.state==JOB_PRINTING||progress.state==JOB_PAUSED))
-                gcode_progress(&m,progress.file_position,&completed,&view.layer);
-            else {size_t ignored;gcode_progress(&m,completed?m.line_end[completed/2-1]:0,&ignored,&view.layer);}
-            view.completed=completed;
-        }
-        if(tracking!=previous_follow)redraw=1;
-        previous_follow=tracking;
-        if(g&&redraw&&atomic_load(&generation)==seq) {
-            uint64_t start=milliseconds();
-            int rc=gpu_render(g,&m,&view,pixels);
-            if(rc){gpu_destroy(g);g=NULL;}
-            pthread_mutex_lock(&mutex);
-            if(atomic_load(&generation)==seq){
-                if(rc){
-                    snprintf(message,sizeof(message),"GPU 绘制失败");
-                    inline_show=0;inline_ready=0;
-                }
-                else {
-                    message[0]=0;
-                    if(modal){memcpy(frame,pixels,sizeof(frame));frame_ready=1;}
-                    else {
-                        memcpy(inline_frame,pixels,(size_t)view.width*view.height*4);
-                        inline_frame_width=view.width;inline_frame_height=view.height;inline_ready=1;inline_show=1;
-                    }
-                    if(tracking)layer=view.layer;
-                    layer_height=m.layer_z[view.layer<m.layers?view.layer:m.layers-1];
-                }
-            }
-            pthread_mutex_unlock(&mutex);
-            static unsigned rendered;rendered++;
-            if(rendered==1||rendered%100==0)stock_log("frame=%u render_ms=%llu live=%d cursor=%llu vertices=%zu\n",
-                rendered,(unsigned long long)(milliseconds()-start),tracking,(unsigned long long)progress.file_position,completed);
-        }
-    }
-    return NULL;
-}
-static void start_worker(void){
-    if(worker_started)return;
-    pthread_attr_t attr;pthread_attr_init(&attr);pthread_attr_setstacksize(&attr,512*1024);
-    pthread_t thread;int rc=pthread_create(&thread,&attr,worker,NULL);pthread_attr_destroy(&attr);
-    if(!rc){pthread_detach(thread);worker_started=1;}else snprintf(message,sizeof(message),"无法启动预览");
+static int load_source(const char *path,int width,int height,int compact,int live_only){
+    if(!engine)engine=gcode_preview_get_api(GCODE_PREVIEW_ABI);
+    if(engine&&!session)session=engine->create();
+    if(!session){snprintf(message,sizeof(message),"无法启动预览");return -1;}
+    arm_guard();
+    GcodePreviewSource source={path,NULL,(uint32_t)width,(uint32_t)height,compact,live_only};
+    status=(GcodePreviewStatus){.phase=GCODE_PREVIEW_LOADING,.offline=1};
+    if(engine->load(session,&source)){engine->clear(session);snprintf(message,sizeof(message),"无法读取 G-code 文件");return -1;}
+    message[0]=0;return 0;
 }
 static void preview_deleted(Event *e){
     if(e->code==38&&e->target==preview){preview=NULL;status_label=NULL;eta_label=NULL;mode_label=NULL;follow_button=NULL;close_pending=1;}
@@ -215,12 +81,11 @@ static void control(Event *e) {
     if(e->code!=7)return;
     intptr_t action=(intptr_t)e->user;
     if(action==0){close_pending=1;return;}
-    pthread_mutex_lock(&mutex);
-    if(action==1){flat=!flat;yaw=flat?0:-0.45f;tilt=flat?0:0.75f;}
-    if(action==2)zoom=fmaxf(0.3f,zoom/1.25f);
-    if(action==3)zoom=fminf(6.0f,zoom*1.25f);
-    if(action==6&&live_available)following=1;
-    request_frame();pthread_mutex_unlock(&mutex);
+    if(!session)return;
+    if(action==1)engine->action(session,GCODE_PREVIEW_FLAT,!status.flat,0);
+    if(action==2)engine->action(session,GCODE_PREVIEW_ZOOM,1.0f/1.25f,0);
+    if(action==3)engine->action(session,GCODE_PREVIEW_ZOOM,1.25f,0);
+    if(action==6)engine->action(session,GCODE_PREVIEW_FOLLOW,0,0);
 }
 static void *button(void *parent,const char *s,int x,int y,int w,int h,int action){
     void *o=create(abi->stock_button_class,parent);if(!o)return NULL;
@@ -245,16 +110,14 @@ static void touch(Event *e){
         drag=point[1]>=300?2:1;
     }
     if(!drag)return;
-    pthread_mutex_lock(&mutex);
-    if(drag==2&&layers){
+    if(session&&drag==2&&status.layers){
         int x=point[0]-12;if(x<0)x=0;if(x>456)x=456;
-        unsigned selected=(unsigned)(((uint64_t)x*(layers-1)+228)/456);
-        if(selected!=layer){following=0;layer=selected;request_frame();}
-    } else if(e->code==2&&!flat) {
-        yaw+=(point[0]-last_x)*0.012f;
-        tilt=fmaxf(-1.4f,fminf(1.4f,tilt+(point[1]-last_y)*0.012f));request_frame();
+        unsigned selected=(unsigned)(((uint64_t)x*(status.layers-1)+228)/456);
+        if(selected!=status.layer)engine->action(session,GCODE_PREVIEW_LAYER,(float)selected,0);
+    }else if(session&&e->code==2&&!status.flat){
+        engine->action(session,GCODE_PREVIEW_ROTATE,(point[0]-last_x)*0.012f,(point[1]-last_y)*0.012f);
     }
-    pthread_mutex_unlock(&mutex);last_x=point[0];last_y=point[1];
+    last_x=point[0];last_y=point[1];
 }
 static void open_preview(Event *e){
     if(e->code!=7||preview)return;
@@ -282,19 +145,15 @@ static void open_preview(Event *e){
     eta_label=label(preview,"",12,280);
     if(!status_label||!eta_label||!mode_label){close_pending=1;return;}
     previous_status[0]=0;
-    pthread_mutex_lock(&mutex);
     snprintf(filename,sizeof(filename),"%s",selected);
-    active=1;worker_idle=0;following=1;flat=0;layer=0;layers=0;frame_ready=0;yaw=-0.45f;tilt=0.75f;zoom=1;message[0]=0;
-    atomic_fetch_add(&generation,1);request_frame();
-    start_worker();
-    pthread_mutex_unlock(&mutex);
+    active=1;inline_show=0;
+    load_source(selected,WIDTH,HEIGHT,0,0);
 }
 static void clear_thumbnail(void){
-    pthread_mutex_lock(&mutex);
-    thumbnail[0]=0;inline_show=0;inline_ready=0;
-    if(!active)atomic_fetch_add(&generation,1);
-    request_frame();pthread_mutex_unlock(&mutex);
+    thumbnail[0]=0;inline_show=0;
+    if(!active&&session){engine->clear(session);status.phase=GCODE_PREVIEW_EMPTY;status.visible=0;}
 }
+
 static void entry_deleted(Event *e){
     if(e->code==38&&e->target==entry){entry=NULL;source_image=NULL;inline_image=NULL;clear_thumbnail();}
 }
@@ -347,14 +206,10 @@ static int model_path(const char *src,char *out,size_t size){
 }
 static void update_thumbnail(const char *path,int w,int h){
     if(w<1||w>WIDTH||h<1||h>HEIGHT){clear_thumbnail();return;}
-    pthread_mutex_lock(&mutex);
     if(strcmp(path,thumbnail)||w!=thumb_width||h!=thumb_height){
-        snprintf(thumbnail,sizeof(thumbnail),"%s",path);thumb_width=w;thumb_height=h;
-        inline_show=0;inline_ready=0;
-        if(!active)atomic_fetch_add(&generation,1);
-        request_frame();
+        snprintf(thumbnail,sizeof(thumbnail),"%s",path);thumb_width=w;thumb_height=h;inline_show=0;
+        if(!active)load_source(path,w,h,1,1);
     }
-    start_worker();pthread_mutex_unlock(&mutex);
 }
 static void lock_page_scroll(void *image){
     for(void *o=image;o;o=*(void**)((char*)o+abi->object_parent_offset)){
@@ -400,43 +255,45 @@ static void pump(void){
     if(preview&&current!=screen)close_pending=1;
     if(close_pending){
         close_pending=0;
-        pthread_mutex_lock(&mutex);active=0;atomic_fetch_add(&generation,1);request_frame();pthread_mutex_unlock(&mutex);
+        active=0;inline_show=0;
+        if(thumbnail[0])load_source(thumbnail,thumb_width,thumb_height,1,1);
+        else if(session){engine->clear(session);status.phase=GCODE_PREVIEW_EMPTY;status.visible=0;}
         void *old=preview;preview=NULL;status_label=NULL;eta_label=NULL;mode_label=NULL;follow_button=NULL;
         if(old)FN(lv_obj_delete,void,void*)(old);
     }
-    if(preview&&pthread_mutex_trylock(&mutex)==0){
-        if(frame_ready){memcpy(display_pixels,frame,sizeof(frame));frame_ready=0;FN(lv_obj_invalidate,void,void*)(preview);}
+    int new_frame=session?engine->poll(session,&status,active?display_pixels:inline_pixels,sizeof(display_pixels)):0;
+    if(new_frame<0)new_frame=0;
+    if(preview){
+        if(new_frame)FN(lv_obj_invalidate,void,void*)(preview);
         char s[128];
-        if(message[0])snprintf(s,sizeof(s),"%s",message);
-        else if(layers)snprintf(s,sizeof(s),"层 %u / %u · %.2f mm",layer+1,layers,layer_height);
+        if(message[0]||status.message[0])snprintf(s,sizeof(s),"%s",message[0]?message:status.message);
+        else if(status.layers)snprintf(s,sizeof(s),"层 %u / %u · %.2f mm",status.layer+1,status.layers,status.layer_height);
         else snprintf(s,sizeof(s),"正在读取路径…");
         if(strcmp(s,previous_status)){text(status_label,s);snprintf(previous_status,sizeof(previous_status),"%s",s);}
-        static int was_flat=-1;if(flat!=was_flat){text(mode_label,flat?"2D":"3D");was_flat=flat;}
-        uintptr_t color=live_follow?0x2165d7:0x292d33;
+        static int was_flat=-1;if(status.flat!=was_flat){text(mode_label,status.flat?"2D":"3D");was_flat=status.flat;}
+        uintptr_t color=status.live_follow?0x2165d7:0x292d33;
         if((FN(lv_obj_get_style_prop,uintptr_t,void*,uint32_t,int)(follow_button,0,28)&0xffffff)!=color)style(follow_button,28,color);
         void *follow_label=FN(lv_obj_get_child,void*,void*,int)(follow_button,0);
-        color=live_available?0xffffff:0x89929b;
+        color=status.live_available?0xffffff:0x89929b;
         if(follow_label&&(FN(lv_obj_get_style_prop,uintptr_t,void*,uint32_t,int)(follow_label,0,88)&0xffffff)!=color)style(follow_label,88,color);
-        pthread_mutex_unlock(&mutex);
     }
     if(preview&&now-time_scanned>=500){
         time_scanned=now;
         const char *native=machine_time(current,0);char value[80];
-        if(status_offline)snprintf(value,sizeof(value),"打印状态暂不可用");
+        if(status.offline)snprintf(value,sizeof(value),"打印状态暂不可用");
         else snprintf(value,sizeof(value),"%s%s",native&&strncmp(native,"剩余",strlen("剩余"))?"预计 ":"",native?native:"");
         if(strcmp(FN(lv_label_get_text,const char*,void*)(eta_label),value))text(eta_label,value);
     }
-    if(inline_image&&pthread_mutex_trylock(&mutex)==0){
-        if(inline_show&&inline_ready){
-            inline_descriptor.w=inline_frame_width;inline_descriptor.h=inline_frame_height;
-            inline_descriptor.stride=inline_frame_width*4;inline_descriptor.size=inline_frame_width*inline_frame_height*4;
-            memcpy(inline_pixels,inline_frame,inline_descriptor.size);inline_ready=0;
+    inline_show=!active&&status.visible;
+    if(inline_image){
+        if(inline_show&&new_frame){
+            inline_descriptor.w=status.width;inline_descriptor.h=status.height;
+            inline_descriptor.stride=status.width*4;inline_descriptor.size=status.width*status.height*4;
             FN(lv_image_set_src,void,void*,const void*)(inline_image,&inline_descriptor);
             FN(lv_obj_invalidate,void,void*)(inline_image);
         }
         if(inline_show)FN(lv_obj_remove_flag,void,void*,uint32_t)(inline_image,1);
         else FN(lv_obj_add_flag,void,void*,uint32_t)(inline_image,1);
-        pthread_mutex_unlock(&mutex);
     }
     if(!preview&&now-scanned>=500){
         scanned=now;
@@ -455,9 +312,9 @@ static void pump(void){
         }
         if(current)scan(current,0);
     }
-    if(guard_armed&&now-started>10000&&pthread_mutex_trylock(&mutex)==0){
-        if(!active&&!inline_show&&worker_idle){unlink("/tmp/stock-ui.guard");guard_armed=0;}
-        pthread_mutex_unlock(&mutex);
+    if(guard_armed&&now-started>10000&&!active&&!inline_show&&!thumbnail[0]){
+        if(session){engine->destroy(session);session=NULL;}
+        unlink("/tmp/stock-ui.guard");guard_armed=0;
     }
     FN(lv_unlock,void,void)();
 }
@@ -490,4 +347,9 @@ unsigned stock_ui_tick(unsigned sleep_us){
     if(!base)return sleep_us;
     pump();unsigned cap=preview||inline_show?22000:500000;
     return sleep_us>cap?cap:sleep_us;
+}
+
+__attribute__((destructor)) static void cleanup(void){
+    if(session){engine->destroy(session);session=NULL;}
+    if(guard_armed){unlink("/tmp/stock-ui.guard");guard_armed=0;}
 }
