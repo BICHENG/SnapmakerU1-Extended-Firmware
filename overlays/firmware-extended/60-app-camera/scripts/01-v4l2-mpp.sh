@@ -5,6 +5,7 @@
 
 GIT_URL=https://github.com/paxx12/v4l2-mpp.git
 GIT_SHA=87bda8efbb7b32d8d57fc6a8d76dfae9418a2190
+MPP_SHA=437bfbeb9567cca9cd9080e3f6954aa9d6a94f18
 
 if [[ -z "$CREATE_FIRMWARE" ]]; then
   echo "Error: This script should be run within the create_firmware.sh environment."
@@ -15,6 +16,18 @@ set -eo pipefail
 
 TARGET_DIR="$CACHE_DIR/v4l2-mpp"
 cache_git.sh "$TARGET_DIR" "$GIT_URL" "$GIT_SHA"
+
+MPP_DIR="$TARGET_DIR/deps/mpp"
+MPP_PATCH="$(realpath "$(dirname "$0")/../apps/mpp-force-idr.patch")"
+if [[ "$(git -C "$MPP_DIR" rev-parse HEAD)" != "$MPP_SHA" ]]; then
+  echo "Error: MPP backport requires pinned revision $MPP_SHA." >&2
+  exit 1
+fi
+# Upstream cf90e9328f474ace01579d54d08485a4d3407724, applied once per cache checkout.
+if ! git -C "$MPP_DIR" apply --reverse --check "$MPP_PATCH" 2>/dev/null; then
+  git -C "$MPP_DIR" apply --check "$MPP_PATCH"
+  git -C "$MPP_DIR" apply "$MPP_PATCH"
+fi
 
 echo ">> Setting up cross-compilation environment..."
 export CROSS_COMPILE=aarch64-linux-gnu-
@@ -28,6 +41,9 @@ echo ">> Compiling dependencies..."
 make -C "$TARGET_DIR" deps
 
 echo ">> Compiling v4l2-mpp applications..."
+# These targets do not list the static MPP archive as a dependency.
+make -C "$TARGET_DIR/apps/capture-v4l2-jpeg-mpp" -B
+make -C "$TARGET_DIR/apps/capture-v4l2-raw-mpp" -B
 make -C "$TARGET_DIR" install DESTDIR="$1"
 
 echo ">> Validate binaries..."
