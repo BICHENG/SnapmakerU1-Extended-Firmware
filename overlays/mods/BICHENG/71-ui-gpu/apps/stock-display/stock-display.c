@@ -218,6 +218,8 @@ static unsigned native_tick(unsigned sleep_us, uintptr_t caller)
             if(resolution[0]==480 && resolution[1]==320) {
                 const int32_t area[]={0,0,479,319};
                 ((void (*)(void *,const int32_t *))(vendor_base+abi->invalidate_area))(display,area);
+                /* The timer handler computed its idle delay before this repaint request. */
+                if(sleep_us>refresh_period*1000u) sleep_us=refresh_period*1000u;
             }
             else {
                 benchmark_until=0;
