@@ -1,28 +1,68 @@
 #define _GNU_SOURCE
 #include <assert.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 static int test_ioctl(int fd, unsigned long request, ...);
+static FILE *test_fopen(const char *path, const char *mode);
+static int test_rename(const char *from, const char *to);
 #define ioctl test_ioctl
+#define fopen test_fopen
+#define rename test_rename
 #include "../apps/ui-display/ui-display.c"
 #undef ioctl
+#undef fopen
+#undef rename
 
 static ui_display *subject;
 static unsigned front, calls;
-static int fail_pan;
+static unsigned pan_failures, report_writes;
+static int pan_error, get_error, invalid_geometry;
+static char report_path[] = "/tmp/ui-display-test.XXXXXX";
+static char report_tmp[sizeof(report_path)+4];
+static FILE *test_fopen(const char *path, const char *mode)
+{
+    assert(!strcmp(path, "/tmp/ui-display.json.tmp"));
+    report_writes++;
+    return fopen(report_tmp, mode);
+}
+static int test_rename(const char *from, const char *to)
+{
+    assert(!strcmp(from, "/tmp/ui-display.json.tmp") && !strcmp(to, "/tmp/ui-display.json"));
+    return rename(report_tmp, report_path);
+}
+static void check_report(const char *op, int error, unsigned frame, unsigned retries, int recovered)
+{
+    char json[1024], expected[128];
+    FILE *file = fopen(report_path, "r"); assert(file);
+    size_t count = fread(json, 1, sizeof(json)-1, file); json[count] = 0; fclose(file);
+    const char *last = strstr(json, "\"last_error\":"); assert(last);
+    snprintf(expected, sizeof(expected), "\"op\":\"%s\",\"errno\":%d,\"frame\":%u,", op, error, frame);
+    assert(strstr(last, expected));
+    snprintf(expected, sizeof(expected), "\"retries\":%u,\"recovered\":%s", retries, recovered ? "true" : "false");
+    assert(strstr(last, expected));
+    const char *timestamp = strstr(last, "\"monotonic_ns\":"); assert(timestamp);
+    unsigned long long ns = 0; assert(sscanf(timestamp, "\"monotonic_ns\":%llu", &ns) == 1 && ns);
+}
 static int test_ioctl(int fd, unsigned long request, ...)
 {
     assert(fd == subject->fd);
     va_list args; va_start(args, request);
     struct fb_var_screeninfo *var = va_arg(args, struct fb_var_screeninfo *);
     va_end(args);
-    if(request == FBIOGET_VSCREENINFO) { *var = subject->var; var->yoffset = front; return 0; }
+    if(request == FBIOGET_VSCREENINFO) {
+        if(get_error) { errno = get_error; return -1; }
+        *var = subject->var; var->yoffset = front;
+        if(invalid_geometry) { var->xres++; errno = EBUSY; }
+        return 0;
+    }
     assert(request == FBIOPAN_DISPLAY && var->yoffset != front);
+    assert(var->yoffset == 0 || var->yoffset == UI_FRAME_HEIGHT);
     assert(var->activate == FB_ACTIVATE_VBL);
     assert(!memcmp(subject->scanout + var->yoffset * UI_FRAME_STRIDE, subject->canvas, UI_FRAME_BYTES));
     calls++;
-    if(fail_pan) { errno = EBUSY; return -1; }
+    if(pan_failures) { pan_failures--; errno = pan_error; return -1; }
     front = var->yoffset;
     return 0;
 }
@@ -30,6 +70,8 @@ static int test_ioctl(int fd, unsigned long request, ...)
 int main(void)
 {
     ui_display d = {0}; subject = &d;
+    int report_fd = mkstemp(report_path); assert(report_fd >= 0); close(report_fd);
+    snprintf(report_tmp, sizeof(report_tmp), "%s.tmp", report_path);
     d.fd = 99; d.power_fd = -1; d.double_buffer = 1; d.fix.line_length = UI_FRAME_STRIDE;
     d.var.xres = UI_FRAME_WIDTH; d.var.yres = UI_FRAME_HEIGHT;
     d.var.yres_virtual = UI_FRAME_HEIGHT * 2;
@@ -67,21 +109,67 @@ int main(void)
     assert(d.flips == 3 && d.publish_skips == 1 && d.snapshot->sequence == 2);
     assert(write(release[1], "x", 1) == 1);
     int status; assert(waitpid(reader, &status, 0) == reader && status == 0);
-    fail_pan = 1;
+    unsigned before = calls;
+    pan_error = EINTR; pan_failures = 1;
     assert(!ui_display_update(&d, 1, 5, 4, 5, row, sizeof(row), 1));
-    assert(d.errors == 1 && d.flips == 3 && d.snapshot->sequence == 4);
+    assert(calls == before + 2 && d.errors == 0 && d.flips == 4 && d.snapshot->sequence == 4);
+    assert(d.interruptions == 1 && d.retries == 1 && report_writes == 1);
     assert(d.scanout[front * UI_FRAME_STRIDE + 5 * UI_FRAME_STRIDE + 4] == 42);
+    check_report("FBIOPAN_DISPLAY", EINTR, 4, 1, 1);
+
+    uint8_t *visible = malloc(UI_FRAME_BYTES); assert(visible);
+    memcpy(visible, d.scanout + front * UI_FRAME_STRIDE, UI_FRAME_BYTES);
+    unsigned old_front = front; before = calls; pan_failures = 3;
+    assert(!ui_display_update(&d, 1, 6, 4, 6, row, sizeof(row), 1));
+    assert(calls == before + 3 && front == old_front && d.flips == 4 && d.errors == 1);
+    assert(!memcmp(visible, d.scanout + front * UI_FRAME_STRIDE, UI_FRAME_BYTES));
+    assert(d.snapshot->sequence == 5 && d.snapshot->pixels[6 * UI_FRAME_STRIDE + 4] == 42);
+    assert(d.interruptions == 4 && d.retries == 3 && report_writes == 2);
+    check_report("FBIOPAN_DISPLAY", EINTR, 5, 2, 0);
+    assert(!ui_display_update(&d, 1, 7, 4, 7, row, sizeof(row), 1));
+    assert(front != old_front && d.flips == 5 && d.errors == 1);
+    assert(!memcmp(d.canvas, d.scanout + front * UI_FRAME_STRIDE, UI_FRAME_BYTES));
+
+    memcpy(visible, d.scanout + front * UI_FRAME_STRIDE, UI_FRAME_BYTES);
+    old_front = front; before = calls; pan_error = EBUSY; pan_failures = 5;
+    assert(!ui_display_update(&d, 1, 8, 4, 8, row, sizeof(row), 1));
+    assert(calls == before + 1 && pan_failures == 4 && front == old_front && d.errors == 2 && d.flips == 5);
+    assert(d.retries == 3 && !memcmp(visible, d.scanout + front * UI_FRAME_STRIDE, UI_FRAME_BYTES));
+    assert(report_writes == 3); check_report("FBIOPAN_DISPLAY", EBUSY, 7, 0, 0);
+    pan_failures = 0;
+    assert(!ui_display_update(&d, 1, 9, 4, 9, row, sizeof(row), 1));
+    assert(d.flips == 6 && !memcmp(d.canvas, d.scanout + front * UI_FRAME_STRIDE, UI_FRAME_BYTES));
+
+    memcpy(visible, d.scanout + front * UI_FRAME_STRIDE, UI_FRAME_BYTES);
+    before = calls; get_error = ENODEV;
+    assert(!ui_display_update(&d, 1, 10, 4, 10, row, sizeof(row), 1));
+    assert(calls == before && d.errors == 3 && report_writes == 4);
+    check_report("FBIOGET_VSCREENINFO", ENODEV, 9, 0, 0);
+    get_error = 0; invalid_geometry = 1;
+    assert(!ui_display_update(&d, 1, 11, 4, 11, row, sizeof(row), 1));
+    assert(calls == before && d.errors == 4 && report_writes == 5);
+    assert(!memcmp(visible, d.scanout + front * UI_FRAME_STRIDE, UI_FRAME_BYTES));
+    check_report("FBIOGET_VSCREENINFO.validate", EINVAL, 10, 0, 0);
+    invalid_geometry = 0;
+    assert(!ui_display_update(&d, 1, 12, 4, 12, row, sizeof(row), 1));
+    assert(d.flips == 7 && !memcmp(d.canvas, d.scanout + front * UI_FRAME_STRIDE, UI_FRAME_BYTES));
+
     char power_path[] = "/tmp/ui-power-test.XXXXXX";
     d.power_fd = mkstemp(power_path); assert(d.power_fd >= 0);
     assert(write(d.power_fd, "4\n", 2) == 2);
     unsigned asleep_calls = calls;
-    assert(!ui_display_update(&d, 1, 6, 4, 6, row, sizeof(row), 1));
-    assert(calls == asleep_calls && d.snapshot->sequence == 5);
+    assert(!ui_display_update(&d, 1, 13, 4, 13, row, sizeof(row), 1));
+    assert(calls == asleep_calls && d.snapshot->sequence == 12);
     assert(pwrite(d.power_fd, "0\n", 2, 0) == 2);
-    fail_pan = 0; front = 0; // The backend resets the scanout page on wake.
-    assert(!ui_display_update(&d, 1, 7, 4, 7, row, sizeof(row), 1));
+    front = 0; // The backend resets the scanout page on wake.
+    assert(!ui_display_update(&d, 1, 14, 4, 14, row, sizeof(row), 1));
     assert(calls == asleep_calls + 1 && front == 320);
+    assert(!memcmp(d.canvas, d.scanout + front * UI_FRAME_STRIDE, UI_FRAME_BYTES));
+    d.double_buffer = 0; d.var.yres_virtual = UI_FRAME_HEIGHT; front = 0; before = calls;
+    assert(!ui_display_update(&d, 1, 15, 4, 15, row, sizeof(row), 1));
+    assert(calls == before && d.scanout[15 * UI_FRAME_STRIDE + 4] == 42 && d.flips == 8);
     close(d.power_fd); unlink(power_path);
     munmap(d.snapshot, sizeof(struct ui_frame)); close(d.snapshot_fd); unlink(path); free(d.scanout);
-    puts("display tests passed: complete refresh, back-page ownership, atomic flip, nonblocking snapshot, fallback");
+    unlink(report_path); unlink(report_tmp); free(visible);
+    puts("display tests passed: bounded EINTR retry, failed-frame isolation/recovery, error reports, sleep, single-page compatibility");
 }
