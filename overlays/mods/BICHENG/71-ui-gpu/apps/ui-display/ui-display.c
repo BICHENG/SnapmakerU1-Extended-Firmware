@@ -23,6 +23,10 @@ struct ui_display {
     struct ui_frame *snapshot;
     uint8_t canvas[UI_FRAME_BYTES];
     uint64_t frames, flips, errors, published, publish_skips, report_ns, flip_ns_max;
+    uint64_t interruptions, retries, last_error_frame, last_error_ns;
+    const char *last_error_op;
+    int last_error_errno, last_error_recovered;
+    unsigned last_error_retries;
 };
 
 static uint64_t now_ns(void)
@@ -92,13 +96,31 @@ static void report(ui_display *d, uint64_t now)
     if(!file) return;
     fprintf(file, "{\"pid\":%ld,\"double_buffer\":%s,\"frames\":%llu,\"flips\":%llu,"
             "\"errors\":%llu,\"published\":%llu,\"publish_skips\":%llu,"
-            "\"flip_ns_max\":%llu,\"yoffset\":%u,\"monotonic_ns\":%llu}\n",
+            "\"flip_ns_max\":%llu,\"yoffset\":%u,\"monotonic_ns\":%llu,"
+            "\"interruptions\":%llu,\"retries\":%llu,\"last_error\":{\"op\":\"%s\","
+            "\"errno\":%d,\"frame\":%llu,\"monotonic_ns\":%llu,\"retries\":%u,\"recovered\":%s}}\n",
             (long)getpid(), d->double_buffer ? "true" : "false",
             (unsigned long long)d->frames, (unsigned long long)d->flips,
             (unsigned long long)d->errors, (unsigned long long)d->published,
             (unsigned long long)d->publish_skips, (unsigned long long)d->flip_ns_max,
-            d->var.yoffset, (unsigned long long)now);
+            d->var.yoffset, (unsigned long long)now,
+            (unsigned long long)d->interruptions, (unsigned long long)d->retries,
+            d->last_error_op ? d->last_error_op : "", d->last_error_errno,
+            (unsigned long long)d->last_error_frame, (unsigned long long)d->last_error_ns,
+            d->last_error_retries, d->last_error_recovered ? "true" : "false");
     if(fclose(file) == 0) rename("/tmp/ui-display.json.tmp", "/tmp/ui-display.json");
+}
+
+static void note_failure(ui_display *d, const char *op, int error, unsigned retries)
+{
+    d->last_error_op = op;
+    d->last_error_errno = error;
+    d->last_error_frame = d->frames;
+    d->last_error_ns = now_ns();
+    d->last_error_retries = retries;
+    d->last_error_recovered = 0;
+    if(error == EINTR) d->interruptions++;
+    d->report_ns = 0;
 }
 
 ui_display *ui_display_open(const char *device)
@@ -125,9 +147,9 @@ ui_display *ui_display_open(const char *device)
                        (d->var.yoffset == 0 || d->var.yoffset == UI_FRAME_HEIGHT);
     d->power_fd = open("/sys/class/backlight/backlight/bl_power", O_RDONLY | O_CLOEXEC);
     snapshot_open(d);
-    fprintf(stderr, "UI display: %ux%u virtual=%ux%u synchronized_pages=%d\n",
+    fprintf(stderr, "UI display: %ux%u virtual=%ux%u mode=%s\n",
             d->var.xres, d->var.yres, d->var.xres_virtual, d->var.yres_virtual,
-            d->double_buffer ? 2 : 1);
+            d->double_buffer ? "page-flip" : "single-page-unsynchronized");
     return d;
 fail:
     ui_display_close(d);
@@ -147,9 +169,14 @@ int ui_display_update(ui_display *d, int x1, int y1, int x2, int y2,
     d->frames++;
     if(!panel_awake(d)) goto completed;
     struct fb_var_screeninfo actual;
-    if(ioctl(d->fd, FBIOGET_VSCREENINFO, &actual) || actual.xres != UI_FRAME_WIDTH ||
-       actual.yres != UI_FRAME_HEIGHT || actual.xoffset ||
+    if(ioctl(d->fd, FBIOGET_VSCREENINFO, &actual)) {
+        note_failure(d, "FBIOGET_VSCREENINFO", errno, 0);
+        d->errors++;
+        goto completed;
+    }
+    if(actual.xres != UI_FRAME_WIDTH || actual.yres != UI_FRAME_HEIGHT || actual.xoffset ||
        (actual.yoffset != 0 && actual.yoffset != UI_FRAME_HEIGHT)) {
+        note_failure(d, "FBIOGET_VSCREENINFO.validate", EINVAL, 0);
         d->errors++;
         goto completed;
     }
@@ -162,20 +189,32 @@ int ui_display_update(ui_display *d, int x1, int y1, int x2, int y2,
         next.yoffset = back;
         next.activate = FB_ACTIVATE_VBL;
         uint64_t before = now_ns();
+        unsigned retries = 0;
+        int result;
         /* The board's DRM fbdev helper uses a blocking atomic commit. */
-        if(ioctl(d->fd, FBIOPAN_DISPLAY, &next) == 0) {
+        for(;;) {
+            result = ioctl(d->fd, FBIOPAN_DISPLAY, &next);
+            if(result == 0) break;
+            int error = errno;
+            note_failure(d, "FBIOPAN_DISPLAY", error, retries);
+            if(error != EINTR) break;
+            if(retries == 2) break;
+            retries++;
+            d->retries++;
+        }
+        if(retries) {
+            d->last_error_retries = retries;
+            d->last_error_recovered = result == 0;
+        }
+        if(result == 0) {
             d->var = next;
             d->flips++;
             uint64_t elapsed = now_ns() - before;
             if(elapsed > d->flip_ns_max) d->flip_ns_max = elapsed;
         }
         else {
-            if(!d->errors++) fprintf(stderr, "UI display: page flip failed: %s\n", strerror(errno));
-            /* Keep controls available if another DRM master temporarily owns the panel. */
-            if(ioctl(d->fd, FBIOGET_VSCREENINFO, &next) == 0 &&
-               next.xoffset == 0 && next.yoffset + UI_FRAME_HEIGHT <= d->var.yres_virtual)
-                d->var.yoffset = next.yoffset;
-            copy_page(d, d->var.yoffset);
+            d->errors++;
+            /* Keep the visible page intact; the next flush submits the complete canvas. */
         }
     }
     else copy_page(d, d->var.yoffset);
