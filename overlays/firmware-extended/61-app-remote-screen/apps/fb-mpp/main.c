@@ -114,7 +114,7 @@ int main(int argc, char **argv) {
         int updated = -1;
         if (var.xres == UI_FRAME_WIDTH && var.yres == UI_FRAME_HEIGHT)
             updated = screen_snapshot_read(&snapshot_fd, &snapshot, &source_ns, dst,
-                                    socket_ctx.need_keyframe || now - sent_ns >= UINT64_C(1000000000));
+                                    socket_ctx.need_keyframe || now - idr_ns >= UINT64_C(1000000000));
         if (!updated) { usleep(2000); continue; }
         if (updated < 0) {
             if (now - sent_ns < UINT64_C(1000000000) / fps) { usleep(2000); continue; }

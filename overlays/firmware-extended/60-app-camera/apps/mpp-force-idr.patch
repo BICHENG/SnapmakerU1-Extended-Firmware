@@ -1,0 +1,15 @@
+From cf90e9328f474ace01579d54d08485a4d3407724 Mon Sep 17 00:00:00 2001
+Subject: [PATCH] fix[mpp_enc]: Fix force idr failed by control
+Upstream: https://github.com/rockchip-linux/mpp/commit/cf90e9328f474ace01579d54d08485a4d3407724
+
+diff --git a/mpp/codec/mpp_enc_impl.c b/mpp/codec/mpp_enc_impl.c
+--- a/mpp/codec/mpp_enc_impl.c
++++ b/mpp/codec/mpp_enc_impl.c
+@@ -1322,6 +1322,7 @@ MPP_RET mpp_enc_proc_cfg(MppEncImpl *enc, MpiCmd cmd, void *param)
+             ret = ret_tmp;
+     } break;
+     case MPP_ENC_SET_IDR_FRAME : {
++        enc->frm_cfg.force_flag |= ENC_FORCE_IDR;
+         enc->frm_cfg.force_idr++;
+     } break;
+     case MPP_ENC_GET_HDR_SYNC :
