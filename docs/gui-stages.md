@@ -1,50 +1,42 @@
 # GUI delivery stages
 
-The original Snapmaker executable and screen remain the product UI. The gui branch integrates the shared GPU foundation and two delivered GUI features; stock-ui combines gui with Fan Curves, Balanced reduced current and the ALSA network microphone. The new gui-gpu research branch stays outside this integration. Shared build dependencies are not runtime dependencies between stages.
+The original Snapmaker application remains the primary UI. gpu now owns the complete GPU rendering feature, including both G-code consumers. gui combines it with gui-remote; stock-ui adds Fan Curves, Balanced reduced current and the ALSA microphone.
 
-| Stage | Branch | Scope | Depends on |
-| --- | --- | --- | --- |
-| 1 | gpu | Mali runtime, shared GPU output, Firmware switch, stock/Helix refresh policy and baseline measurement | Upstream develop |
-| 2 | gui-remote | Framebuffer capture, MPP H.264 encoding, WebRTC video and touch, connection lifecycle | Upstream develop and its existing camera libraries |
-| 3 | gui-gcode | G-code parsing and progress, GLES viewport, original UI adapter and controls | gpu |
-| Research | gui-gpu | Factory widget GPU rendering; automated reconstruction as a fallback | gpu; not merged into gui or stock-ui |
+| Delivery | Branch | Scope |
+| --- | --- | --- |
+| GPU rendering | gpu | Driver, shared output, live factory G-code viewport and version-matched Helix G-code adaptation |
+| Remote screen | gui-remote | Framebuffer capture, MPP H.264, WebRTC video/touch and connection lifecycle |
+| GUI integration | gui | gpu plus gui-remote |
+| Research | gui-gpu | Factory widget GPU drawing and automated reconstruction; excluded from daily integration |
 
-The implementation directories are 71-ui-gpu, 61-app-remote-screen and 72-stock-ui respectively. Stage 2 uses Rockchip's video encoder, not the Mali graphics processor. It works with the factory software renderer and does not require stage 1 or stage 3.
+The earlier three-stage split remains useful as implementation history, but the foundation and gui-gcode are now one maintained branch. gui-gcode is a frozen historical reference, not another integration step.
 
-The former gui-gpu branch is now gpu. The new gui-gpu has no replacement UI runtime. Its first measured widget compositor was slower than CPU despite exact tested pixels. The current original homepage already completes about 45 full redraws/s with the 22 ms policy. Keep ordinary controls on CPU and require a demonstrated expensive page before extending this work. Independent reconstruction still requires portable scene capture, generated views and state/interaction replay. See [GPU architecture](gpu-architecture.md).
+## GPU rendering
 
-## Stage 1: maintain GPU capability
+Keep the runtime and consumers in their current modules. 71-ui-gpu owns the pinned Mali driver, checked 400 MHz cap, runtime suspend, shared DMA-BUF output, Firmware switch and display/Helix adapters. 72-stock-ui owns the factory G-code parser, progress, viewport and controls. There is no additional graphics daemon.
 
-This stage is in maintenance. Keep the delivered capability and follow the [GPU maintenance boundary](gpu-architecture.md#maintenance-boundary); the later stages do not require a replacement widget renderer.
+The factory renderer parses each file once, uploads geometry, redraws changed views and releases resources when hidden. The selected layer is opaque; other layers are composited once at 24% opacity. Supersampling, current-layer following, manual layer browsing and the original time estimate remain part of this feature. The file cursor tracks interpreter progress, which can lead physical movement.
 
-The hardware and shared output modules are independent of the private factory GUI ABI. Reuse the pinned kernel, existing voltage table, runtime power management and a checked 400 MHz limit. Do not alter panel timings or add another service manager. An independent EGL check must identify the actual hardware renderer, verify rendered pixels and release its resources. Runtime-suspend checks must account for other active GPU consumers.
+The private factory ABI is guarded by executable size and hash. stock-display owns the single main-loop sleep hook and invokes stock_ui_tick. The worker handles GPU, parsing and nonblocking HTTP work; it does not call LVGL. Unknown binaries retain the original UI. A startup/exit guard is not isolation from a hung GPU call.
 
-The original LVGL text, buttons and lists remain software-rendered. A separate hash-checked stock-display adapter owns refresh and animation cadence, counts actual completed renders in both switch states, and calls the optional stage 3 tick. Stage 3 does not install a competing sleep hook. The private adapter remains an internal, version-specific component even though it ships in this branch.
+Helix 1.0.7 uses its existing GLES G-code renderer with the same shared output source, bounded geometry and matching asset checks. It retains the software widget backend and official-executable fallback. No user renderer adjustment is required, and the firmware preserves the selected UI.
 
-Helix 1.0.7 consumes the same DMA-BUF output source through its existing GLES 2 G-code renderer, retaining its color conversion and selection markers. Its ordinary widgets keep the software backend. The adapter uses public LVGL timer/event APIs; no NanoVG backend or user renderer tuning is required. Installed assets must match the patched executable's version, otherwise the official executable is used.
+GPU completion, CPU synchronization and final delivery remain in the measured frame path. Failed imports use readback; failed synchronization aborts the frame. Compare UI_GPU_OUTPUT=readback with automatic output in the same binary and at unchanged geometry and quality. Complex scenes can exceed the current 22.2 ms panel budget.
 
-Firmware exposes a GPU switch. Startup exports one effective policy after checking the device and frequency cap. Original 2.1 and Helix use 22 ms display/animation periods when enabled; the disabled baseline is 33 ms. Original 2.0 has only its verified display timer adjusted. The native panel is about 45 Hz, so increasing timers to 60/120 Hz would not establish those display modes.
+## Original widget refresh is a separate effect
 
-## Stage 2: replace interactive screenshots
+Ordinary factory and Helix widgets remain CPU-rendered. The current setting still couples GPU availability with 22 ms display/animation periods; the disabled baseline is 33 ms. The factory 2.0 adapter adjusts only its verified display timer.
 
-The interactive path is framebuffer -> MPP H.264 -> WebRTC video. Touch travels over the authenticated session's data channel to the existing input device. Snapshot access remains for thumbnail clients.
+The 2026-11-01 factory-homepage ablation measured 30.15/45.15 fps at 33/22 ms with the GPU driver absent, and 30.20/45.20 fps with it present. Four GPU-on sessions recorded no additional GPU active time during measurement. Refresh policy should be decoupled from the GPU switch; this branch consolidation does not implement that change or claim GPU widget acceleration.
 
-A refresh must replace only that browser page's abandoned session, and closing a page must release its session and touch ownership. Other viewers must retain their sessions. Keep the two-viewer limit; increasing it is not a fix for leaked clients. Reconnection, unfinished negotiation and session expiry belong to this stage. A failure of the remote service must not restart the factory GUI or printing services.
+## Remote screen
 
-## Stage 3: draw live G-code in the factory screen
+gui-remote uses framebuffer -> MPP H.264 -> WebRTC. Touch travels over the authenticated session's data channel. MPP is separate from Mali, so remote operation does not depend on GPU rendering. Snapshots remain for thumbnails.
 
-The renderer parses each file once, uploads geometry to the GPU, renders only changed views, and releases resources when hidden. The selected layer is opaque; other layers are composited once at 24% opacity. Supersampling and the original screen are retained during performance work.
+Refreshing a browser page replaces its abandoned session; closing it releases its session and touch ownership. Other viewers retain their sessions. Keep the two-viewer limit and fix lifecycle leaks at their owner. Remote failures must not restart the factory UI or printing services.
 
-The factory executable contains statically linked LVGL and has no supported plugin interface in this implementation. The adapter checks exact executable hashes before calling private LVGL functions. Keep private structure offsets in the version description, document tested versions, and fall back to the original image on rendering failure. An exit guard does not isolate a running GUI from a hung GPU call.
+## Research and release boundaries
 
-The frame path resolves supersampling into a shared DMA-BUF, waits for GPU completion, synchronizes CPU access, and copies pixels into LVGL. Unsupported imports retain glReadPixels. This removes the measured readback bottleneck but is not end-to-end zero-copy. Compare UI_GPU_OUTPUT=readback against automatic output in the same binary, separately from the global off/on cadence comparison. The performance target is a 22.2 ms frame budget at unchanged visual quality; complex models can still exceed it.
+gui-gpu stays outside gui and stock-ui. Its measured widget compositor was slower than CPU despite matching tested pixels. Continue whole-widget GPU work only for an identified expensive page with a complete-frame benefit. Automatic reconstruction remains a fallback requiring portable resources, generated views and state/interaction replay.
 
-The file cursor tracks interpreter progress, which can lead physical movement. It is not a precise nozzle-position signal.
-
-## Evidence and release boundaries
-
-At the initial split, all three capabilities were already present in gui commit df33ccc and deployed through stock-ui commit 64ad82b on vendor 2.1.0.157. Earlier G-code development measurements used a 70,370-vertex model: 38.47 ms median and 46.4 ms p95 across 40 warm rotating frames with 2x supersampling. They are a baseline, not measurements of later optimization commits.
-
-The 2.1 deployment record contains boot, configuration, MCU, audio and read-only WebRTC checks. The user accepted the preceding UI interaction behavior; no additional automated UI input was performed after they asked to stop. Long-print behavior, total UI latency and acoustic effects are not established by a successful build.
-
-Keep per-commit build and measured results with the deployment record. Each stage uses the existing Feature firmware workflow. A passed stage build does not imply that every factory GUI version or board revision is supported. Do not create pull requests or rewrite existing published history as part of routine synchronization.
+The existing Feature firmware workflow builds the combined GPU feature. Per-commit build evidence remains separate from image deployment and device acceptance. User-accepted interaction checks are not repeated merely because branches were consolidated. Long-print stability, latency and acoustic effects are not established by build success. See [GPU architecture](gpu-architecture.md) for ownership and comparison rules.

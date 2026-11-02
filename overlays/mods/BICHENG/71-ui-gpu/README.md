@@ -1,6 +1,8 @@
-# U1 Mali GPU foundation
+# U1 Mali GPU runtime and Helix adaptation
 
-This foundation is in maintenance. Scope, comparison rules and checks are owned
+The gpu branch combines this runtime, Helix adaptation and the factory G-code
+consumer in 72-stock-ui. Module boundaries remain separate; gui-gcode is now a
+historical branch. Scope, comparison rules and checks are owned
 by the [GPU architecture](../../../../docs/gpu-architecture.md#maintenance-boundary).
 
 This overlay enables the existing RK3562 Mali-G52 node, builds the pinned
@@ -41,6 +43,9 @@ renderer. On U1, enabling this feature selects 22 ms display and animation
 periods, matching the measured panel mode of about 45 Hz. Disabling it retains
 the 33 ms baseline. These are timer periods, not a promise that every scene
 renders 45 new frames per second. Input polling and panel timing are unchanged.
+The factory-homepage ablation reached about 45 fps at 22 ms with the GPU driver
+absent. This cadence benefit is separate from GPU drawing; the setting remains
+coupled for now. See the architecture's measured results.
 
 Helix uses a patched executable only when its installed asset version matches
 the executable's version record. The official executable remains the fallback.
