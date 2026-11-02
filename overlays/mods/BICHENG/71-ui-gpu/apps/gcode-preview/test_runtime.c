@@ -3,11 +3,13 @@
 #include "gpu.h"
 #include "progress.h"
 #include <assert.h>
+#include <errno.h>
 #include <math.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -86,12 +88,52 @@ static void waiting(unsigned prior){
 static void release(void){
     pthread_mutex_lock(&gate);blocked=0;pthread_cond_broadcast(&changed);pthread_mutex_unlock(&gate);
 }
-static void fixture(char *path,int x){
+static void fixture_tools(char *path,int x,unsigned first,unsigned second){
     int fd=mkstemp(path);assert(fd>=0);FILE *f=fdopen(fd,"w");assert(f);
-    fprintf(f,"M83\n;LAYER_CHANGE\nG1 X%d Y10 Z.2\nT0\nG1 X%d E1\n;LAYER_CHANGE\nG1 Z.4\nT3\nG1 Y20 E1\n",x,x+10);
+    fprintf(f,"M83\n;LAYER_CHANGE\nG1 X%d Y10 Z.2\nT%u\nG1 X%d E1\n;LAYER_CHANGE\nG1 Z.4\nT%u\nG1 Y20 E1\n",x,first,x+10,second);
     assert(!fclose(f));
 }
+static void fixture(char *path,int x){fixture_tools(path,x,0,3);}
 static void *destroy_session(void *p){api->destroy(p);return NULL;}
+static void printing(const char *path){
+    struct stat info;assert(!stat(path,&info));
+    pthread_mutex_lock(&gate);printer.state=JOB_PRINTING;
+    snprintf(printer.filename,sizeof(printer.filename),"%s",strrchr(path,'/')+1);
+    printer.file_position=printer.file_size=(uint64_t)info.st_size;pthread_mutex_unlock(&gate);
+}
+static void source_identity(const char *cached,uint8_t *pixels){
+    /* Native job resolution deliberately requires canonical files in this directory. */
+    int userdata=mkdir("/userdata",0700)==0;assert(userdata||errno==EEXIST);
+    int gcodes=mkdir("/userdata/gcodes",0700)==0;assert(gcodes||errno==EEXIST);
+    char a[]="/userdata/gcodes/preview-runtime-a-XXXXXX",b[]="/userdata/gcodes/preview-runtime-b-XXXXXX";
+    fixture(a,20);fixture_tools(b,80,1,1);printing(a);
+    GcodePreviewSource source={cached,strrchr(a,'/')+1,480,320,0,0};
+    GcodePreview *p=api->create();assert(p);assert(!api->load(p,&source));
+    GcodePreviewStatus s=frame(p,pixels,20,1,10);
+    assert(s.live_available&&s.live_follow&&s.tools_used==9);uint64_t generation=s.generation;
+    printing(b);double until=seconds()+3;
+    do{
+        s=status(p);assert(s.generation==generation&&!strcmp(s.filename,cached)&&s.tools_used==9);
+        assert(seconds()<until);usleep(1000);
+    }while(s.live_available||s.live_follow);
+    s=frame(p,pixels,20,1,10);assert(s.phase==GCODE_PREVIEW_LOADED&&!s.live_follow);
+    api->action(p,GCODE_PREVIEW_LAYER,0,0);s=frame(p,pixels,20,0,10);
+    assert(!s.following&&!s.live_available&&s.tools_used==9&&!strcmp(s.filename,cached));
+    api->action(p,GCODE_PREVIEW_FOLLOW,0,0);assert(!status(p).following);api->destroy(p);
+
+    printing(a);source.path=a;source.job_filename=NULL;
+    p=api->create();assert(p);assert(!api->load(p,&source));
+    s=frame(p,pixels,20,1,10);assert(s.live_follow);generation=s.generation;
+    printing(b);until=seconds()+3;
+    do{s=status(p);assert(seconds()<until);usleep(1000);}
+    while(s.generation==generation||s.phase!=GCODE_PREVIEW_LOADED);
+    s=frame(p,pixels,80,1,10);
+    assert(s.generation!=generation&&!strcmp(s.filename,b)&&s.tools_used==2&&s.live_available&&s.live_follow);
+    api->destroy(p);unlink(a);unlink(b);
+    if(gcodes)rmdir("/userdata/gcodes");
+    if(userdata)rmdir("/userdata");
+    puts("Explicit source stays pinned; native path-only source follows the next print");
+}
 
 int main(void){
     caller=pthread_self();api=gcode_preview_get_api(GCODE_PREVIEW_ABI);
@@ -161,6 +203,7 @@ int main(void){
     prior=hold();api->action(p,GCODE_PREVIEW_REFRESH,0,0);waiting(prior);
     pthread_t destroyer;assert(!pthread_create(&destroyer,NULL,destroy_session,p));
     usleep(10000);release();assert(!pthread_join(destroyer,NULL));
+    source_identity(first,pixels);
     pthread_mutex_lock(&gate);assert(created==destroyed);pthread_mutex_unlock(&gate);
     unlink(first);unlink(second);free(pixels);
     puts("Shared preview lifetime, latest frame, controls and follow checks passed");
