@@ -995,10 +995,43 @@ index 0000000..f29520d
 +}
 +} // namespace helix::test_access
 diff --git a/src/ui/ui_panel_print_status.cpp b/src/ui/ui_panel_print_status.cpp
-index 99e3dc9..fb66daa 100644
+index 99e3dc9..832760c 100644
 --- a/src/ui/ui_panel_print_status.cpp
 +++ b/src/ui/ui_panel_print_status.cpp
-@@ -1816,6 +1816,15 @@ void PrintStatusPanel::load_gcode_file(const char* file_path) {
+@@ -103,6 +103,15 @@ static void uninstall_root_delete_hook(lv_obj_t*& root, lv_event_cb_t cb, void*
+     root = nullptr;
+ }
+ 
++static void detach_gcode_viewer_callbacks(lv_obj_t* viewer) {
++    if (!viewer || !lv_is_initialized() || !lv_obj_is_valid(viewer))
++        return;
++    ui_gcode_viewer_set_load_callback(viewer, nullptr, nullptr);
++    ui_gcode_viewer_set_first_frame_callback(viewer, nullptr, nullptr);
++    ui_gcode_viewer_set_clear_callback(viewer, nullptr, nullptr);
++    ui_gcode_viewer_set_paused(viewer, true);
++}
++
+ // Global instance for legacy API and resize callback
+ static std::unique_ptr<PrintStatusPanel> g_print_status_panel;
+ 
+@@ -879,6 +888,8 @@ void PrintStatusPanel::init_subjects() {
+ }
+ 
+ void PrintStatusPanel::deinit_subjects() {
++    // A deferred widget deletion can leave its load timer alive after this panel.
++    detach_gcode_viewer_callbacks(gcode_viewer_);
+     if (!subjects_initialized_)
+         return;
+ 
+@@ -1336,6 +1347,7 @@ void PrintStatusPanel::cleanup() {
+ 
+ void PrintStatusPanel::on_ui_destroyed() {
+     spdlog::debug("[{}] on_ui_destroyed() - nulling widget pointers", get_name());
++    detach_gcode_viewer_callbacks(gcode_viewer_);
+ 
+     // The tree is only detached here (the actual deletion is deferred), so the
+     // delete hook is still installed on it. Remove it now: the panel can be
+@@ -1816,6 +1828,15 @@ void PrintStatusPanel::load_gcode_file(const char* file_path) {
  
      spdlog::debug("[{}] Loading G-code file: {}", get_name(), file_path);
  
@@ -1014,7 +1047,7 @@ index 99e3dc9..fb66daa 100644
      // Register callback to be notified when loading completes
      ui_gcode_viewer_set_load_callback(
          gcode_viewer_,
-@@ -1854,7 +1863,12 @@ void PrintStatusPanel::load_gcode_file(const char* file_path) {
+@@ -1854,7 +1875,12 @@ void PrintStatusPanel::load_gcode_file(const char* file_path) {
              // Show viewer if print is active or in terminal state (user can see
              // where print stopped). Only skip in Idle.
              if (self->lifecycle_.want_viewer()) {
@@ -1027,7 +1060,7 @@ index 99e3dc9..fb66daa 100644
              }
  
              // Force layout recalculation now that viewer is visible
-@@ -3700,6 +3714,9 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
+@@ -3700,6 +3726,9 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
              spdlog::info("[{}] Using cached G-code file ({} bytes): {}", get_name(), cached_size,
                           temp_path);
              temp_gcode_path_ = temp_path;
@@ -1037,7 +1070,7 @@ index 99e3dc9..fb66daa 100644
              load_gcode_file(temp_path.c_str());
              return;
          } else {
-@@ -3724,11 +3741,14 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
+@@ -3724,11 +3753,14 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
          auto inner_token = lifetime_.token();
          api_->transfers().download_file_to_path(
              root, download_filename, temp_path,
@@ -1054,11 +1087,55 @@ index 99e3dc9..fb66daa 100644
                      load_gcode_file(path.c_str());
                  });
              },
+diff --git a/src/ui/ui_panel_settings.cpp b/src/ui/ui_panel_settings.cpp
+index b0b175b..e547785 100644
+--- a/src/ui/ui_panel_settings.cpp
++++ b/src/ui/ui_panel_settings.cpp
+@@ -176,7 +176,7 @@ static void on_gcode_mode_changed(lv_event_t* e) {
+     // Map dropdown index to render mode value
+     // With GLES: indices match mode values directly (0=Auto, 1=3D, 2=2D, 3=Thumbnail)
+     // Without GLES: reduced set (0=Auto, 1=2D Layers, 2=Thumbnail Only)
+-#ifndef ENABLE_GLES_3D
++#if !defined(ENABLE_GLES_3D) && !defined(HELIX_PLATFORM_SNAPMAKER_U1)
+     static const int INDEX_TO_MODE[] = {0, 2, 3}; // Auto, 2D Layers, Thumbnail Only
+     int mode = (index >= 0 && index <= 2) ? INDEX_TO_MODE[index] : 0;
+ #else
+@@ -687,7 +687,7 @@ void SettingsPanel::setup_toggle_handlers() {
+     if (gcode_mode_row) {
+         lv_obj_t* gcode_dropdown = lv_obj_find_by_name(gcode_mode_row, "dropdown");
+         if (gcode_dropdown) {
+-#ifndef ENABLE_GLES_3D
++#if !defined(ENABLE_GLES_3D) && !defined(HELIX_PLATFORM_SNAPMAKER_U1)
+             // Without GLES, remove "3D View" option — use reduced set
+             // Indices: 0=Auto, 1=2D Layers, 2=Thumbnail Only
+             lv_dropdown_set_options(gcode_dropdown,
 diff --git a/src/ui/ui_print_select_detail_view.cpp b/src/ui/ui_print_select_detail_view.cpp
-index 24533d3..0ef90bb 100644
+index 24533d3..5724421 100644
 --- a/src/ui/ui_print_select_detail_view.cpp
 +++ b/src/ui/ui_print_select_detail_view.cpp
-@@ -263,6 +263,10 @@ lv_obj_t* PrintSelectDetailView::create(lv_obj_t* parent_screen) {
+@@ -64,11 +64,21 @@ static PrintSelectDetailView* s_detail_view_instance = nullptr;
+ // toggle. Defined later in this TU.
+ static void update_prep_time_label();
+ 
++static void detach_gcode_viewer_callbacks(lv_obj_t* viewer) {
++    if (!viewer || !lv_is_initialized() || !lv_obj_is_valid(viewer))
++        return;
++    ui_gcode_viewer_set_load_callback(viewer, nullptr, nullptr);
++    ui_gcode_viewer_set_first_frame_callback(viewer, nullptr, nullptr);
++    ui_gcode_viewer_set_clear_callback(viewer, nullptr, nullptr);
++    ui_gcode_viewer_set_paused(viewer, true);
++}
++
+ // ============================================================================
+ // Lifecycle
+ // ============================================================================
+ 
+ PrintSelectDetailView::~PrintSelectDetailView() {
++    detach_gcode_viewer_callbacks(gcode_viewer_);
+     // Clear static instance pointer
+     if (s_detail_view_instance == this) {
+         s_detail_view_instance = nullptr;
+@@ -263,6 +273,10 @@ lv_obj_t* PrintSelectDetailView::create(lv_obj_t* parent_screen) {
      print_button_ = lv_obj_find_by_name(overlay_root_, "print_button");
  
      // Find and configure G-code viewer widget
@@ -1069,7 +1146,33 @@ index 24533d3..0ef90bb 100644
      gcode_viewer_ = lv_obj_find_by_name(overlay_root_, "detail_gcode_viewer");
      if (gcode_viewer_) {
          spdlog::debug("[DetailView] G-code viewer widget found");
-@@ -2310,6 +2314,11 @@ void PrintSelectDetailView::begin_viewer_load(const std::string& path) {
+@@ -840,15 +854,8 @@ void PrintSelectDetailView::on_deactivate() {
+ void PrintSelectDetailView::cleanup() {
+     spdlog::debug("[DetailView] cleanup()");
+ 
+-    // Pause viewer before subject cleanup to avoid rendering with freed subjects.
+-    // Drop the first-frame callback too: it captures `this` and writes
+-    // detail_viewer_first_frame_, which subjects_.deinit_all() below destroys.
+-    // The viewer outlives this object on some teardown paths, and paused
+-    // rendering is not a guarantee — unpausing anywhere else would resurrect it.
+-    if (gcode_viewer_) {
+-        ui_gcode_viewer_set_paused(gcode_viewer_, true);
+-        ui_gcode_viewer_set_first_frame_callback(gcode_viewer_, nullptr, nullptr);
+-    }
++    // Parsing may finish while paused, so detach callbacks before freeing subjects.
++    detach_gcode_viewer_callbacks(gcode_viewer_);
+ 
+     // Expire all outstanding async tokens
+     lifetime_.invalidate();
+@@ -874,6 +881,7 @@ void PrintSelectDetailView::cleanup() {
+ 
+ void PrintSelectDetailView::on_ui_destroyed() {
+     spdlog::debug("[DetailView] on_ui_destroyed() - nulling widget pointers");
++    detach_gcode_viewer_callbacks(gcode_viewer_);
+ 
+     // Invalidate outstanding tokens so in-flight async callbacks (gcode download,
+     // metadata fetch, load callbacks) bail out — they captured pointers to
+@@ -2310,6 +2318,11 @@ void PrintSelectDetailView::begin_viewer_load(const std::string& path) {
              spdlog::debug("[DetailView] G-code preview loaded successfully");
          },
          this);
@@ -1081,3 +1184,25 @@ index 24533d3..0ef90bb 100644
      ui_gcode_viewer_load_file(gcode_viewer_, path.c_str());
  }
  
+diff --git a/src/ui/ui_settings_printing.cpp b/src/ui/ui_settings_printing.cpp
+index 0674c35..d3b9271 100644
+--- a/src/ui/ui_settings_printing.cpp
++++ b/src/ui/ui_settings_printing.cpp
+@@ -183,7 +183,7 @@ void PrintingSettingsOverlay::init_gcode_mode_dropdown() {
+     lv_obj_t* dropdown = lv_obj_find_by_name(row, "dropdown");
+     if (dropdown) {
+         auto& display_settings = DisplaySettingsManager::instance();
+-#ifndef ENABLE_GLES_3D
++#if !defined(ENABLE_GLES_3D) && !defined(HELIX_PLATFORM_SNAPMAKER_U1)
+         // Without GLES, remove "3D View" option
+         lv_dropdown_set_options(dropdown, (std::string(lv_tr("Auto")) + "\n" + lv_tr("2D Layers") +
+                                            "\n" + lv_tr("Thumbnail Only"))
+@@ -232,7 +232,7 @@ void PrintingSettingsOverlay::handle_toolhead_style_changed(int index) {
+ }
+ 
+ void PrintingSettingsOverlay::handle_gcode_mode_changed(int index) {
+-#ifndef ENABLE_GLES_3D
++#if !defined(ENABLE_GLES_3D) && !defined(HELIX_PLATFORM_SNAPMAKER_U1)
+     static const int INDEX_TO_MODE[] = {0, 2, 3}; // Auto, 2D Layers, Thumbnail Only
+     int mode = (index >= 0 && index <= 2) ? INDEX_TO_MODE[index] : 0;
+ #else
