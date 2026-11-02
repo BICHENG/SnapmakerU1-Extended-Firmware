@@ -38,7 +38,14 @@ export RANLIB="${CROSS_COMPILE}ranlib"
 export STRIP="${CROSS_COMPILE}strip"
 
 echo ">> Compiling dependencies..."
+# MPP's recursive archive merge also scans usr-local. Exclude the previous
+# installed archive and rebuild the combined archive from cached objects.
+rm -f "$MPP_DIR/usr-local/lib/librockchip_mpp.a" "$MPP_DIR/mpp/librockchip_mpp.a"
 make -C "$TARGET_DIR" deps
+if [[ "$("$AR" t "$MPP_DIR/usr-local/lib/librockchip_mpp.a" | awk '$0 == "mpp_enc_impl.c.o" { n++ } END { print n+0 }')" != 1 ]]; then
+  echo "Error: MPP static archive must contain exactly one encoder implementation." >&2
+  exit 1
+fi
 
 echo ">> Compiling v4l2-mpp applications..."
 # These targets do not list the static MPP archive as a dependency.
