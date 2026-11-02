@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include "stock-perf.h"
+#include "../ui-display/ui-display.h"
 #include <dlfcn.h>
 #include <ctype.h>
 #include <errno.h>
@@ -39,7 +40,38 @@ static const DisplayAbi *vendor_abi;
 static int (*original_usleep)(useconds_t);
 static unsigned (*extension_tick)(unsigned);
 static int main_initialized, gpu_enabled, policy_reported, unsupported_reported;
+static int baseline;
+static ui_display *presenter;
+static void *presented_display;
 static uint64_t benchmark_until, benchmark_checked;
+
+static void native_flush(void *display, const int32_t *area, uint8_t *pixels)
+{
+    if(area && pixels && area[0] >= 0 && area[1] >= 0 && area[2] < 480 && area[3] < 320) {
+        int last = *(volatile int *)((char *)display + 0x4c) != 0;
+        ui_display_update(presenter, area[0], area[1], area[2], area[3],
+                          pixels + ((size_t)area[1] * 480 + area[0]) * 4, 480 * 4, last);
+    }
+    ((void (*)(void *))(vendor_base + 0xcae40))(display);
+}
+
+static void attach_presenter(void *display)
+{
+    if(baseline || !display || presented_display || strcmp(vendor_abi->version, "2.1.0.157")) return;
+    const int32_t *resolution = display;
+    uintptr_t *flush = (uintptr_t *)((char *)display + 0x38);
+    if(resolution[0] != 480 || resolution[1] != 320 || *flush != vendor_base + 0x13620) return;
+    presenter = ui_display_open("/dev/fb0");
+    if(!presenter) return;
+    *flush = (uintptr_t)native_flush;
+    presented_display = display;
+}
+
+__attribute__((destructor)) static void display_shutdown(void)
+{
+    ui_display_close(presenter);
+    presenter = NULL;
+}
 
 static void display_log(const char *format, ...)
 {
@@ -153,6 +185,8 @@ static unsigned native_tick(unsigned sleep_us, uintptr_t caller)
     if(!main_initialized) {
         const char *enabled=getenv("UI_GPU_ENABLED");
         gpu_enabled=enabled && !strcmp(enabled,"1");
+        const char *original=getenv("UI_DISPLAY_BASELINE");
+        baseline=original && !strcmp(original,"1");
         extension_tick=dlsym(RTLD_DEFAULT,"stock_ui_tick");
         main_initialized=1;
     }
@@ -162,18 +196,19 @@ static unsigned native_tick(unsigned sleep_us, uintptr_t caller)
     void *global=*(void **)(vendor_base+abi->global_got);
     void *display=global?*(void **)((char *)global+abi->global_display_offset):NULL;
     void *refresh=display?*(void **)((char *)display+abi->display_timer_offset):NULL;
+    attach_presenter(display);
     unsigned before=0, refresh_period=0, animation_before=0, animation_period=0;
     int perf_result=-1, benchmark_cancelled=0;
     if(refresh) {
         void (*set_period)(void *,unsigned)=(void (*)(void *,unsigned))(vendor_base+abi->timer_set_period);
         before=*(unsigned *)refresh;
-        if(gpu_enabled && before!=22) set_period(refresh,22);
+        if(!baseline && before!=22) set_period(refresh,22);
         refresh_period=*(unsigned *)refresh;
         if(abi->animation_get_timer) {
             void *animation=((void *(*)(void))(vendor_base+abi->animation_get_timer))();
             if(animation) {
                 animation_before=*(unsigned *)animation;
-                if(gpu_enabled && animation_before!=22) set_period(animation,22);
+                if(!baseline && animation_before!=22) set_period(animation,22);
                 animation_period=*(unsigned *)animation;
             }
         }
