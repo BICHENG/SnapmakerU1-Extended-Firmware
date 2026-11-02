@@ -5,6 +5,9 @@ python3 "$HERE/apps/patch_fb_http.py" "$1/usr/local/bin/fb-http.py"
 SOURCE="$CACHE_DIR/v4l2-mpp"
 # The camera overlay builds the pinned MPP and WebRTC dependencies first.
 test -f "$SOURCE/deps/libdatachannel/build/libdatachannel-static.a"
+gcc -O1 -g -fsanitize=address,undefined -Wall -Wextra -Werror \
+    -I"$HERE/apps" -I"$ROOT_DIR/common" "$HERE/test/screen-snapshot-test.c" -o "$BUILD_DIR/screen-snapshot-test"
+"$BUILD_DIR/screen-snapshot-test"
 g++ -std=c++17 -O1 -g -fsanitize=address,undefined -Wall -Wextra -Werror \
     -I"$SOURCE/common" "$HERE/test/screen-stream-test.cpp" -o "$BUILD_DIR/screen-stream-test"
 "$BUILD_DIR/screen-stream-test"
