@@ -75,11 +75,16 @@ When the driver provides both pages, the presenter copies to the back page and
 uses `FBIOPAN_DISPLAY` with `FB_ACTIVATE_VBL`. The pinned Rockchip driver uses a
 blocking atomic commit, so the previous page is not reused before completion.
 
-If two pages are unavailable or a flip fails, a visible-page copy keeps the UI
-usable. That fallback does not guarantee freedom from tearing. Check
-`/tmp/ui-display.json` for `double_buffer`, `flips`, `errors`, `yoffset` and
-presentation timing. The final two-page firmware still requires flash and
-physical-panel acceptance; successful compilation does not establish that
+If a two-page flip fails, the previous complete page remains visible. Only
+`EINTR` is retried on the same back page, with at most three total attempts.
+The next flush submits the complete retained canvas. If only one page is
+available, visible-page copying remains as an unsynchronized compatibility mode.
+Check `/tmp/ui-display.json` for `double_buffer`, `flips`, `errors`, `last_error`,
+`yoffset` and presentation timing. Physical-panel acceptance also requires
+`/sys/kernel/debug/dri/0/state` to show the target CRTC with `enable=1 active=1`
+and a nonzero framebuffer on its plane. `bl_power=0` and increasing flip counts
+do not prove active scanout. The final two-page firmware still requires flash
+and physical-panel acceptance; successful compilation does not establish that
 tearing has been removed.
 
 The presenter publishes its latest complete canvas to `/run/ui-frame` using

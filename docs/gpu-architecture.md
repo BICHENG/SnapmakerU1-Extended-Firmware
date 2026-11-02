@@ -72,13 +72,17 @@ only at the last flush. Boot configuration requests two fbdev pages with
 `drm_kms_helper.drm_fbdev_overalloc=200`. When geometry and page availability
 pass validation, the presenter copies to the back page and calls
 `FBIOPAN_DISPLAY` with `FB_ACTIVATE_VBL`. The pinned Rockchip fbdev driver uses
-a blocking atomic commit, so page reuse follows completion. If pages are
-unavailable or a flip fails, the presenter copies to the visible page to retain
-a usable UI. That fallback does not guarantee freedom from tearing.
+a blocking atomic commit, so page reuse follows completion. If a two-page flip
+fails, the previous complete page remains visible and the next flush submits
+the complete retained canvas. Only `EINTR` is retried on the same back page,
+with at most three total attempts. When only one page is available, visible-page
+copying remains as an unsynchronized compatibility mode.
 
-`/tmp/ui-display.json` records page availability, flips, errors, yoffset, publish
-skips and maximum flip duration. Two pages and successful flips must be verified
-on the flashed system before accepting the physical-panel fix. The current
+`/tmp/ui-display.json` records page availability, flips, errors, the last failure,
+yoffset, publish skips and maximum flip duration. Physical-panel acceptance
+requires two pages, successful flips and `/sys/kernel/debug/dri/0/state` showing
+the target CRTC with `enable=1 active=1` and a nonzero framebuffer on its plane.
+`bl_power=0` and increasing flip counts do not prove active scanout. The current
 panel mode was measured at about 45 Hz; no 60/120 Hz mode has been verified.
 
 The supported 2.1 original UI and patched Helix use 22 ms display and animation
