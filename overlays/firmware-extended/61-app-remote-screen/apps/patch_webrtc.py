@@ -6,6 +6,26 @@ from pathlib import Path
 path = Path(sys.argv[1])
 source = path.read_text()
 changes = [
+    ('#include "h264_frames.h"\n#include "h264_stream.h"', '#include "screen_stream.h"'),
+    ('    std::string id;\n', '    std::string id;\n    uint64_t first_frame_ns = 0;\n'),
+    ('''static void send_frame(const uint8_t *data, size_t size) {
+    std::lock_guard<std::mutex> lock(g_clients_mutex);
+    auto now = std::chrono::steady_clock::now();
+
+    for (auto& client : g_clients) {''', '''static void send_frame(const uint8_t *data, size_t size, uint64_t capture_ns) {
+    std::vector<std::shared_ptr<Client>> clients;
+    {
+        std::lock_guard<std::mutex> lock(g_clients_mutex);
+        clients.assign(g_clients.begin(), g_clients.end());
+    }
+    for (auto& client : clients) {'''),
+    ('''            auto elapsed = std::chrono::duration<double>(now - client->start_time).count();''',
+     '''            if (client->video_track->bufferedAmount() > 65536) {
+                client->pc->close();
+                continue;
+            }
+            if (!client->first_frame_ns) client->first_frame_ns = capture_ns;
+            const double elapsed = double(capture_ns - client->first_frame_ns) / 1000000000.0;'''),
     ('using json = nlohmann::json;', '#include "screen_touch.h"\n\nusing json = nlohmann::json;'),
     ('    std::string id;\n', '    std::string id;\n    std::string screen_owner;\n    uint64_t screen_generation = 0;\n'),
     ('    client->id = std::to_string(++g_client_counter);',
