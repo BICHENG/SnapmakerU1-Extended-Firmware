@@ -210,7 +210,7 @@ index c4a029b..3307c88 100644
                                 std::getenv("HELIX_GCODE_MODE") != nullptr,
 diff --git a/src/ui/ui_gcode_viewer_u1.cpp b/src/ui/ui_gcode_viewer_u1.cpp
 new file mode 100644
-index 0000000..f29520d
+index 0000000..2f87691
 --- /dev/null
 +++ b/src/ui/ui_gcode_viewer_u1.cpp
 @@ -0,0 +1,780 @@
@@ -566,7 +566,7 @@ index 0000000..f29520d
 +    lv_obj_add_event_cb(object, button_clicked, LV_EVENT_CLICKED, &viewer);
 +    auto* label = lv_label_create(object);
 +    lv_label_set_text(label, text);
-+    lv_obj_set_style_text_font(label, theme_manager_get_font("font_small"), 0);
++    lv_obj_set_style_text_font(label, theme_manager_get_font("font_heading"), 0);
 +    lv_obj_center(label);
 +    if (command == Flat)
 +        viewer.mode_label = label;
@@ -623,7 +623,7 @@ index 0000000..f29520d
 +    viewer.follow_button = button(viewer, lv_tr("Current layer"), Follow,
 +                                  LV_ALIGN_BOTTOM_RIGHT, -8, -26, 100);
 +    viewer.layer_label = lv_label_create(viewer.fullscreen);
-+    lv_obj_set_style_text_font(viewer.layer_label, theme_manager_get_font("font_small"), 0);
++    lv_obj_set_style_text_font(viewer.layer_label, theme_manager_get_font("font_heading"), 0);
 +    lv_obj_set_style_text_color(viewer.layer_label, lv_color_hex(0xe5e8eb), 0);
 +    lv_obj_set_width(viewer.layer_label, 350);
 +    lv_label_set_long_mode(viewer.layer_label, LV_LABEL_LONG_WRAP);
