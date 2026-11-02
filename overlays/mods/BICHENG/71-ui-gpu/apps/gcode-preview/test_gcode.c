@@ -14,11 +14,11 @@ static Model load(const char *data,int expect){
 int main(int argc,char **argv){
     if(argc==2){Model m={0};int rc=gcode_load(&m,argv[1],NULL,0);printf("result=%d vertices=%zu layers=%u bounds=%.2f,%.2f,%.2f..%.2f,%.2f,%.2f error=%s\n",rc,m.count,m.layers,m.min[0],m.min[1],m.min[2],m.max[0],m.max[1],m.max[2],m.error);gcode_free(&m);return rc!=0;}
     Model m=load("G90\nM83\nG1 X10 Y10 Z0.2\nG1 X20 E1\nG1 E-1\nG1 X30\nG1 E1\nT3\nG1 Y20 E1\n",0);
-    assert(m.count==4&&m.layers==1&&m.vertices[0].x==10&&m.vertices[2].x==30&&m.vertices[2].color[0]==255);gcode_free(&m);
+    assert(m.count==4&&m.layers==1&&m.vertices[0].x==10&&m.vertices[2].x==30&&m.vertices[2].color[0]==255&&m.tools_used==9);gcode_free(&m);
     m=load("M82\nG1 X10 E1\nG92 X0 E0\nG1 X10 E1\nG91\nG1 Y10 E2\n",0);
     assert(m.count==6&&m.max[0]==20&&m.max[1]==10);gcode_free(&m);
-    m=load("M83\nG1 X20 E1\n;LAYER_CHANGE\nG1 Z0.2\nG1 E1\nG1 Y10 E1\n;LAYER_CHANGE\nG1 Z0.4\nG1 E1\nG1 X30 E1\n",0);
-    assert(m.count==4&&m.layers==2&&fabs(m.layer_z[1]-.4)<.001);gcode_free(&m);
+    m=load("M83\nT2\nG1 X20 E1\n;LAYER_CHANGE\nT0\nG1 Z0.2\nG1 E1\nG1 Y10 E1\n;LAYER_CHANGE\nG1 Z0.4\nG1 E1\nG1 X30 E1\n",0);
+    assert(m.count==4&&m.layers==2&&fabs(m.layer_z[1]-.4)<.001&&m.tools_used==1);gcode_free(&m);
     m=load("M83\nG1 X10 Y0\nG3 X0 Y10 I-10 J0 E1\n",0);
     assert(m.count>10&&fabs(m.max[0]-10)<.001&&fabs(m.max[1]-10)<.001);gcode_free(&m);
     m=load("G20\nM83\nG1 X1 E1\n",0);assert(fabs(m.max[0]-25.4)<.001);gcode_free(&m);

@@ -15,8 +15,7 @@ jobs:
         with:
           path: |
             ui-artifact
-            ui-test-artifact
-          key: helix-u1-gpu-binary-${{ hashFiles('.github/workflows/helix-gpu.yaml', '.github/scripts/prepare-helix-gpu.py', 'overlays/mods/BICHENG/71-ui-gpu/apps/helix-gpu-shared.patch', 'overlays/mods/BICHENG/71-ui-gpu/apps/ui-gpu/gpu_output.*', 'overlays/mods/BICHENG/71-ui-gpu/apps/ui-display/*', 'common/ui-frame.h', 'overlays/firmware-extended/69-app-helixscreen/root/usr/local/share/extended-pkg/helixscreen') }}
+          key: helix-u1-gpu-binary-${{ hashFiles('.github/workflows/helix-gpu.yaml', '.github/scripts/prepare-helix-gpu.py', 'overlays/mods/BICHENG/71-ui-gpu/apps/helix-gpu-shared.patch', 'overlays/mods/BICHENG/71-ui-gpu/apps/gcode-preview/gcode-preview.h', 'overlays/mods/BICHENG/71-ui-gpu/apps/ui-display/*', 'common/ui-frame.h', 'overlays/firmware-extended/69-app-helixscreen/root/usr/local/share/extended-pkg/helixscreen') }}
       - name: Fetch and prepare pinned Helix source
         if: steps.binary.outputs.cache-hit != 'true'
         run: |
@@ -24,12 +23,6 @@ jobs:
           test "$(git -C helix rev-parse HEAD)" = faed4e35010e970ba5612e9b2e109c52a11965a6
           git -C helix submodule update --init --recursive --depth 1
           python3 .github/scripts/prepare-helix-gpu.py prepare helix
-      - name: Check asynchronous frame ownership
-        if: steps.binary.outputs.cache-hit != 'true'
-        run: |
-          g++ -std=c++17 -pthread -O1 -g -fsanitize=address,undefined -Ihelix/include \
-            helix/tests/standalone/gcode_latest_frame.cpp -o /tmp/gcode-latest-frame-test
-          /tmp/gcode-latest-frame-test
       - uses: docker/setup-buildx-action@v3
         if: steps.binary.outputs.cache-hit != 'true'
       - uses: docker/build-push-action@v6
@@ -47,36 +40,23 @@ jobs:
           path: helix/.ccache
           key: helix-u1-gpu-ccache-${{ runner.arch }}-${{ github.sha }}
           restore-keys: helix-u1-gpu-ccache-${{ runner.arch }}-
-      - name: Compile U1 GPU G-code with the software fbdev UI
+      - name: Compile U1 UI with the shared G-code adapter
         if: steps.binary.outputs.cache-hit != 'true'
         run: |
           docker run --rm -e CCACHE_DIR=/src/.ccache -v "$PWD/helix:/src" -w /src helix-u1-gpu:local \
-            make PLATFORM_TARGET=snapmaker-u1 DISPLAY_BACKEND=fbdev ENABLE_GLES_3D=yes ENABLE_OPENGLES=no SKIP_OPTIONAL_DEPS=1 -j4
+            make PLATFORM_TARGET=snapmaker-u1 DISPLAY_BACKEND=fbdev ENABLE_GLES_3D=no ENABLE_OPENGLES=no SKIP_OPTIONAL_DEPS=1 -j4
           python3 .github/scripts/prepare-helix-gpu.py package helix ui-artifact
-      - name: Link offscreen self-test from the same production objects
-        if: steps.binary.outputs.cache-hit != 'true'
-        run: |
-          docker run --rm -e CCACHE_DIR=/src/.ccache -v "$PWD/helix:/src" -w /src helix-u1-gpu:local \
-            make PLATFORM_TARGET=snapmaker-u1 DISPLAY_BACKEND=fbdev ENABLE_GLES_3D=yes ENABLE_OPENGLES=no SKIP_OPTIONAL_DEPS=1 -j4 gpu-self-test
-          python3 .github/scripts/prepare-helix-gpu.py package helix ui-test-artifact --self-test
       - name: Bound the compiler cache
         if: steps.binary.outputs.cache-hit != 'true'
         run: |
           docker run --rm -e CCACHE_DIR=/src/.ccache -v "$PWD/helix:/src" helix-u1-gpu:local \
-            sh -c 'ccache --max-size=256M && ccache --cleanup'
+            sh -c 'ccache --max-size=1G && ccache --cleanup'
       - name: Verify artifact source and checksums
         run: |
           python3 .github/scripts/prepare-helix-gpu.py verify ui-artifact
-          python3 .github/scripts/prepare-helix-gpu.py verify ui-test-artifact --self-test
       - uses: actions/upload-artifact@v4
         with:
           name: helix-u1-gpu
           path: ui-artifact/
-          if-no-files-found: error
-          retention-days: 14
-      - uses: actions/upload-artifact@v4
-        with:
-          name: helix-u1-gpu-test
-          path: ui-test-artifact/
           if-no-files-found: error
           retention-days: 14

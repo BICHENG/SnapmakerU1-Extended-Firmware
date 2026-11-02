@@ -1,18 +1,17 @@
-# U1 Mali GPU runtime and Helix adaptation
+# U1 GPU runtime and shared G-code preview
 
-The gpu branch combines this runtime, Helix adaptation and the factory G-code
-consumer in 72-stock-ui. Module boundaries remain separate; gui-gcode is now a
-historical branch. Scope, comparison rules and checks are owned
-by the [GPU architecture](../../../../docs/gpu-architecture.md#maintenance-boundary).
+The `gpu` branch maintains the Mali runtime, one G-code implementation for both
+interfaces, and their display adapters. The original UI remains primary.
+See [GPU architecture](../../../../docs/gpu-architecture.md) for ownership,
+previous measurements and acceptance status.
 
 This overlay enables the existing RK3562 Mali-G52 node, builds the pinned
 Rockchip kernel's bifrost driver and installs the checksummed Mali g24p0 EGL,
-GLES and GBM library with its licence. It does not change the original UI's
-drawing backend, panel timings or GPU voltage table.
+GLES and GBM library with its licence. It preserves the GPU voltage table and
+panel timing. Ordinary widgets in the original UI and Helix still use LVGL's
+software renderer.
 
-The supported device tree identifies `rockchip,rk3562-evb2-ddr4-v10` and
-`rockchip,rk3562`. Builds require its existing `vdd_gpu` regulator and both
-400 MHz OPP entries. Unknown board layouts fail the build.
+## Setting and startup
 
 Use **Firmware → Snapmaker components → Touchscreen GPU acceleration**.
 The setting preserves the selected interface and reboots only when the printer
@@ -23,106 +22,128 @@ is idle and every heater target is zero. The equivalent configuration is:
 mali_gpu = true
 ```
 
-Startup confirms a 400 MHz maximum by reading it back.
-The original screen can run without this opt-in. Consumers must also check
-the limit before using the GPU; `/dev/mali0` alone does not confirm startup
-completed successfully.
+The supported device tree identifies `rockchip,rk3562-evb2-ddr4-v10` and
+`rockchip,rk3562`. Builds require the existing `vdd_gpu` regulator and both
+400 MHz OPP entries. Unknown board layouts fail the build. Startup sets and
+reads back a 400 MHz maximum. Consumers also check this limit before GPU use;
+the existence of `/dev/mali0` alone does not establish successful startup.
 
-## Shared output and refresh policy
+GPU availability is separate from widget refresh policy. GPU off keeps normal
+thumbnails usable and does not load the shared G-code GPU renderer. The supported
+display adapters retain their 22 ms refresh policy with GPU off.
 
-`apps/ui-gpu/gpu_output.c` owns a linear DMA-BUF, its EGL image, texture and
-CPU read synchronization. It is compiled into both the original UI's G-code
-extension and the pinned Helix 1.0.7 build. Consumers own their render target,
-orientation and color conversion; the shared module preserves every RGBA byte,
-including Helix's alpha selection marker. Unsupported imports use the existing
-`glReadPixels` path. A failed read synchronization aborts the frame and lets the
-consumer dispose its context and recover. There is no additional graphics daemon.
+## One G-code implementation
 
-The original UI and Helix still draw ordinary widgets with LVGL's software
-renderer. On U1, enabling this feature selects 22 ms display and animation
-periods, matching the measured panel mode of about 45 Hz. Disabling it retains
-the 33 ms baseline. These are timer periods, not a promise that every scene
-renders 45 new frames per second. Input polling and panel timing are unchanged.
-The factory-homepage ablation reached about 45 fps at 22 ms with the GPU driver
-absent. This cadence benefit is separate from GPU drawing; the setting remains
-coupled for now. See the architecture's measured results.
+`apps/gcode-preview` installs `/usr/local/lib/libgcode-preview.so`. The original
+UI's `72-stock-ui` adapter and the U1 Helix widget both use its versioned
+`gcode_preview_get_api(1)` C ABI. This library owns parsing, file identity,
+current-layer following, cameras, geometry and rendering. The Helix adapter
+does not maintain a second parser, camera or renderer.
 
-Helix uses a patched executable only when its installed asset version matches
-the executable's version record. The official executable remains the fallback.
-The patched build keeps the fbdev display and its normal CPU widget renderer;
-G-code uses GLES 2 and the shared output module. It does not enable experimental
-NanoVG drawing or require users to change renderer options.
+The library's worker owns EGL and opens `/dev/dri/renderD128`, leaving display
+ownership to fbdev. Callers submit a source and view state, then poll for the
+latest completed image. Parsing can finish while the widget is paused; a loaded
+model is not evidence of a first displayed frame. Generation checks discard
+obsolete results after a file change. UI drawing only composites a completed
+image and does not wait for GL work.
 
-On U1, the existing geometry budget limits tubes to four sides without changing
-path simplification precision. Uploads omit degenerate triangles, and the main
-solid pass writes the selection tag instead of replaying the entire model.
-Ghost layers and selection brackets do not overwrite that tag. Coplanar overlap
-belongs to the face that actually wins the color depth test.
+The native renderer supplies the same supersampled toolpaths, opaque current
+layer, translucent surrounding layers and native color palette to both UIs.
+The U1 Helix adapter provides the native fullscreen controls and passes the
+known printer filename alongside the local cached path. It reveals the preview
+on the first completed frame and retains the thumbnail while loading. Manual
+layer selection cancels follow. The current-layer button is checked only when
+the preview actually follows the live job. Preview object picking and palette
+overrides are unsupported; the adapter does not advertise them as effective.
 
-Before allocating expanded buffers, the same 25% available-memory budget covers
-CPU geometry, the actual per-layer upload payload, and a GPU reserve of 8 MiB
-plus six times that payload. The reserve includes margin over measured U1
-driver allocations; it is not a driver allocation limit. Models over budget use
-the existing 2D fallback. With GPU disabled, this entry skips 3D construction.
+`apps/ui-gpu/gpu_output.c` is compiled into the shared library. It owns the
+linear DMA-BUF, EGL image, texture and CPU read synchronization. Unsupported
+imports use `glReadPixels`; a failed synchronization aborts the frame. Copies
+into LVGL and fbdev remain. No additional graphics daemon is installed.
 
-The small `stock-display` adapter is separate from the G-code extension. It
-recognizes exact original GUI hashes for 2.0.0.205 and 2.1.0.157 and is the sole
-owner of the original main-loop sleep hook. Unknown binaries remain untouched.
-The 2.0 adapter changes only the verified display timer; animation cadence and
-performance events are supported on 2.1. The optional G-code consumer supplies
-`stock_ui_tick`; it does not install a second sleep hook.
+The U1 Helix build uses `DISPLAY_BACKEND=fbdev`, `ENABLE_GLES_3D=no` and
+`ENABLE_OPENGLES=no`. Its thin adapter loads the shared library only when GPU is
+enabled. The patched executable runs only with matching installed assets;
+otherwise the official executable is selected.
 
-## Measuring the baseline
+## Complete-frame display and remote capture
 
-On original GUI 2.1, `/tmp/stock-ui-perf.json` records a five-second window in
-both switch states. `actual_fps` counts completed LVGL renders, excluding idle
-refresh callbacks. Flush timings describe callback and wait time, not panel
-scanout; incomplete event sequences are marked explicitly. The file is updated
-outside the LVGL lock. `/tmp/stock-display.log` records the applied periods.
+The shared `ui-display` presenter gathers LVGL's partial flushes in a complete
+480×320 CPU canvas. It presents only after the last flush. The boot configuration
+requests two framebuffer pages with `drm_kms_helper.drm_fbdev_overalloc=200`.
+When the driver provides both pages, the presenter copies to the back page and
+uses `FBIOPAN_DISPLAY` with `FB_ACTIVATE_VBL`. The pinned Rockchip driver uses a
+blocking atomic commit, so the previous page is not reused before completion.
 
-For a controlled idle-device comparison, write a duration from 1 to 15 seconds
-to `/tmp/stock-display-benchmark-seconds`. The adapter consumes the request once
-and invalidates the existing 480×320 page at its refresh cadence. It does not
-send input, navigate or change page objects. Compare complete five-second
-windows wholly inside that interval, on the same page with the same observers.
-Without a request, no extra redraw is generated.
+If two pages are unavailable or a flip fails, a visible-page copy keeps the UI
+usable. That fallback does not guarantee freedom from tearing. Check
+`/tmp/ui-display.json` for `double_buffer`, `flips`, `errors`, `yoffset` and
+presentation timing. The final two-page firmware still requires flash and
+physical-panel acceptance; successful compilation does not establish that
+tearing has been removed.
 
-For output-path comparisons with identical GPU geometry, set
-`UI_GPU_OUTPUT=readback` for the benchmark process. This keeps GLES enabled but
-disables DMA-BUF output. The global Firmware switch also affects cadence and
-G-code availability, so it is a different comparison.
+The presenter publishes its latest complete canvas to `/run/ui-frame` using
+the layout in `common/ui-frame.h`. Sequence, monotonic timestamp and producer
+PID accompany the XRGB8888 pixels. Nonblocking record locks protect a snapshot;
+a busy reader causes a publish skip rather than delaying the local UI. The
+`gui-remote` encoder consumes this ABI. Its older-firmware framebuffer fallback
+does not provide the same complete-frame guarantee. MPP encoding, WebRTC and
+remote touch remain owned by `gui-remote`.
 
-## Build
+`stock-display` is the sole original main-loop sleep-hook owner. It recognizes
+exact GUI hashes for 2.0.0.205 and 2.1.0.157. The complete-frame presenter,
+animation timer and render counters are verified for the 2.1 adapter; the 2.0
+adapter changes only its verified display timer. Unknown binaries bypass
+private calls. The optional original G-code adapter supplies `stock_ui_tick`.
 
-The existing feature firmware workflow calls `helix-gpu.yaml`, then verifies and
-installs its artifact. The cache key includes the pinned source patch, common
-module, build workflow and package version. A missing, stale or altered artifact
-fails the build. To build locally, run that workflow's prepare/build/package
-steps and place the verified artifact in `ui-artifact/` before `make build`.
+The supported 2.1 original UI and patched Helix use 22 ms display and animation
+periods independently of GPU availability. Helix pointer polling also uses
+22 ms. These periods fit the previously measured panel mode of about 45 Hz;
+no 60/120 Hz mode is verified. The timer period is not a promise of one distinct
+G-code frame per tick.
 
-## Checks
+## Measuring changes
+
+On original GUI 2.1, `/tmp/stock-ui-perf.json` records completed LVGL renders in
+five-second windows and excludes idle refresh callbacks. Flush timings are
+callback and wait durations, not panel scanout or touch latency. Applied periods
+are recorded in `/tmp/stock-display.log`.
+
+For bounded redraw measurement on an idle device, write a duration from 1 to 15
+seconds to `/tmp/stock-display-benchmark-seconds`. This invalidates the existing
+page without input or navigation. Compare complete five-second windows inside
+that interval on the same page with the same observers.
+
+`UI_DISPLAY_BASELINE=1` restores the 33 ms policy and skips the new presenter.
+It is a previous-display-path baseline, not an isolated timer comparison.
+For a renderer-output comparison, use `UI_GPU_OUTPUT=readback` versus automatic
+output with GPU enabled and identical geometry, viewport and cadence. The
+Firmware GPU switch changes G-code availability, so it cannot isolate output
+cost. Previous-release measurements are listed in the architecture document.
+
+## Build and checks
+
+The feature firmware workflow calls `helix-gpu.yaml`, then verifies and installs
+its artifact. The cache key includes the pinned Helix patch, shared ABI/display
+inputs, workflow and package version. Missing, stale or altered artifacts fail
+the build. A local firmware build needs the verified artifact in `ui-artifact/`.
 
 On a Linux build host:
 
 ```sh
 python3 -m unittest discover -s overlays/mods/BICHENG/71-ui-gpu/test -p 'test_*.py'
 make -C overlays/mods/BICHENG/71-ui-gpu/apps/stock-display test
+make -C overlays/mods/BICHENG/71-ui-gpu/apps/gcode-preview test
 ```
 
-For manual device acceptance, copy `test/egl_smoke.py` to the printer and run
-it as root while idle. Close GPU previews first for an isolated suspend check:
+The display and G-code host tests include sanitizer checks. They do not replace
+device tests of EGL imports, framebuffer flips, source changes, widget teardown
+or suspend. The final Helix link and 26 startup/hook tests have passed. A device
+EGL smoke check through `renderD128` reported Mali-G52 and no GL error. Full
+two-page flash acceptance and both interfaces' visual acceptance are pending.
 
-```sh
-python3 egl_smoke.py
-```
-
-The probe draws one offscreen 16×16 GLES 3 triangle. It checks the Mali-G52
-renderer, center and background pixels, GL errors and EGL cleanup. It never
-writes the screen or sends touch input. Drawing runs in a child process so
-all driver descriptors are closed before the parent checks runtime suspend.
-If another process holds `/dev/mali0`, `suspend_check=not_isolated` reports
-that power-management acceptance is inconclusive. It does not stop clients
-or mistake their activity for a probe cleanup failure. Without other clients,
-failure to suspend within five seconds fails the check.
-
-This is a smoke check, not a performance, long-print or driver-recovery test.
+For an isolated device smoke check, run `test/egl_smoke.py` as root while idle
+with GPU previews closed. It draws an offscreen 16×16 triangle, checks pixels,
+renderer identity and cleanup, and sends no screen or touch input. The child
+process closes its driver descriptors before the parent checks runtime suspend.
+Other clients holding `/dev/mali0` make the suspend result inconclusive.
