@@ -11,6 +11,7 @@ typedef struct {
     float *layer_z;
     unsigned layers;
     float min[3],max[3];
+    uint32_t tools_used;
     char error[128];
 } Model;
 int gcode_load(Model *m,const char *path,const atomic_uint *generation,unsigned expected);

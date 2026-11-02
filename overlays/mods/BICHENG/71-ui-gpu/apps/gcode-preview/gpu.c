@@ -74,7 +74,7 @@ void gpu_destroy(Gpu *g) {
 }
 Gpu *gpu_create(const Model *m,char *error,size_t size) {
     Gpu *g=calloc(1,sizeof(*g));if(!g){snprintf(error,size,"内存不足");return NULL;}
-    g->fd=open("/dev/dri/card0",O_RDWR|O_CLOEXEC);
+    g->fd=open("/dev/dri/renderD128",O_RDWR|O_CLOEXEC);
     if(g->fd<0||!(g->gbm=gbm_create_device(g->fd)))goto fail;
     g->display=eglGetDisplay(g->gbm);
     EGLint major,minor,n;EGLConfig config;

@@ -41,7 +41,7 @@ Helix uses the same shared-output source through its existing GLES 2 renderer. I
 
 The 2026-11-01 homepage ablation used two sessions and four complete five-second windows per group. The disabled group rebooted with no GPU module or device node. GPU active-time counters did not increase during any of the four enabled sessions. Temperature/connection indicators varied across boots, so GUI CPU-use differences cannot be attributed to the driver alone. This is bounded full-page redraw, not natural-animation, touch-latency or panel-scanout measurement.
 
-The current panel mode is about 45 Hz; no 60/120 Hz mode has been verified. Complex G-code can exceed its 22.2 ms budget. The factory renderer benchmark in 72-stock-ui/apps/stock-ui/BENCHMARK.md records output-path measurements on GPU-bearing branches. These checks do not establish long-print stability or acoustic effects.
+The current panel mode is about 45 Hz; no 60/120 Hz mode has been verified. Complex G-code can exceed its 22.2 ms budget. The factory renderer benchmark in 71-ui-gpu/apps/gcode-preview/BENCHMARK.md records output-path measurements on GPU-bearing branches. These checks do not establish long-print stability or acoustic effects.
 
 The current Firmware setting still couples GPU availability and 33/22 ms widget cadence. That policy should be decoupled, because the native homepage gain does not require GPU. This consolidation leaves the default behavior intact. The earlier duplicate-clock fix only corrected the bounded redraw test; it did not accelerate normal widget drawing.
 
