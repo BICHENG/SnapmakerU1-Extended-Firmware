@@ -1,34 +1,33 @@
 # Personal feature branches
 
-The fork separates shared GPU support from UI rendering development. Changes are pushed to the owner's fork; opening a pull request requires a separate decision.
+Maintain one GPU rendering feature, including its runtime and the factory/Helix G-code consumers. Changes go to the owner's fork; opening a pull request requires a separate decision.
 
 | Branch | Scope | Build profile |
 | --- | --- | --- |
 | fancurves | Fan curve configuration, editor and Klipper integration | extended |
 | balanced-low-current | Allow Balanced with reduced X/Y current; keep Aggressive blocked | extended |
 | printers-sonic | Phone/network microphone presented through ALSA, including snd-aloop | extended-BICHENG |
-| gpu | Maintenance: Mali runtime, shared output, Firmware switch, stock/Helix adapters and baseline measurement | extended-BICHENG |
+| gpu | Mali runtime and shared output, live G-code in the factory UI, and the version-matched Helix G-code adapter | extended-BICHENG |
 | gui-remote | Framebuffer MPP/WebRTC video and remote touch; independent of Mali | extended |
-| gui-gcode | GPU G-code viewport and version-checked factory UI adapter; includes gpu | extended-BICHENG |
-| gui-gpu | Experimental factory widget GPU rendering and automated reconstruction feasibility; based on gpu | Research only |
-| gui | Integration of gpu, gui-gcode and gui-remote | extended-BICHENG |
-| stock-ui | Integration of the four features for the owner's printer | extended-BICHENG |
+| gui | Integration of gpu and gui-remote | extended-BICHENG |
+| stock-ui | Integration of gui, Fan Curves, Balanced reduced current and the network microphone | extended-BICHENG |
+| gui-gpu | Factory widget drawing and automated reconstruction experiments, based on gpu | Research only |
 | develop | Unmodified upstream develop | Upstream defaults |
 
-The former gui-gpu foundation branch was renamed gpu. Its commits and runtime code are retained. The new gui-gpu starts from gpu and holds measured factory drawing diagnostics and automatic reconstruction research. Its first widget compositor matched tested pixels but was slower than CPU, so it stays outside routine gui and stock-ui integration. It contains no replacement UI. Its evidence and plan live in tools/native-ui and docs/gui-gpu.md on that experimental branch.
+The former gui-gcode branch was merged into gpu on 2026-11-02. Its published history remains available as a frozen reference; it is no longer an active owner or automatic firmware build target. Helix adaptation was already in gpu. Consolidation adds the existing factory G-code implementation without rewriting either renderer or moving installed files.
 
-Keep changes on the branch that owns them. Merge upstream develop into fancurves, balanced-low-current, printers-sonic, gpu and gui-remote. Update gui-gcode and the experimental gui-gpu through gpu. Integrate gui-gcode and gui-remote into gui, then integrate the four product features into stock-ui. Do not rewrite published history. A future accepted gui-gpu change needs an explicit integration decision.
+Merge upstream develop into fancurves, balanced-low-current, printers-sonic, gpu and gui-remote. Integrate gpu and gui-remote directly into gui, then integrate the four product features into stock-ui. Update the experimental gui-gpu through gpu separately. Preserve published history; do not merge the experimental renderer into daily firmware without an explicit acceptance decision.
 
-The G-code stage consumes the foundation's common output module and display tick. The remote stage remains independent. GPU use is opt-in and does not replace the factory LVGL widget renderer. See [GPU architecture](gpu-architecture.md) and [GUI delivery stages](gui-stages.md) for boundaries and acceptance evidence.
+Inside gpu, keep module ownership separate: 71-ui-gpu owns the driver, shared output, display adapter and Helix adaptation; 72-stock-ui owns factory G-code parsing, progress, rendering and controls. A shared branch does not require a shared UI implementation. Ordinary widgets still use CPU rendering. See [GPU architecture](gpu-architecture.md) and [GUI delivery stages](gui-stages.md).
 
-The gpu scope is settled. Its [maintenance boundary](gpu-architecture.md#maintenance-boundary) owns the allowed changes, performance comparisons and checks. Routine maintenance does not resume whole-widget GPU conversion or automatic UI reconstruction.
+The existing stock-ui.yaml workflow builds seven delivery branches. GPU-bearing branches reuse the pinned Helix build and verify its source manifest before installation. The BICHENG profile is selected only when a branch contains BICHENG mods. Artifacts are named <branch>-firmware and contain the firmware image and SHA256SUMS. The workflow does not publish releases, open pull requests or flash a printer.
 
-The existing stock-ui.yaml workflow builds the eight delivery branches with the upstream toolchain. On GPU-bearing branches it also calls the pinned Helix build and verifies its source manifest before installation. It selects the BICHENG profile only when that branch contains BICHENG mods. Artifacts are named <branch>-firmware and contain the firmware image and SHA256SUMS. It does not publish releases, open pull requests or flash a printer. gui-gpu remains excluded from automatic firmware builds while it is research only. Its native-ui.yaml checks diagnostics without packaging them; workflow_dispatch remains available for a future accepted firmware candidate.
+gui-gpu remains outside automatic firmware builds. Its native-ui.yaml checks diagnostics without packaging them; workflow_dispatch remains available for an accepted candidate. Its first widget compositor matched tested pixels but was slower than CPU, and it contains no replacement UI. Research belongs in tools/native-ui and docs/gui-gpu.md on that branch.
 
-The branch reorganization changes documentation and workflow branch selection only. Its commits use [skip ci]; previously accepted runtime commits and deployed firmware keep their own build records. A new branch head is not labelled as a freshly built or deployed firmware.
+The gpu [maintenance boundary](gpu-architecture.md#maintenance-boundary) applies to the combined feature. Keep build commits, current documentation heads and deployed firmware distinct. Consolidation does not establish new performance gains or require flashing unchanged runtime code.
 
-Balanced plus reduced current remains a separate feature: upstream 36fbd40 still rejects it in both enable orders. If upstream later implements the same behavior, compare both paths and retire the patch instead of maintaining a duplicate. The printer's own successful use does not establish safety under all print loads.
+Balanced plus reduced current remains a separate feature: upstream 36fbd40 still rejects it in both enable orders. If upstream implements the same behavior, compare both paths and retire the duplicate patch. The printer's successful use does not establish safety under all print loads.
 
-The old fan-curves, feature/max-speed-reduced-current, feature/snd-aloop, auxmic and personal-ui branches retain historical work. Active work belongs to the branches above. Existing module paths such as 71-ui-gpu, auxmic endpoints and ALSA device names remain stable; branch naming does not require an API or installed-path migration.
+Historical branches, including gui-gcode, fan-curves, feature/max-speed-reduced-current, feature/snd-aloop, auxmic and personal-ui, retain earlier work. Active work belongs to the branches listed above. Existing module paths, auxmic endpoints, configuration keys and ALSA device names remain stable.
 
-Build success is a packaging check. A stock-ui deployment additionally needs the exact original GUI hash, an idle printer with heater targets at zero, a recoverable previous slot, native UI and WebRTC checks, and restart acceptance. Current firmware and hardware evidence are kept in the local deployment record.
+Build success is a packaging check. A stock-ui deployment additionally needs the exact original GUI hash, an idle printer with heater targets at zero, a recoverable previous slot, UI and remote checks, and restart acceptance. Hardware evidence remains tied to the image that was actually installed.
