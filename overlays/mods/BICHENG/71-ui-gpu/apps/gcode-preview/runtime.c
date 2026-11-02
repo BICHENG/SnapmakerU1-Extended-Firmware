@@ -127,7 +127,7 @@ static void *worker(void *context){
         int known=progress_path(&progress,printing_path,sizeof(printing_path));
         int matches=(job_filename[0]?!strcmp(job_filename,progress.filename):known&&!strcmp(path,printing_path))&&
             (progress.state==JOB_PRINTING||progress.state==JOB_PAUSED||progress.state==JOB_COMPLETE);
-        if(!live_only&&follow&&previous_follow&&known&&progress.state==JOB_PRINTING&&!matches){
+        if(!job_filename[0]&&!live_only&&follow&&previous_follow&&known&&progress.state==JOB_PRINTING&&!matches){
             pthread_mutex_lock(&p->mutex);
             if(generation==atomic_load(&p->generation)){
                 snprintf(p->path,sizeof(p->path),"%s",printing_path);p->job_filename[0]=0;discard(p);
