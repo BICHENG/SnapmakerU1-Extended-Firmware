@@ -132,6 +132,7 @@ static void reset_policy(unsigned version,int enabled,int extension)
     if(fake_abi.invalidate_area) fake_abi.invalidate_area=(uintptr_t)invalidate_native-vendor_base;
     vendor_abi=&fake_abi;
     assert(!setenv("UI_GPU_ENABLED",enabled?"1":"0",1));
+    assert(!setenv("UI_DISPLAY_BASELINE",enabled?"0":"1",1));
 }
 
 static void request(const char *seconds)
@@ -156,6 +157,11 @@ int main(void)
     hash_kind=-1; vendor_abi=NULL; vendor_base=0; display_init(); assert(!vendor_abi && !vendor_base);
     hash_kind=1; hash_available=0; display_init(); assert(!vendor_abi); hash_available=1;
     assert(!ftruncate(fd,1)); display_init(); assert(!vendor_abi); close(fd);
+
+    reset_policy(1,0,0);
+    assert(!unsetenv("UI_DISPLAY_BASELINE"));
+    native_tick(1000,vendor_base+fake_abi.main_sleep);
+    assert(timer_writes==2 && actual_refresh==22 && actual_animation==22 && !attached_gpu);
 
     reset_policy(1,0,0);
     assert(native_tick(99000,vendor_base+fake_abi.main_sleep+4)==99000 && !locks && !tick_lookups);

@@ -16,7 +16,7 @@ jobs:
           path: |
             ui-artifact
             ui-test-artifact
-          key: helix-u1-gpu-binary-${{ hashFiles('.github/workflows/helix-gpu.yaml', '.github/scripts/prepare-helix-gpu.py', 'overlays/mods/BICHENG/71-ui-gpu/apps/helix-gpu-shared.patch', 'overlays/mods/BICHENG/71-ui-gpu/apps/ui-gpu/gpu_output.*', 'overlays/firmware-extended/69-app-helixscreen/root/usr/local/share/extended-pkg/helixscreen') }}
+          key: helix-u1-gpu-binary-${{ hashFiles('.github/workflows/helix-gpu.yaml', '.github/scripts/prepare-helix-gpu.py', 'overlays/mods/BICHENG/71-ui-gpu/apps/helix-gpu-shared.patch', 'overlays/mods/BICHENG/71-ui-gpu/apps/ui-gpu/gpu_output.*', 'overlays/mods/BICHENG/71-ui-gpu/apps/ui-display/*', 'common/ui-frame.h', 'overlays/firmware-extended/69-app-helixscreen/root/usr/local/share/extended-pkg/helixscreen') }}
       - name: Fetch and prepare pinned Helix source
         if: steps.binary.outputs.cache-hit != 'true'
         run: |
@@ -24,6 +24,12 @@ jobs:
           test "$(git -C helix rev-parse HEAD)" = faed4e35010e970ba5612e9b2e109c52a11965a6
           git -C helix submodule update --init --recursive --depth 1
           python3 .github/scripts/prepare-helix-gpu.py prepare helix
+      - name: Check asynchronous frame ownership
+        if: steps.binary.outputs.cache-hit != 'true'
+        run: |
+          g++ -std=c++17 -pthread -O1 -g -fsanitize=address,undefined -Ihelix/include \
+            helix/tests/standalone/gcode_latest_frame.cpp -o /tmp/gcode-latest-frame-test
+          /tmp/gcode-latest-frame-test
       - uses: docker/setup-buildx-action@v3
         if: steps.binary.outputs.cache-hit != 'true'
       - uses: docker/build-push-action@v6

@@ -15,11 +15,13 @@ REVISION = "faed4e35010e970ba5612e9b2e109c52a11965a6"
 OVERLAY = Path("overlays/mods/BICHENG/71-ui-gpu")
 PATCH = OVERLAY / "apps/helix-gpu-shared.patch"
 COMMON = OVERLAY / "apps/ui-gpu"
+DISPLAY = OVERLAY / "apps/ui-display"
 PACKAGE = Path("overlays/firmware-extended/69-app-helixscreen/root/usr/local/share/extended-pkg/helixscreen")
 INPUTS = (
     Path(".github/workflows/helix-gpu.yaml"),
     Path(".github/scripts/prepare-helix-gpu.py"),
     PATCH, COMMON / "gpu_output.c", COMMON / "gpu_output.h", PACKAGE,
+    DISPLAY / "ui-display.c", DISPLAY / "ui-display.h", Path("common/ui-frame.h"),
 )
 BUILD = {
     "PLATFORM_TARGET": "snapmaker-u1", "DISPLAY_BACKEND": "fbdev",
@@ -62,6 +64,9 @@ def prepare(source):
         git(source, "apply", patch)
     shutil.copyfile(ROOT / COMMON / "gpu_output.c", source / "src/gpu_output.c")
     shutil.copyfile(ROOT / COMMON / "gpu_output.h", source / "include/gpu_output.h")
+    shutil.copyfile(ROOT / DISPLAY / "ui-display.c", source / "src/ui-display.c")
+    shutil.copyfile(ROOT / DISPLAY / "ui-display.h", source / "include/ui-display.h")
+    shutil.copyfile(ROOT / "common/ui-frame.h", source / "include/ui-frame.h")
 
 
 def binary_info(path):
@@ -85,6 +90,11 @@ def package(source, artifact, self_test=False):
     for name, directory in (("gpu_output.c", "src"), ("gpu_output.h", "include")):
         if sha256(source / directory / name) != sha256(ROOT / COMMON / name):
             raise ValueError(f"Helix was built with a different {name}")
+    for original, copied in ((DISPLAY / "ui-display.c", "src/ui-display.c"),
+                             (DISPLAY / "ui-display.h", "include/ui-display.h"),
+                             (Path("common/ui-frame.h"), "include/ui-frame.h")):
+        if sha256(source / copied) != sha256(ROOT / original):
+            raise ValueError(f"Helix was built with a different {original}")
     name = "helix-gpu-self-test" if self_test else "helix-screen"
     binary = source / "build/snapmaker-u1/bin" / name
     manifest = identity()
