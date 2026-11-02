@@ -2080,10 +2080,10 @@ index 255abd7..81f4565 100644
  
 diff --git a/src/tools/gpu_self_test.cpp b/src/tools/gpu_self_test.cpp
 new file mode 100644
-index 0000000..23893bb
+index 0000000..6e58416
 --- /dev/null
 +++ b/src/tools/gpu_self_test.cpp
-@@ -0,0 +1,556 @@
+@@ -0,0 +1,571 @@
 +// SPDX-License-Identifier: GPL-3.0-or-later
 +
 +#include "async_lifetime_guard.h"
@@ -2490,6 +2490,7 @@ index 0000000..23893bb
 +    write_ppm(output / "async-first.ppm", *snapshot);
 +    for (int i = 0; i < 48; ++i) {
 +        scene.camera.rotate(4.0f, 0.0f);
++        scene.camera.fit_to_bounds(scene.file->global_bounding_box);
 +        draw();
 +    }
 +    const double latest_ms = settle();
@@ -2497,6 +2498,7 @@ index 0000000..23893bb
 +
 +    // Leave orange work pending, then exercise the viewer's exact clear order.
 +    scene.camera.rotate(29.0f, 0.0f);
++    scene.camera.fit_to_bounds(scene.file->global_bounding_box);
 +    draw();
 +    const bool clear_while_pending = scene.gpu->is_uploading();
 +    scene.gpu->release_geometry();
@@ -2524,7 +2526,13 @@ index 0000000..23893bb
 +    std::vector<glm::vec2> points;
 +    std::vector<std::optional<std::string>> next;
 +    const auto shown_camera = scene.camera;
++    const auto* shown_image = GCodeGLESSelfTestAccess::completed_image(*scene.gpu);
++    std::vector<uint8_t> shown_pixels(317 * 193 * 3);
++    for (int y = 0; y < 193; ++y)
++        std::memcpy(shown_pixels.data() + y * 317 * 3,
++                    shown_image->data + y * shown_image->header.stride, 317 * 3);
 +    scene.camera.rotate(90.0f, 0.0f);
++    scene.camera.fit_to_bounds(scene.file->global_bounding_box);
 +    size_t hits = 0, changed = 0;
 +    for (int y = 4; y < 193; y += 8) {
 +        for (int x = 4; x < 317; x += 8) {
@@ -2541,6 +2549,12 @@ index 0000000..23893bb
 +    }
 +    require(hits > 0 && changed > 0, "picking fixture does not distinguish camera positions");
 +    settle();
++    const auto* latest_image = GCodeGLESSelfTestAccess::completed_image(*scene.gpu);
++    bool image_changed = false;
++    for (int y = 0; y < 193; ++y)
++        image_changed |= std::memcmp(shown_pixels.data() + y * 317 * 3,
++                                    latest_image->data + y * latest_image->header.stride, 317 * 3) != 0;
++    require(image_changed, "camera changed but the displayed fixture image did not");
 +    for (size_t i = 0; i < points.size(); ++i)
 +        require(scene.gpu->pick_object(points[i], *scene.file, shown_camera) == next[i],
 +                "picking did not advance with the latest completed image");
@@ -2548,6 +2562,7 @@ index 0000000..23893bb
 +    bool destroy_while_pending = false;
 +    for (int attempt = 0; attempt < 8 && !destroy_while_pending; ++attempt) {
 +        scene.camera.rotate(17.0f, 0.0f);
++        scene.camera.fit_to_bounds(scene.file->global_bounding_box);
 +        draw();
 +        destroy_while_pending = scene.gpu->is_uploading();
 +    }
