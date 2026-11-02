@@ -1,18 +1,21 @@
 diff --git a/Makefile b/Makefile
-index 8c370cc..f3da877 100644
+index 8c370cc..7126967 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -416,6 +416,9 @@ ENABLE_SCREENSAVER ?= yes
+@@ -416,6 +416,12 @@ ENABLE_SCREENSAVER ?= yes
  
  # Application C sources
  APP_C_SRCS := $(wildcard $(SRC_DIR)/*.c)
++ifneq ($(PLATFORM_TARGET),snapmaker-u1)
++    APP_C_SRCS := $(filter-out $(SRC_DIR)/ui-display.c,$(APP_C_SRCS))
++endif
 +ifneq ($(PLATFORM_TARGET)-$(ENABLE_GLES_3D),snapmaker-u1-yes)
 +    APP_C_SRCS := $(filter-out $(SRC_DIR)/gpu_output.c,$(APP_C_SRCS))
 +endif
  APP_C_OBJS := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(APP_C_SRCS))
  
  # Application C++ sources (exclude test binaries, splash binary, and lvgl-demo)
-@@ -850,6 +853,10 @@ else ifneq ($(CROSS_COMPILE)$(filter x86 x86-fbdev x86-both,$(PLATFORM_TARGET)),
+@@ -850,6 +856,10 @@ else ifneq ($(CROSS_COMPILE)$(filter x86 x86-fbdev x86-both,$(PLATFORM_TARGET)),
      endif
      # Add target-specific linker flags (e.g., -lstdc++fs for GCC 8)
      LDFLAGS += $(TARGET_LDFLAGS)
@@ -38,10 +41,20 @@ index 5efc6ff..9156624 100644
      libudev-dev:arm64 \
      libevdev-dev:arm64 \
 diff --git a/include/display_manager.h b/include/display_manager.h
-index 407c5f1..e043807 100644
+index 407c5f1..40c35fe 100644
 --- a/include/display_manager.h
 +++ b/include/display_manager.h
-@@ -680,6 +680,10 @@ class DisplayManager : public helix::ICalibrationSink {
+@@ -17,6 +17,9 @@
+ #include <lvgl.h>
+ #include <memory>
+ #include <vector>
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++#include "ui-display.h"
++#endif
+ 
+ /**
+  * @brief Manages LVGL display initialization and lifecycle
+@@ -680,6 +683,10 @@ class DisplayManager : public helix::ICalibrationSink {
  
      std::unique_ptr<DisplayBackend> m_backend;
      lv_display_t* m_display = nullptr;
@@ -52,6 +65,16 @@ index 407c5f1..e043807 100644
      lv_indev_t* m_pointer = nullptr;
      lv_indev_t* m_keyboard = nullptr;
      lv_group_t* m_input_group = nullptr;
+@@ -690,6 +697,9 @@ class DisplayManager : public helix::ICalibrationSink {
+     // Per-channel framebuffer color correction (gamma + warmth)
+     helix::ColorTransform m_color_transform;
+     lv_display_flush_cb_t m_original_flush_cb_for_color = nullptr;
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    struct ui_display* m_u1_presenter = nullptr;
++#endif
+     void install_color_transform_hook();
+ 
+     // Remote-screen frame mirror (fb0 sink on the Snapmaker U1). Fed from the
 diff --git a/include/gcode_geometry_builder.h b/include/gcode_geometry_builder.h
 index c51d25a..b6fd91e 100644
 --- a/include/gcode_geometry_builder.h
@@ -125,7 +148,7 @@ index c51d25a..b6fd91e 100644
  } // namespace gcode
  } // namespace helix
 diff --git a/include/gcode_gles_renderer.h b/include/gcode_gles_renderer.h
-index 7db5b8b..efebddb 100644
+index 7db5b8b..0eadd1c 100644
 --- a/include/gcode_gles_renderer.h
 +++ b/include/gcode_gles_renderer.h
 @@ -13,6 +13,9 @@
@@ -200,9 +223,36 @@ index 7db5b8b..efebddb 100644
    public:
      GCodeGLESRenderer();
      ~GCodeGLESRenderer();
-@@ -163,13 +214,13 @@ class GCodeGLESRenderer {
-         return geometry_ != nullptr;
+@@ -145,6 +196,13 @@ class GCodeGLESRenderer {
+     void render(lv_layer_t* layer, const ParsedGCodeFile& gcode, const GCodeCamera& camera,
+                 const lv_area_t* widget_coords);
+ 
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    // Call before supplying geometry. All later GL work belongs to the worker.
++    void enable_async();
++    void render_async(lv_layer_t* layer, std::shared_ptr<const ParsedGCodeFile> gcode,
++                      const GCodeCamera& camera, const lv_area_t* widget_coords);
++#endif
++
+     void set_viewport_size(int width, int height);
+     void set_interaction_mode(bool interacting);
+     bool is_interaction_mode() const {
+@@ -152,25 +210,19 @@ class GCodeGLESRenderer {
      }
+ 
+     /// True while VBO upload is still in progress (caller should invalidate widget)
+-    bool is_uploading() const {
+-        return geometry_ && !geometry_uploaded_;
+-    }
++    bool is_uploading() const;
+ 
+     /// True if geometry has been set via set_prebuilt_geometry(). Used by the
+     /// viewer widget to decide whether a live 2D→3D switch needs an on-demand
+     /// geometry build (initial load in 2D mode skips the build).
+-    bool has_geometry() const {
+-        return geometry_ != nullptr;
+-    }
++    bool has_geometry() const;
  
 -    /// True once a fatal GL error (out-of-memory / invalid-operation) was seen
 -    /// during a draw batch. The viewer polls this after render() and switches
@@ -211,13 +261,26 @@ index 7db5b8b..efebddb 100644
      /// to the pure-CPU 2D renderer for the rest of the session rather than
      /// risk a driver-side crash on constrained GPUs (e.g. Mali-G31 on CB1).
      /// Sticky: once set it stays set until the renderer is destroyed.
-     bool render_failed() const {
+-    bool render_failed() const {
 -        return gl_render_failed_;
-+        return gl_init_failed_ || gl_render_failed_;
-     }
+-    }
++    bool render_failed() const;
  
      // ====== Color / Material ======
-@@ -295,7 +346,8 @@ class GCodeGLESRenderer {
+ 
+@@ -265,6 +317,11 @@ class GCodeGLESRenderer {
+     size_t get_triangle_count() const;
+ 
+   private:
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    struct AsyncState;
++    explicit GCodeGLESRenderer(const selection::Palette& palette);
++    std::unique_ptr<AsyncState> async_;
++#endif
+     // ====== GL Resource Management ======
+ 
+     bool init_gl();
+@@ -295,7 +352,8 @@ class GCodeGLESRenderer {
  
      void render_to_fbo(const ParsedGCodeFile& gcode, const GCodeCamera& camera);
      void draw_layers(const std::vector<LayerVBO>& vbos, int layer_start, int layer_end,
@@ -227,7 +290,7 @@ index 7db5b8b..efebddb 100644
      void blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_coords);
      void draw_cached_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_coords);
  
-@@ -319,40 +371,6 @@ class GCodeGLESRenderer {
+@@ -319,40 +377,6 @@ class GCodeGLESRenderer {
      /// image that gets blitted to LVGL. Matches the deleted TinyGL impl.
      void render_brackets_3d(const ParsedGCodeFile& gcode, const glm::mat4& mvp);
  
@@ -268,7 +331,7 @@ index 7db5b8b..efebddb 100644
      // ====== Frame Skip ======
  
      struct CachedRenderState {
-@@ -407,13 +425,6 @@ class GCodeGLESRenderer {
+@@ -407,13 +431,6 @@ class GCodeGLESRenderer {
      int line_u_color_ = -1;
      int line_a_position_ = -1;
      unsigned int line_vbo_ = 0;
@@ -282,7 +345,7 @@ index 7db5b8b..efebddb 100644
      // Uniform locations
      int u_mvp_ = -1;
      int u_normal_matrix_ = -1;
-@@ -438,6 +449,9 @@ class GCodeGLESRenderer {
+@@ -438,6 +455,9 @@ class GCodeGLESRenderer {
      GLFramebufferHandle fbo_;
      GLRenderbufferHandle color_rbo_;
      GLRenderbufferHandle depth_rbo_;
@@ -292,6 +355,106 @@ index 7db5b8b..efebddb 100644
      int fbo_width_ = 0;
      int fbo_height_ = 0;
  
+@@ -510,6 +530,9 @@ class GCodeGLESRenderer {
+     // ====== Readback Buffer (persistent to avoid per-frame allocation) ======
+ 
+     std::vector<uint8_t> readback_buf_;
++    // Worker output uses ordinary memory; only the UI thread owns LVGL buffers.
++    std::vector<uint8_t> offscreen_pixels_;
++    uint64_t offscreen_generation_ = 0;
+ 
+     // ====== Render Deferral (avoid blocking panel animations) ======
+ 
+diff --git a/include/gcode_latest_frame.h b/include/gcode_latest_frame.h
+new file mode 100644
+index 0000000..63c8bbe
+--- /dev/null
++++ b/include/gcode_latest_frame.h
+@@ -0,0 +1,84 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++#pragma once
++
++#include <condition_variable>
++#include <cstdint>
++#include <mutex>
++#include <optional>
++#include <utility>
++
++namespace helix::gcode::detail {
++
++// One renderer consumes the newest request. Completed frames remain usable while
++// a newer camera position is rendering; invalidating a model rejects its frames.
++template <typename Job, typename Frame> class LatestFrame {
++  public:
++    struct Request {
++        uint64_t epoch, sequence;
++        Job job;
++    };
++    void submit(Job job) {
++        std::lock_guard<std::mutex> lock(mutex_);
++        pending_ = Request{epoch_, ++submitted_, std::move(job)};
++        changed_.notify_one();
++    }
++    void invalidate() {
++        std::lock_guard<std::mutex> lock(mutex_);
++        ++epoch_;
++        pending_.reset();
++        complete_.reset();
++        consumed_ = submitted_;
++    }
++    bool take(Request& request) {
++        std::unique_lock<std::mutex> lock(mutex_);
++        changed_.wait(lock, [&] { return stopped_ || pending_.has_value(); });
++        if (stopped_)
++            return false;
++        auto newest = std::move(*pending_);
++        pending_.reset();
++        lock.unlock();
++        request = std::move(newest);
++        return true;
++    }
++    bool superseded(const Request& request) const {
++        std::lock_guard<std::mutex> lock(mutex_);
++        return stopped_ || request.epoch != epoch_ || pending_.has_value();
++    }
++    void publish(const Request& request, Frame frame) {
++        std::lock_guard<std::mutex> lock(mutex_);
++        if (!stopped_ && request.epoch == epoch_) {
++            complete_ = std::move(frame);
++            completed_ = request.sequence;
++        }
++    }
++    std::optional<Frame> consume() {
++        std::lock_guard<std::mutex> lock(mutex_);
++        if (!complete_)
++            return std::nullopt;
++        auto frame = std::move(complete_);
++        complete_.reset();
++        consumed_ = completed_;
++        return frame;
++    }
++    bool needs_frame() const {
++        std::lock_guard<std::mutex> lock(mutex_);
++        return consumed_ != submitted_;
++    }
++    void stop() {
++        std::lock_guard<std::mutex> lock(mutex_);
++        stopped_ = true;
++        pending_.reset();
++        complete_.reset();
++        changed_.notify_one();
++    }
++
++  private:
++    mutable std::mutex mutex_;
++    std::condition_variable changed_;
++    std::optional<Request> pending_;
++    std::optional<Frame> complete_;
++    uint64_t epoch_ = 0, submitted_ = 0, completed_ = 0, consumed_ = 0;
++    bool stopped_ = false;
++};
++
++} // namespace helix::gcode::detail
 diff --git a/mk/rules.mk b/mk/rules.mk
 index 7ce022c..1158e5b 100644
 --- a/mk/rules.mk
@@ -326,7 +489,7 @@ index 7ce022c..1158e5b 100644
  # These are generated during compilation with -MMD -MP flags
  DEPFILES := $(wildcard $(OBJ_DIR)/*.d $(OBJ_DIR)/**/*.d)
 diff --git a/src/application/display_manager.cpp b/src/application/display_manager.cpp
-index 361f8c7..f02b39e 100644
+index 361f8c7..0fc229c 100644
 --- a/src/application/display_manager.cpp
 +++ b/src/application/display_manager.cpp
 @@ -49,6 +49,7 @@
@@ -337,20 +500,33 @@ index 361f8c7..f02b39e 100644
  #include <functional>
  #include <string>
  
-@@ -628,6 +629,33 @@ bool DisplayManager::init(const Config& config) {
+@@ -606,7 +607,8 @@ bool DisplayManager::init(const Config& config) {
+     // Gate the remote-screen fb0 mirror on the platform-hook env export. When set
+     // (Snapmaker U1 fbdev path), attach the fb0 sink so rendered frames also land
+     // in /dev/fb0 for the firmware's fb-http snapshot daemon.
+-    if (const char* dev = std::getenv("HELIX_REMOTE_SCREEN_FB0")) {
++    if (const char* dev = std::getenv("HELIX_REMOTE_SCREEN_FB0");
++        dev && m_backend->type() != DisplayBackendType::FBDEV) {
+         auto sink = std::make_unique<helix::Fb0MailboxSink>(dev);
+         m_remote_screen.add_sink(std::move(sink));
+         m_remote_screen.start();
+@@ -628,6 +630,36 @@ bool DisplayManager::init(const Config& config) {
          }
      }
  
 +#ifdef HELIX_PLATFORM_SNAPMAKER_U1
 +    const char* gpu_enabled = std::getenv("UI_GPU_ENABLED");
 +    const bool gpu_on = gpu_enabled && std::strcmp(gpu_enabled, "1") == 0;
-+    const uint32_t period_ms = gpu_on ? 22 : 33;
++    const char* baseline = std::getenv("UI_DISPLAY_BASELINE");
++    const uint32_t period_ms = baseline && std::strcmp(baseline, "1") == 0 ? 33 : 22;
 +    lv_timer_t* display_timer = lv_display_get_refr_timer(m_display);
 +    lv_timer_t* animation_timer = lv_anim_get_timer();
 +    if (display_timer)
 +        lv_timer_set_period(display_timer, period_ms);
 +    if (animation_timer)
 +        lv_timer_set_period(animation_timer, period_ms);
++    if (m_pointer)
++        lv_timer_set_period(lv_indev_get_read_timer(m_pointer), period_ms);
 +    spdlog::info("[UI GPU] enabled={} display_period_ms={} animation_period_ms={}", gpu_on,
 +                 display_timer ? period_ms : 0, animation_timer ? period_ms : 0);
 +    m_render_report_start = lv_tick_get();
@@ -371,6 +547,56 @@ index 361f8c7..f02b39e 100644
      return true;
  }
  
+@@ -651,6 +683,10 @@ void DisplayManager::shutdown() {
+     // Stop the remote-screen mirror FIRST so no sink write races a freed
+     // framebuffer during the LVGL/display teardown below.
+     m_remote_screen.stop();
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    ui_display_close(m_u1_presenter);
++    m_u1_presenter = nullptr;
++#endif
+ 
+     // NOTE: We do NOT call lv_group_delete(m_input_group) here because:
+     // 1. Objects in the group may already be freed (panels deleted before display)
+@@ -2147,6 +2183,12 @@ void DisplayManager::install_color_transform_hook() {
+     if (!m_original_flush_cb_for_color) {
+         return;
+     }
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    const char* baseline = std::getenv("UI_DISPLAY_BASELINE");
++    if (m_backend->type() == DisplayBackendType::FBDEV &&
++        (!baseline || std::strcmp(baseline, "1") != 0))
++        m_u1_presenter = ui_display_open("/dev/fb0");
++#endif
+     lv_display_set_flush_cb(m_display, [](lv_display_t* d, const lv_area_t* area, uint8_t* px_map) {
+         DisplayManager* self = DisplayManager::instance();
+         if (self && area && px_map) {
+@@ -2216,6 +2258,25 @@ void DisplayManager::install_color_transform_hook() {
+                 self->m_remote_screen.on_frame(f);
+             }
+         }
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++        if (self && self->m_u1_presenter && area && px_map) {
++            const auto cf = lv_display_get_color_format(d);
++            if (lv_display_get_rotation(d) == LV_DISPLAY_ROTATION_0 &&
++                (cf == LV_COLOR_FORMAT_ARGB8888 || cf == LV_COLOR_FORMAT_XRGB8888)) {
++                const auto* buffer = lv_display_get_buf_active(d);
++                const auto stride = buffer->header.stride;
++                const auto* pixels = px_map;
++                if (lv_display_get_render_mode(d) != LV_DISPLAY_RENDER_MODE_PARTIAL)
++                    pixels += area->y1 * stride + area->x1 * 4;
++                ui_display_update(self->m_u1_presenter, area->x1, area->y1, area->x2,
++                                  area->y2, pixels, stride, lv_display_flush_is_last(d));
++                lv_display_flush_ready(d);
++                return;
++            }
++            ui_display_close(self->m_u1_presenter);
++            self->m_u1_presenter = nullptr;
++        }
++#endif
+         // Forward to the original backend flush
+         if (self && self->m_original_flush_cb_for_color) {
+             self->m_original_flush_cb_for_color(d, area, px_map);
 diff --git a/src/rendering/gcode_geometry_builder.cpp b/src/rendering/gcode_geometry_builder.cpp
 index 8f4286e..4e1abe0 100644
 --- a/src/rendering/gcode_geometry_builder.cpp
@@ -711,10 +937,22 @@ index 8f4286e..4e1abe0 100644
  } // namespace gcode
  } // namespace helix
 diff --git a/src/rendering/gcode_gles_renderer.cpp b/src/rendering/gcode_gles_renderer.cpp
-index 255abd7..c55cb25 100644
+index 255abd7..81f4565 100644
 --- a/src/rendering/gcode_gles_renderer.cpp
 +++ b/src/rendering/gcode_gles_renderer.cpp
-@@ -35,6 +35,7 @@
+@@ -13,6 +13,11 @@
+ #include "lv_draw_buf_guard.h"
+ #include "runtime_config.h"
+ #include "scoped_guard_file.h"
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++#include "gcode_latest_frame.h"
++#include <atomic>
++#include <thread>
++#endif
+ 
+ #include <spdlog/spdlog.h>
+ 
+@@ -35,6 +40,7 @@
  #include <algorithm>
  #include <chrono>
  #include <cmath>
@@ -722,7 +960,7 @@ index 255abd7..c55cb25 100644
  #include <cstring>
  #include <glm/gtc/matrix_transform.hpp>
  #include <glm/gtc/type_ptr.hpp>
-@@ -234,10 +235,7 @@ static const char* VERTEX_SHADER_DECLS = R"(
+@@ -234,10 +240,7 @@ static const char* VERTEX_SHADER_DECLS = R"(
      varying vec3 v_base_color;
  )";
  
@@ -734,7 +972,253 @@ index 255abd7..c55cb25 100644
  static const char* OCT_DECODE_GLSL = R"(
      // Decode an octahedral-encoded normal (Meyer et al., 2010).
      vec3 oct_decode(vec2 e) {
-@@ -467,6 +465,15 @@ bool GCodeGLESRenderer::init_gl() {
+@@ -323,6 +326,235 @@ static constexpr glm::vec3 LIGHT_FRONT_DIR{0.6985074f, 0.1397015f, 0.6985074f};
+ // Construction / Destruction
+ // ============================================================
+ 
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++struct GCodeGLESRenderer::AsyncState {
++    struct Model {
++        std::unique_ptr<RibbonGeometry> geometry; // Accessed only by the worker after publication.
++        std::string filename;
++        size_t triangles, colors, bytes;
++        int max_layer;
++    };
++    struct Settings {
++        int width, height;
++        bool interaction, debug, travels, extrusions;
++        GCodeColorPalette palette;
++        selection::Palette selection_palette;
++        glm::vec4 filament;
++        float intensity, shininess, offset;
++        int layer_start, layer_end, progress;
++        SelectionState selection;
++        lv_opa_t opacity, ghost_opacity;
++        GhostRenderMode ghost_mode;
++        std::vector<uint32_t> tool_colors;
++        uint64_t palette_revision;
++
++        void apply(GCodeGLESRenderer& r) const {
++            r.set_viewport_size(width, height);
++            r.interaction_mode_ = interaction;
++            r.sel_palette_ = selection_palette;
++            r.filament_color_ = filament;
++            r.specular_intensity_ = intensity;
++            r.specular_shininess_ = shininess;
++            r.debug_face_colors_ = debug;
++            r.show_travels_ = travels;
++            r.show_extrusions_ = extrusions;
++            r.layer_start_ = layer_start;
++            r.layer_end_ = layer_end;
++            r.selection_ = selection;
++            r.global_opacity_ = opacity;
++            r.progress_layer_ = progress;
++            r.ghost_opacity_ = ghost_opacity;
++            r.ghost_render_mode_ = ghost_mode;
++            r.content_offset_y_percent_ = offset;
++            r.frame_dirty_ = true;
++        }
++    };
++    struct Job {
++        std::shared_ptr<Model> model;
++        std::shared_ptr<const ParsedGCodeFile> file;
++        GCodeCamera camera;
++        Settings settings{};
++    };
++    struct View {
++        glm::mat4 transform;
++        int width, height, first_layer, last_layer;
++        bool extrusions;
++    };
++    struct Frame {
++        std::vector<uint8_t> pixels;
++        View view;
++        size_t triangles;
++        RenderMemoryReport memory;
++    };
++
++    detail::LatestFrame<Job, Frame> frames;
++    std::thread thread;
++    std::atomic<bool> failed{false};
++    // The remaining fields belong exclusively to the UI thread.
++    std::shared_ptr<Model> model;
++    std::vector<uint32_t> baked_palette, effective_palette, tool_colors;
++    std::unordered_map<uint8_t, uint8_t> tool_palette_map;
++    uint64_t palette_revision = 0;
++    glm::mat4 last_camera{0.0f};
++    bool camera_valid = false;
++    RenderMemoryReport memory;
++    std::optional<View> shown;
++
++    explicit AsyncState(selection::Palette colors) {
++        thread = std::thread([this, colors] {
++            try {
++                // Constructor and destructor do not access LVGL in this mode.
++                GCodeGLESRenderer renderer(colors);
++                std::shared_ptr<Model> active_model;
++                uint64_t active_palette_revision = UINT64_MAX;
++                detail::LatestFrame<Job, Frame>::Request request{};
++                while (frames.take(request)) {
++                    auto& job = request.job;
++                    if (job.model != active_model) {
++                        renderer.release_geometry();
++                        renderer.offscreen_pixels_.clear();
++                        active_model = job.model;
++                        active_palette_revision = UINT64_MAX;
++                        if (active_model) {
++                            renderer.set_prebuilt_geometry(std::move(active_model->geometry),
++                                                           active_model->filename);
++                        }
++                    }
++                    if (!job.model || !job.file)
++                        continue;
++                    job.settings.apply(renderer);
++                    if (active_palette_revision != job.settings.palette_revision) {
++                        renderer.clear_tool_color_overrides();
++                        renderer.set_tool_color_overrides(job.settings.tool_colors);
++                        active_palette_revision = job.settings.palette_revision;
++                    }
++                    renderer.palette_ = job.settings.palette;
++                    const lv_area_t area{0, 0, job.settings.width - 1, job.settings.height - 1};
++                    const auto previous_frame = renderer.offscreen_generation_;
++                    do {
++                        if (frames.superseded(request))
++                            break;
++                        renderer.render(nullptr, *job.file, job.camera, &area);
++                    } while (renderer.is_uploading() && !renderer.render_failed());
++                    if (renderer.render_failed()) {
++                        failed.store(true);
++                        break;
++                    }
++                    if (renderer.offscreen_generation_ != previous_frame) {
++                        auto memory = renderer.memory_report();
++                        memory.add("worker_rgb", renderer.offscreen_pixels_.size());
++                        frames.publish(request, Frame{renderer.offscreen_pixels_,
++                                                       {renderer.build_mvp(job.camera), job.settings.width,
++                                                        job.settings.height, job.settings.layer_start,
++                                                        job.settings.layer_end, job.settings.extrusions},
++                                                       renderer.triangles_rendered_, std::move(memory)});
++                    }
++                }
++            } catch (const std::exception& error) {
++                spdlog::error("[GCode GLES] Async renderer stopped: {}", error.what());
++                failed.store(true);
++            }
++        });
++    }
++    ~AsyncState() {
++        frames.stop();
++        if (thread.joinable())
++            thread.join();
++    }
++    Settings snapshot(const GCodeGLESRenderer& r) const {
++        return {r.viewport_width_, r.viewport_height_, r.interaction_mode_, r.debug_face_colors_,
++                r.show_travels_, r.show_extrusions_, r.palette_, r.sel_palette_, r.filament_color_,
++                r.specular_intensity_, r.specular_shininess_, r.content_offset_y_percent_,
++                r.layer_start_, r.layer_end_, r.progress_layer_, r.selection_, r.global_opacity_,
++                r.ghost_opacity_, r.ghost_render_mode_, tool_colors, palette_revision};
++    }
++};
++
++GCodeGLESRenderer::GCodeGLESRenderer(const selection::Palette& palette) : sel_palette_(palette) {}
++
++void GCodeGLESRenderer::enable_async() {
++    if (async_ || gl_initialized_ || geometry_)
++        return;
++    const char* enabled = std::getenv("UI_GPU_ENABLED");
++    if (enabled && std::strcmp(enabled, "0") == 0) {
++        gl_init_failed_ = true;
++        return;
++    }
++    try {
++        async_ = std::make_unique<AsyncState>(sel_palette_);
++    } catch (const std::exception& error) {
++        gl_init_failed_ = true;
++        spdlog::error("[GCode GLES] Cannot start async renderer: {}", error.what());
++    }
++}
++
++void GCodeGLESRenderer::render_async(lv_layer_t* layer,
++                                      std::shared_ptr<const ParsedGCodeFile> gcode,
++                                      const GCodeCamera& camera, const lv_area_t* coords) {
++    if (!async_ || render_failed() || !async_->model || !gcode)
++        return;
++    const auto matrix = camera.get_view_projection_matrix();
++    const int width = lv_area_get_width(coords), height = lv_area_get_height(coords);
++    if (width <= 0 || height <= 0)
++        return;
++    set_viewport_size(width, height);
++    if (frame_dirty_ || !async_->camera_valid || matrix != async_->last_camera) {
++        async_->frames.submit({async_->model, std::move(gcode), camera, async_->snapshot(*this)});
++        async_->last_camera = matrix;
++        async_->camera_valid = true;
++        frame_dirty_ = false;
++    }
++    if (auto completed = async_->frames.consume()) {
++        if (completed->view.width == width && completed->view.height == height) {
++            if (!draw_buf_ || draw_buf_width_ != width || draw_buf_height_ != height) {
++                helix::safe_draw_buf_destroy(draw_buf_, "gles_async_draw_buf");
++                draw_buf_ = lv_draw_buf_create(width, height, LV_COLOR_FORMAT_RGB888, 0);
++                draw_buf_width_ = width;
++                draw_buf_height_ = height;
++            } else {
++                lv_draw_wait_for_finish();
++            }
++            if (!draw_buf_) {
++                gl_render_failed_ = true;
++                return;
++            }
++            for (int y = 0; y < height; ++y)
++                std::memcpy(draw_buf_->data + static_cast<size_t>(y) * draw_buf_->header.stride,
++                            completed->pixels.data() + static_cast<size_t>(y) * width * 3,
++                            static_cast<size_t>(width) * 3);
++            triangles_rendered_ = completed->triangles;
++            async_->memory = std::move(completed->memory);
++            async_->shown = completed->view;
++        }
++    }
++    draw_cached_to_lvgl(layer, coords);
++}
++#endif
++
++bool GCodeGLESRenderer::is_uploading() const {
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    if (async_)
++        return async_->model && (!draw_buf_ || async_->frames.needs_frame());
++#endif
++    return geometry_ && !geometry_uploaded_;
++}
++
++bool GCodeGLESRenderer::has_geometry() const {
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    if (async_)
++        return async_->model != nullptr;
++#endif
++    return geometry_ != nullptr;
++}
++
++bool GCodeGLESRenderer::render_failed() const {
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    if (async_ && async_->failed.load())
++        return true;
++#endif
++    return gl_init_failed_ || gl_render_failed_;
++}
++
+ GCodeGLESRenderer::GCodeGLESRenderer() {
+     // Selection cues from ui_xml/gcode_tokens.xml, resolved once here on the
+     // main thread — same place and same reason as GCodeLayerRenderer's ctor.
+@@ -334,6 +566,9 @@ GCodeGLESRenderer::GCodeGLESRenderer() {
+ }
+ 
+ GCodeGLESRenderer::~GCodeGLESRenderer() {
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    async_.reset();
++#endif
+     destroy_gl();
+ 
+     // draw_buf_ is handed to the parallel render thread via dsc.src in
+@@ -467,6 +702,15 @@ bool GCodeGLESRenderer::init_gl() {
      if (gl_init_failed_)
          return false;
  
@@ -750,7 +1234,7 @@ index 255abd7..c55cb25 100644
      // Layer 2 covers driver init too: loading the GPU driver can fault before any
      // draw is reached. A graceful failure removes the guard on return and the
      // viewer falls back to 2D for this session; only a fault inside leaves it for
-@@ -669,6 +676,31 @@ bool GCodeGLESRenderer::create_fbo(int width, int height) {
+@@ -669,6 +913,31 @@ bool GCodeGLESRenderer::create_fbo(int width, int height) {
          return false;
      }
  
@@ -782,7 +1266,7 @@ index 255abd7..c55cb25 100644
      // Color renderbuffer — use GL_RGBA8 (8 bits per channel) to match the
      // GL_RGBA/GL_UNSIGNED_BYTE format used by glReadPixels in blit_to_lvgl().
      // GL_RGBA4 would cause precision loss (4 bits stored, 8 bits read back).
-@@ -682,17 +714,10 @@ bool GCodeGLESRenderer::create_fbo(int width, int height) {
+@@ -682,17 +951,10 @@ bool GCodeGLESRenderer::create_fbo(int width, int height) {
      }
      glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, color_rbo_.id);
      check_gl_error("glFramebufferRenderbuffer(color)");
@@ -803,7 +1287,7 @@ index 255abd7..c55cb25 100644
  
      GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
      if (status != GL_FRAMEBUFFER_COMPLETE) {
-@@ -715,6 +740,10 @@ void GCodeGLESRenderer::destroy_fbo() {
+@@ -715,6 +977,10 @@ void GCodeGLESRenderer::destroy_fbo() {
      depth_rbo_ = GLRenderbufferHandle();
      color_rbo_ = GLRenderbufferHandle();
      fbo_ = GLFramebufferHandle();
@@ -814,7 +1298,7 @@ index 255abd7..c55cb25 100644
      fbo_width_ = 0;
      fbo_height_ = 0;
  }
-@@ -747,10 +776,6 @@ void GCodeGLESRenderer::destroy_gl() {
+@@ -747,10 +1013,6 @@ void GCodeGLESRenderer::destroy_gl() {
              glDeleteBuffers(1, &line_vbo_);
              line_vbo_ = 0;
          }
@@ -825,7 +1309,7 @@ index 255abd7..c55cb25 100644
  
          // Unbind before destroying
          SDL_GL_MakeCurrent(static_cast<SDL_Window*>(sdl_gl_window_), nullptr);
-@@ -798,10 +823,6 @@ void GCodeGLESRenderer::destroy_gl() {
+@@ -798,10 +1060,6 @@ void GCodeGLESRenderer::destroy_gl() {
          glDeleteBuffers(1, &line_vbo_);
          line_vbo_ = 0;
      }
@@ -836,7 +1320,7 @@ index 255abd7..c55cb25 100644
  
      if (egl_display_ && egl_context_) {
          eglMakeCurrent(static_cast<EGLDisplay>(egl_display_), EGL_NO_SURFACE, EGL_NO_SURFACE,
-@@ -910,8 +931,7 @@ void GCodeGLESRenderer::upload_geometry(const RibbonGeometry& geom, std::vector<
+@@ -910,8 +1168,7 @@ void GCodeGLESRenderer::upload_geometry(const RibbonGeometry& geom, std::vector<
              continue;
          }
  
@@ -846,7 +1330,7 @@ index 255abd7..c55cb25 100644
          size_t buf_bytes = total_verts * VERTEX_STRIDE;
          if (buf.size() < buf_bytes) {
              buf.resize(buf_bytes);
-@@ -998,7 +1018,7 @@ bool GCodeGLESRenderer::upload_geometry_chunk(const RibbonGeometry& geom,
+@@ -998,7 +1255,7 @@ bool GCodeGLESRenderer::upload_geometry_chunk(const RibbonGeometry& geom,
              }
          } else {
              // CPU fallback: expand strips inline (for color re-upload case)
@@ -855,7 +1339,45 @@ index 255abd7..c55cb25 100644
              size_t buf_bytes = total_verts * VERTEX_STRIDE;
              if (buf.size() < buf_bytes) {
                  buf.resize(buf_bytes);
-@@ -1260,18 +1280,11 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
+@@ -1076,8 +1333,10 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
+ #else
+     EglContextGuard guard(egl_display_, egl_surface_, egl_context_);
+ #endif
+-    if (!guard.ok())
++    if (!guard.ok()) {
++        gl_render_failed_ = true;
+         return;
++    }
+ 
+     // Layer 1 — proactive GL_RENDERER denylist (issues #966 / #1084 / #1085).
+     // Evaluated exactly once, now that the GL context is current so GL_RENDERER
+@@ -1142,6 +1401,8 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
+ 
+     // If deferring, draw the cached buffer and count down.
+     // If no cached buffer exists, skip the defer entirely — nothing to show.
++    if (!layer)
++        render_defer_frames_ = 0;
+     if (render_defer_frames_ > 0) {
+         if (draw_buf_) {
+             render_defer_frames_--;
+@@ -1168,7 +1429,7 @@ void GCodeGLESRenderer::render(lv_layer_t* layer, const ParsedGCodeFile& gcode,
+ 
+     // Skip GPU render if state unchanged and we have a valid cached framebuffer.
+     // draw_cached_to_lvgl skips glReadPixels — just blits the existing draw_buf_.
+-    if (!frame_dirty_ && current_state == cached_state_ && draw_buf_) {
++    if (!frame_dirty_ && current_state == cached_state_ && (draw_buf_ || !offscreen_pixels_.empty())) {
+         draw_cached_to_lvgl(layer, widget_coords);
+         return;
+     }
+@@ -1253,6 +1514,7 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
+ 
+     // Create/resize FBO
+     if (!create_fbo(render_w, render_h)) {
++        gl_render_failed_ = true;
+         return;
+     }
+ 
+@@ -1260,18 +1522,11 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
      glViewport(0, 0, render_w, render_h);
  
      // Neutral gray background — light and dark filaments both contrast well
@@ -875,7 +1397,7 @@ index 255abd7..c55cb25 100644
      // Select active geometry
      auto* active_vbos = &layer_vbos_;
      active_geometry_ = geometry_.get();
-@@ -1349,12 +1362,32 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
+@@ -1349,12 +1604,32 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
  
      triangles_rendered_ = 0;
  
@@ -909,7 +1431,7 @@ index 255abd7..c55cb25 100644
          }
  
          // Pass 2: Ghost layers (progress_layer_+1 to end) with alpha blending
-@@ -1366,33 +1399,21 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
+@@ -1366,33 +1641,21 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
              glEnable(GL_BLEND);
              glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
              glDepthMask(GL_FALSE); // Don't write ghost depth (prevents z-fighting)
@@ -949,7 +1471,7 @@ index 255abd7..c55cb25 100644
      render_brackets_3d(gcode, mvp);
  
      glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-@@ -1400,11 +1421,15 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
+@@ -1400,11 +1663,15 @@ void GCodeGLESRenderer::render_to_fbo(const ParsedGCodeFile& gcode, const GCodeC
  }
  
  void GCodeGLESRenderer::draw_layers(const std::vector<LayerVBO>& vbos, int layer_start,
@@ -966,7 +1488,7 @@ index 255abd7..c55cb25 100644
  
      constexpr size_t STRIDE = PackedVertex::stride();
  
-@@ -1443,8 +1468,19 @@ void GCodeGLESRenderer::draw_layers(const std::vector<LayerVBO>& vbos, int layer
+@@ -1443,8 +1710,19 @@ void GCodeGLESRenderer::draw_layers(const std::vector<LayerVBO>& vbos, int layer
                                    reinterpret_cast<void*>(PackedVertex::color_offset()));
          }
  
@@ -988,7 +1510,25 @@ index 255abd7..c55cb25 100644
      }
  
      glDisableVertexAttribArray(static_cast<GLuint>(a_position_));
-@@ -1517,10 +1553,36 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
+@@ -1476,7 +1754,7 @@ void GCodeGLESRenderer::draw_layers(const std::vector<LayerVBO>& vbos, int layer
+ void GCodeGLESRenderer::draw_cached_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_coords) {
+     // Fast path: draw the existing draw_buf_ without GPU readback.
+     // Used when the frame hasn't changed (frame-skip) or during render deferral.
+-    if (!draw_buf_ || !draw_buf_->data)
++    if (!layer || !draw_buf_ || !draw_buf_->data)
+         return;
+ 
+     lv_draw_image_dsc_t img_dsc;
+@@ -1492,7 +1770,7 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
+     int widget_h = lv_area_get_height(widget_coords);
+ 
+     // Create or recreate draw buffer at widget size
+-    if (!draw_buf_ || draw_buf_width_ != widget_w || draw_buf_height_ != widget_h) {
++    if (layer && (!draw_buf_ || draw_buf_width_ != widget_w || draw_buf_height_ != widget_h)) {
+         // May still be in flight to the parallel render thread (#929 cluster).
+         helix::safe_draw_buf_destroy(draw_buf_, "gles_draw_buf");
+         draw_buf_ = lv_draw_buf_create(static_cast<uint32_t>(widget_w),
+@@ -1517,10 +1795,36 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
      if (readback_buf_.size() != readback_size) {
          readback_buf_.resize(readback_size);
      }
@@ -1028,7 +1568,214 @@ index 255abd7..c55cb25 100644
      // the alpha byte. Byte 3 is alpha in the readback's RGBA and in the
      // rasterizer's ARGB8888 alike, so the tag scan reads the same offset either
      // way — but the rim COLOUR is an XML token and need not be grey, so the
-@@ -2141,216 +2203,6 @@ void GCodeGLESRenderer::render_brackets_3d(const ParsedGCodeFile& gcode, const g
+@@ -1545,15 +1849,17 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
+     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+ 
+     // Convert GL RGBA → LVGL RGB888 (BGR byte order), flip Y, and scale if needed
+-    if (!draw_buf_->data) {
++    if (layer && !draw_buf_->data) {
+         spdlog::error("[GCode GLES] draw_buf_ data is null");
+         return;
+     }
+-    auto* dest = static_cast<uint8_t*>(draw_buf_->data);
++    if (!layer)
++        offscreen_pixels_.resize(static_cast<size_t>(widget_w) * widget_h * 3);
++    auto* dest = layer ? static_cast<uint8_t*>(draw_buf_->data) : offscreen_pixels_.data();
+     const auto* src = readback_buf_.data();
+     bool needs_scale = (fbo_width_ != widget_w || fbo_height_ != widget_h);
+     // Use actual draw buffer stride (aligned to LV_DRAW_BUF_STRIDE_ALIGN)
+-    uint32_t dst_stride = draw_buf_->header.stride;
++    uint32_t dst_stride = layer ? draw_buf_->header.stride : static_cast<uint32_t>(widget_w) * 3;
+ 
+     // Row-based conversion: RGBA→BGR with Y-flip
+     for (int dy = 0; dy < widget_h; ++dy) {
+@@ -1583,6 +1889,10 @@ void GCodeGLESRenderer::blit_to_lvgl(lv_layer_t* layer, const lv_area_t* widget_
+         }
+     }
+ 
++    if (!layer) {
++        ++offscreen_generation_;
++        return;
++    }
+     // Draw to LVGL layer
+     lv_draw_image_dsc_t img_dsc;
+     lv_draw_image_dsc_init(&img_dsc);
+@@ -1658,6 +1968,32 @@ void GCodeGLESRenderer::set_extrusion_color(lv_color_t color) {
+ }
+ 
+ void GCodeGLESRenderer::set_tool_color_overrides(const std::vector<uint32_t>& ams_colors) {
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    if (async_) {
++        if (!async_->model || ams_colors.empty())
++            return;
++        auto colors = async_->effective_palette;
++        for (size_t tool = 0; tool < ams_colors.size(); ++tool) {
++            const auto entry = async_->tool_palette_map.find(static_cast<uint8_t>(tool));
++            if (entry != async_->tool_palette_map.end() && entry->second < colors.size())
++                colors[entry->second] = ams_colors[tool];
++        }
++        if (colors != async_->effective_palette) {
++            async_->effective_palette = std::move(colors);
++            for (const auto& [tool, index] : async_->tool_palette_map) {
++                if (index < async_->effective_palette.size()) {
++                    if (async_->tool_colors.size() <= tool)
++                        async_->tool_colors.resize(static_cast<size_t>(tool) + 1);
++                    async_->tool_colors[tool] = async_->effective_palette[index];
++                }
++            }
++            ++async_->palette_revision;
++            palette_.has_override = false;
++            frame_dirty_ = true;
++        }
++        return;
++    }
++#endif
+     if (!geometry_ || ams_colors.empty()) {
+         return;
+     }
+@@ -1714,6 +2050,17 @@ void GCodeGLESRenderer::set_tool_color_overrides(const std::vector<uint32_t>& am
+ }
+ 
+ void GCodeGLESRenderer::clear_tool_color_overrides() {
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    if (async_) {
++        if (async_->effective_palette != async_->baked_palette) {
++            async_->effective_palette = async_->baked_palette;
++            async_->tool_colors.clear();
++            ++async_->palette_revision;
++            frame_dirty_ = true;
++        }
++        return;
++    }
++#endif
+     if (!geometry_) {
+         return;
+     }
+@@ -1814,6 +2161,16 @@ void GCodeGLESRenderer::reset_colors() {
+ }
+ 
+ void GCodeGLESRenderer::clear_cached_frame() {
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    if (async_) {
++        async_->frames.invalidate();
++        async_->shown.reset();
++        if (!async_->model)
++            async_->frames.submit({});
++        async_->camera_valid = false;
++        frame_dirty_ = true;
++    }
++#endif
+     // Free the cached draw buffer so stale frames aren't blitted during render deferral
+     // Frees the SAME draw_buf_ the destructor guards as a #929 hazard, but this
+     // site had no lv_draw_wait_for_finish() at all: a deferred-render clear could
+@@ -1854,7 +2211,10 @@ void GCodeGLESRenderer::set_ghost_opacity(lv_opa_t opacity) {
+ }
+ 
+ void GCodeGLESRenderer::set_content_offset_y(float offset_percent) {
+-    content_offset_y_percent_ = std::clamp(offset_percent, -1.0f, 1.0f);
++    const float offset = std::clamp(offset_percent, -1.0f, 1.0f);
++    if (offset == content_offset_y_percent_)
++        return;
++    content_offset_y_percent_ = offset;
+     frame_dirty_ = true;
+ }
+ 
+@@ -1864,6 +2224,10 @@ void GCodeGLESRenderer::set_ghost_render_mode(GhostRenderMode mode) {
+ }
+ 
+ int GCodeGLESRenderer::get_max_layer_index() const {
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    if (async_)
++        return async_->model ? async_->model->max_layer : 0;
++#endif
+     if (geometry_)
+         return static_cast<int>(geometry_->max_layer_index);
+     return 0;
+@@ -1874,6 +2238,20 @@ int GCodeGLESRenderer::get_max_layer_index() const {
+ // ============================================================
+ 
+ void GCodeGLESRenderer::release_geometry() {
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    if (async_) {
++        async_->model.reset();
++        async_->baked_palette.clear();
++        async_->effective_palette.clear();
++        async_->tool_palette_map.clear();
++        async_->tool_colors.clear();
++        async_->memory = {};
++        async_->camera_valid = false;
++        async_->frames.invalidate();
++        async_->frames.submit({}); // Release the old model and its GL buffers on their owner thread.
++        return;
++    }
++#endif
+     size_t freed = geometry_ ? geometry_->memory_usage() : 0;
+ 
+     // Free GPU VBOs (requires GL context)
+@@ -1917,6 +2295,25 @@ void GCodeGLESRenderer::release_geometry() {
+ 
+ void GCodeGLESRenderer::set_prebuilt_geometry(std::unique_ptr<RibbonGeometry> geometry,
+                                               const std::string& filename) {
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    if (async_) {
++        if (!geometry) {
++            release_geometry();
++            return;
++        }
++        clear_cached_frame();
++        async_->baked_palette = geometry->color_palette;
++        async_->effective_palette = async_->baked_palette;
++        async_->tool_palette_map = geometry->tool_palette_map;
++        async_->tool_colors.clear();
++        ++async_->palette_revision;
++        async_->model = std::make_shared<AsyncState::Model>(AsyncState::Model{
++            nullptr, filename, geometry->extrusion_triangle_count, geometry->color_palette.size(),
++            geometry->memory_usage(), static_cast<int>(geometry->max_layer_index)});
++        async_->model->geometry = std::move(geometry);
++        return;
++    }
++#endif
+     geometry_ = std::move(geometry);
+     {
+         // The snapshot describes the palette of the geometry just replaced.
+@@ -1943,12 +2340,25 @@ void GCodeGLESRenderer::set_prebuilt_coarse_geometry(std::unique_ptr<RibbonGeome
+ // ============================================================
+ 
+ size_t GCodeGLESRenderer::get_geometry_color_count() const {
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    if (async_)
++        return async_->model ? async_->model->colors : 0;
++#endif
+     if (geometry_)
+         return geometry_->color_palette.size();
+     return 0;
+ }
+ 
+ helix::gcode::RenderMemoryReport GCodeGLESRenderer::memory_report() const {
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    if (async_) {
++        auto report = async_->memory;
++        if (report.items().empty())
++            report.add("pending_geometry", async_->model ? async_->model->bytes : 0);
++        report.add("ui_rgb", draw_buf_ ? static_cast<size_t>(draw_buf_width_) * draw_buf_height_ * 3 : 0);
++        return report;
++    }
++#endif
+     helix::gcode::RenderMemoryReport r;
+ 
+     size_t geometry = 0;
+@@ -1993,6 +2403,10 @@ void GCodeGLESRenderer::log_memory_report(const char* when) const {
+ }
+ 
+ size_t GCodeGLESRenderer::get_triangle_count() const {
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    if (async_)
++        return async_->model ? async_->model->triangles : 0;
++#endif
+     if (geometry_)
+         return geometry_->extrusion_triangle_count;
+     return 0;
+@@ -2141,216 +2555,6 @@ void GCodeGLESRenderer::render_brackets_3d(const ParsedGCodeFile& gcode, const g
      glEnable(GL_DEPTH_TEST);
  }
  
@@ -1245,12 +1992,98 @@ index 255abd7..c55cb25 100644
  // ============================================================
  // Object Picking (CPU-side, no GL needed)
  // ============================================================
+@@ -2359,6 +2563,22 @@ std::optional<std::string> GCodeGLESRenderer::pick_object(const glm::vec2& scree
+                                                           const ParsedGCodeFile& gcode,
+                                                           const GCodeCamera& camera) const {
+     glm::mat4 transform = build_mvp(camera);
++    int width = viewport_width_, height = viewport_height_;
++    int first_layer = layer_start_, last_layer = layer_end_;
++    bool extrusions = show_extrusions_;
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    if (async_) {
++        if (!async_->shown)
++            return std::nullopt;
++        const auto& shown = *async_->shown;
++        transform = shown.transform;
++        width = shown.width;
++        height = shown.height;
++        first_layer = shown.first_layer;
++        last_layer = shown.last_layer;
++        extrusions = shown.extrusions;
++    }
++#endif
+     float closest_distance = std::numeric_limits<float>::max();
+     std::optional<std::string> picked_object;
+ 
+@@ -2399,7 +2619,7 @@ std::optional<std::string> GCodeGLESRenderer::pick_object(const glm::vec2& scree
+         // corner BEHIND the camera through and mirrored it onto the screen,
+         // corrupting the candidate box. project_aabb_to_screen() rejects w <= EPSILON.
+         const ScreenBounds sb =
+-            project_aabb_to_screen(transform, box, viewport_width_, viewport_height_);
++            project_aabb_to_screen(transform, box, width, height);
+         // A box that projects to nothing usable stays a candidate: better to pay
+         // for stage 2 than to drop a pick outright.
+         if (!sb.valid || sb.contains(screen_pos.x, screen_pos.y, PICK_THRESHOLD)) {
+@@ -2413,10 +2633,10 @@ std::optional<std::string> GCodeGLESRenderer::pick_object(const glm::vec2& scree
+         candidate.assign(candidate.size(), true);
+     }
+ 
+-    int ls = layer_start_;
+-    int le = (layer_end_ < 0 || layer_end_ >= static_cast<int>(gcode.layers.size()))
++    int ls = first_layer;
++    int le = (last_layer < 0 || last_layer >= static_cast<int>(gcode.layers.size()))
+                  ? static_cast<int>(gcode.layers.size()) - 1
+-                 : layer_end_;
++                 : last_layer;
+ 
+     for (int layer_idx = ls; layer_idx <= le; ++layer_idx) {
+         if (layer_idx < 0 || layer_idx >= static_cast<int>(gcode.layers.size()))
+@@ -2428,7 +2648,7 @@ std::optional<std::string> GCodeGLESRenderer::pick_object(const glm::vec2& scree
+             // tower) is dropped by the builder, so it must not be pickable
+             // here either - a tap on the blank tower area must select
+             // nothing, not an invisible object.
+-            if (!segment_drawable(segment, /*is_support=*/false, show_extrusions_, show_extrusions_,
++            if (!segment_drawable(segment, /*is_support=*/false, extrusions, extrusions,
+                                   /*show_travel=*/false)) {
+                 continue;
+             }
+@@ -2443,17 +2663,17 @@ std::optional<std::string> GCodeGLESRenderer::pick_object(const glm::vec2& scree
+             // Was std::abs(w) < EPSILON here too, with the same behind-camera
+             // defect as the candidate pass above.
+             const auto start_screen =
+-                project_clip_to_screen(transform, segment.start, viewport_width_, viewport_height_);
++                project_clip_to_screen(transform, segment.start, width, height);
+             const auto end_screen =
+-                project_clip_to_screen(transform, segment.end, viewport_width_, viewport_height_);
++                project_clip_to_screen(transform, segment.end, width, height);
+             if (!start_screen || !end_screen)
+                 continue;
+ 
+             // Both endpoints must be on screen. This was spelled as an NDC range
+             // check on [-1, 1]; in screen pixels that is exactly the viewport rect.
+             const auto on_screen = [&](const glm::vec2& p) {
+-                return p.x >= 0.0f && p.x <= static_cast<float>(viewport_width_) && p.y >= 0.0f &&
+-                       p.y <= static_cast<float>(viewport_height_);
++                return p.x >= 0.0f && p.x <= static_cast<float>(width) && p.y >= 0.0f &&
++                       p.y <= static_cast<float>(height);
+             };
+             if (!on_screen(*start_screen) || !on_screen(*end_screen)) {
+                 continue;
+@@ -2480,7 +2700,7 @@ std::optional<std::string> GCodeGLESRenderer::pick_object(const glm::vec2& scree
+                 continue;
+ 
+             const ScreenBounds sb =
+-                project_aabb_to_screen(transform, bbox, viewport_width_, viewport_height_);
++                project_aabb_to_screen(transform, bbox, width, height);
+             if (!sb.valid)
+                 continue;
+ 
 diff --git a/src/tools/gpu_self_test.cpp b/src/tools/gpu_self_test.cpp
 new file mode 100644
-index 0000000..c6c0748
+index 0000000..23893bb
 --- /dev/null
 +++ b/src/tools/gpu_self_test.cpp
-@@ -0,0 +1,375 @@
+@@ -0,0 +1,556 @@
 +// SPDX-License-Identifier: GPL-3.0-or-later
 +
 +#include "async_lifetime_guard.h"
@@ -1267,6 +2100,7 @@ index 0000000..c6c0748
 +#include <fstream>
 +#include <iostream>
 +#include <stdexcept>
++#include <thread>
 +
 +namespace helix::gcode {
 +struct GCodeGLESSelfTestAccess {
@@ -1275,6 +2109,9 @@ index 0000000..c6c0748
 +    static bool dma(const GCodeGLESRenderer& renderer) { return renderer.gpu_output_ != nullptr; }
 +    static const std::vector<uint8_t>& pixels(const GCodeGLESRenderer& renderer) {
 +        return renderer.readback_buf_;
++    }
++    static const lv_draw_buf_t* completed_image(const GCodeGLESRenderer& renderer) {
++        return renderer.draw_buf_;
 +    }
 +    static int client_version(const GCodeGLESRenderer& renderer) {
 +        EGLint version = 0;
@@ -1566,20 +2403,194 @@ index 0000000..c6c0748
 +    lv_obj_delete(object);
 +}
 +
++struct AsyncScene {
++    std::shared_ptr<const ParsedGCodeFile> file;
++    std::unique_ptr<GCodeGLESRenderer> gpu = std::make_unique<GCodeGLESRenderer>();
++    GCodeCamera camera;
++    std::vector<double> callback_times;
++
++    explicit AsyncScene(std::shared_ptr<const ParsedGCodeFile> source) : file(std::move(source)) {
++        gpu->enable_async();
++        require(!gpu->render_failed(), "cannot enable async GLES renderer");
++    }
++    void load(const char* name) {
++        auto geometry = build_3d_geometry_in_budget(*file, "Async GPU self-test");
++        require(geometry && !geometry->vertices.empty(), "async geometry unavailable");
++        gpu->set_prebuilt_geometry(std::move(geometry), name);
++        camera.set_viewport_size(317, 193);
++        camera.set_azimuth(45);
++        camera.set_elevation(35);
++        camera.fit_to_bounds(file->global_bounding_box);
++    }
++    static void draw(lv_event_t* event) {
++        auto& scene = *static_cast<AsyncScene*>(lv_event_get_user_data(event));
++        lv_area_t area;
++        lv_obj_get_coords(lv_event_get_target_obj(event), &area);
++        const auto start = Clock::now();
++        scene.gpu->render_async(lv_event_get_layer(event), scene.file, scene.camera, &area);
++        scene.callback_times.push_back(
++            std::chrono::duration<double, std::milli>(Clock::now() - start).count());
++    }
++};
++
++void check_async(std::shared_ptr<const ParsedGCodeFile> source,
++                 const std::filesystem::path& output, std::ostream& report) {
++    AsyncScene scene(std::move(source));
++    scene.load("async-initial");
++    scene.gpu->set_extrusion_color(lv_color_hex(0xFF6B35));
++    std::unique_ptr<lv_obj_t, decltype(&lv_obj_delete)> object(
++        lv_obj_create(lv_screen_active()), lv_obj_delete);
++    lv_obj_remove_style_all(object.get());
++    lv_obj_remove_flag(object.get(), LV_OBJ_FLAG_SCROLLABLE);
++    lv_obj_set_size(object.get(), 317, 193);
++    lv_obj_add_event_cb(object.get(), AsyncScene::draw, LV_EVENT_DRAW_MAIN, &scene);
++    lv_obj_update_layout(object.get());
++    std::unique_ptr<lv_draw_buf_t, decltype(&lv_draw_buf_destroy)> snapshot(
++        lv_snapshot_create_draw_buf(object.get(), LV_COLOR_FORMAT_ARGB8888), lv_draw_buf_destroy);
++    require(snapshot != nullptr, "async snapshot allocation failed");
++
++    bool reject_old_orange = false;
++    size_t checked_blue_frames = 0;
++    auto draw = [&] {
++        require(lv_snapshot_take_to_draw_buf(object.get(), LV_COLOR_FORMAT_ARGB8888,
++                                            snapshot.get()) == LV_RESULT_OK,
++                "async snapshot failed");
++        require(!scene.gpu->render_failed(), "async GLES failed");
++        const auto* image = GCodeGLESSelfTestAccess::completed_image(*scene.gpu);
++        if (reject_old_orange && image) {
++            size_t blue = 0;
++            for (uint32_t y = 0; y < image->header.h; ++y) {
++                const auto* row = image->data + static_cast<size_t>(y) * image->header.stride;
++                for (uint32_t x = 0; x < image->header.w; ++x) {
++                    require(row[x * 3 + 2] <= row[x * 3] + 2,
++                            "old orange model reappeared after reload");
++                    blue += row[x * 3] > row[x * 3 + 2] + 20;
++                }
++            }
++            require(blue > 0, "reloaded blue model has no visible geometry");
++            ++checked_blue_frames;
++        }
++    };
++    auto settle = [&] {
++        const auto start = Clock::now();
++        do {
++            draw();
++            if (!scene.gpu->is_uploading() &&
++                GCodeGLESSelfTestAccess::completed_image(*scene.gpu))
++                return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
++            require(Clock::now() - start < std::chrono::seconds(90),
++                    "async renderer did not complete its latest request");
++            std::this_thread::sleep_for(std::chrono::milliseconds(2));
++        } while (true);
++    };
++
++    require(!GCodeGLESSelfTestAccess::completed_image(*scene.gpu),
++            "new async renderer already contains an image");
++    const double first_ms = settle();
++    write_ppm(output / "async-first.ppm", *snapshot);
++    for (int i = 0; i < 48; ++i) {
++        scene.camera.rotate(4.0f, 0.0f);
++        draw();
++    }
++    const double latest_ms = settle();
++    write_ppm(output / "async-latest.ppm", *snapshot);
++
++    // Leave orange work pending, then exercise the viewer's exact clear order.
++    scene.camera.rotate(29.0f, 0.0f);
++    draw();
++    const bool clear_while_pending = scene.gpu->is_uploading();
++    scene.gpu->release_geometry();
++    scene.gpu->clear_cached_frame();
++    require(!scene.gpu->has_geometry() &&
++                !GCodeGLESSelfTestAccess::completed_image(*scene.gpu),
++            "release/clear retained a model or image");
++    draw();
++    require(!GCodeGLESSelfTestAccess::completed_image(*scene.gpu),
++            "cleared model republished an image");
++
++    // A controlled two-object model makes stale-color and picking checks exact,
++    // even when the optional input has no EXCLUDE_OBJECT metadata.
++    scene.file = std::make_shared<const ParsedGCodeFile>(parse(nullptr));
++    std::weak_ptr<const ParsedGCodeFile> reloaded_lifetime = scene.file;
++    scene.load("async-reloaded");
++    scene.gpu->set_extrusion_color(lv_color_hex(0x2266FF));
++    scene.gpu->set_highlighted_objects({});
++    reject_old_orange = true;
++    const double reload_ms = settle();
++    write_ppm(output / "async-reloaded.ppm", *snapshot);
++
++    GCodeGLESRenderer picker; // CPU picking creates no EGL context.
++    picker.set_viewport_size(317, 193);
++    std::vector<glm::vec2> points;
++    std::vector<std::optional<std::string>> next;
++    const auto shown_camera = scene.camera;
++    scene.camera.rotate(90.0f, 0.0f);
++    size_t hits = 0, changed = 0;
++    for (int y = 4; y < 193; y += 8) {
++        for (int x = 4; x < 317; x += 8) {
++            const glm::vec2 point(x, y);
++            const auto before = picker.pick_object(point, *scene.file, shown_camera);
++            const auto after = picker.pick_object(point, *scene.file, scene.camera);
++            hits += before.has_value();
++            changed += before != after;
++            require(scene.gpu->pick_object(point, *scene.file, scene.camera) == before,
++                    "picking followed a camera whose image is not displayed yet");
++            points.push_back(point);
++            next.push_back(after);
++        }
++    }
++    require(hits > 0 && changed > 0, "picking fixture does not distinguish camera positions");
++    settle();
++    for (size_t i = 0; i < points.size(); ++i)
++        require(scene.gpu->pick_object(points[i], *scene.file, shown_camera) == next[i],
++                "picking did not advance with the latest completed image");
++
++    bool destroy_while_pending = false;
++    for (int attempt = 0; attempt < 8 && !destroy_while_pending; ++attempt) {
++        scene.camera.rotate(17.0f, 0.0f);
++        draw();
++        destroy_while_pending = scene.gpu->is_uploading();
++    }
++    object.reset();
++    scene.file.reset();
++    const auto destroy_start = Clock::now();
++    scene.gpu.reset();
++    const double destroy_ms =
++        std::chrono::duration<double, std::milli>(Clock::now() - destroy_start).count();
++    require(reloaded_lifetime.expired(), "destroyed renderer retained its parsed model");
++    std::sort(scene.callback_times.begin(), scene.callback_times.end());
++    const size_t count = scene.callback_times.size();
++    require(count > 0, "async test never entered the draw callback");
++    report << "{\"mode\":\"async\",\"first_complete_ms\":" << first_ms
++           << ",\"latest_complete_ms\":" << latest_ms << ",\"reload_complete_ms\":" << reload_ms
++           << ",\"callback_median_ms\":" << scene.callback_times[count / 2]
++           << ",\"callback_p95_ms\":" << scene.callback_times[(count * 95 + 99) / 100 - 1]
++           << ",\"callback_max_ms\":" << scene.callback_times.back()
++           << ",\"callbacks\":" << count << ",\"clear_while_pending_observed\":"
++           << (clear_while_pending ? "true" : "false")
++           << ",\"checked_blue_frames\":" << checked_blue_frames
++           << ",\"picking_points\":" << points.size() << ",\"picking_changes\":" << changed
++           << ",\"destroy_while_pending_observed\":" << (destroy_while_pending ? "true" : "false")
++           << ",\"destroy_ms\":" << destroy_ms
++           << ",\"model_released\":true,\"passed\":true}\n";
++}
++
 +} // namespace
 +
 +int main(int argc, char** argv) {
-+    if (argc < 2 || argc > 3) {
-+        std::fprintf(stderr, "Usage: helix-gpu-self-test OUTPUT_DIRECTORY [GCODE_FILE]\n");
++    const bool async = argc > 1 && std::strcmp(argv[1], "--async") == 0;
++    const int first_argument = async ? 2 : 1;
++    if (argc < first_argument + 1 || argc > first_argument + 2) {
++        std::fprintf(stderr, "Usage: helix-gpu-self-test [--async] OUTPUT_DIRECTORY [GCODE_FILE]\n");
 +        return 2;
 +    }
 +    try {
-+        const std::filesystem::path output = std::filesystem::absolute(argv[1]);
++        const std::filesystem::path output = std::filesystem::absolute(argv[first_argument]);
 +        std::filesystem::create_directories(output / "config");
 +        setenv("HELIX_CONFIG_DIR", (output / "config").c_str(), 1);
 +        helix::internal::set_main_thread_id();
 +        spdlog::set_level(spdlog::level::debug);
-+        auto file = parse(argc == 3 ? argv[2] : nullptr);
++        auto file = parse(argc == first_argument + 2 ? argv[first_argument + 1] : nullptr);
 +        lv_init();
 +        lv_tick_set_cb([]() -> uint32_t {
 +            return static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -1599,7 +2610,10 @@ index 0000000..c6c0748
 +        require(report.good(), "cannot open report");
 +        const char* enabled = std::getenv("UI_GPU_ENABLED");
 +        const bool off = enabled && std::strcmp(enabled, "0") == 0;
-+        {
++        if (async) {
++            require(!off, "--async requires UI_GPU_ENABLED=1; use the default mode for GPU-off checks");
++            check_async(std::make_shared<const ParsedGCodeFile>(std::move(file)), output, report);
++        } else {
 +            Scene scene(file, off);
 +            lv_obj_t* object = lv_obj_create(lv_screen_active());
 +            lv_obj_remove_style_all(object);
@@ -1615,7 +2629,7 @@ index 0000000..c6c0748
 +            report << "]}\n";
 +            lv_obj_delete(object);
 +        }
-+        if (!off)
++        if (!async && !off)
 +            check_progress_alpha(output);
 +        lv_deinit();
 +        lv_xml_deinit();
@@ -1627,7 +2641,7 @@ index 0000000..c6c0748
 +    }
 +}
 diff --git a/src/ui/ui_gcode_viewer.cpp b/src/ui/ui_gcode_viewer.cpp
-index deda7f1..bf1a5a9 100644
+index deda7f1..ef29a16 100644
 --- a/src/ui/ui_gcode_viewer.cpp
 +++ b/src/ui/ui_gcode_viewer.cpp
 @@ -22,7 +22,6 @@
@@ -1638,7 +2652,26 @@ index deda7f1..bf1a5a9 100644
  #include "lvgl/src/others/translation/lv_translation.h"
  #include "memory_utils.h"
  #include "print_status_preview_decision.h"
-@@ -482,76 +481,6 @@ static bool has_gcode_data(const gcode_viewer_state_t* st) {
+@@ -84,6 +83,9 @@ class GCodeViewerState {
+         camera_ = std::make_unique<helix::gcode::GCodeCamera>();
+ #ifdef ENABLE_3D_RENDERER
+         renderer_ = std::make_unique<GCode3DRenderer>();
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++        renderer_->enable_async();
++#endif
+         spdlog::debug("[GCode Viewer] 3D renderer available");
+ #else
+         renderer_ = std::make_unique<helix::gcode::GCodeRenderer>();
+@@ -244,7 +246,7 @@ class GCodeViewerState {
+     // ========================================================================
+ 
+     // G-code data
+-    std::unique_ptr<helix::gcode::ParsedGCodeFile> gcode_file;
++    std::shared_ptr<helix::gcode::ParsedGCodeFile> gcode_file;
+     GcodeViewerState viewer_state{GcodeViewerState::Empty};
+ 
+     // Rendering components (exposed for callbacks)
+@@ -482,76 +484,6 @@ static bool has_gcode_data(const gcode_viewer_state_t* st) {
      return st->gcode_file || (st->streaming_controller_ && st->streaming_controller_->is_open());
  }
  
@@ -1715,7 +2748,19 @@ index deda7f1..bf1a5a9 100644
  // ==============================================
  // Event Callbacks
  // ==============================================
-@@ -1904,7 +1833,7 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
+@@ -783,7 +715,11 @@ static void gcode_viewer_draw_cb(lv_event_t* e) {
+         }
+         gcode_viewer_refresh_content_offset(st, obj, lv_area_get_width(&widget_coords),
+                                             lv_area_get_height(&widget_coords));
++#if defined(HELIX_PLATFORM_SNAPMAKER_U1) && defined(ENABLE_GLES_3D)
++        st->renderer_->render_async(layer, st->gcode_file, *st->camera_, &widget_coords);
++#else
+         st->renderer_->render(layer, *st->gcode_file, *st->camera_, &widget_coords);
++#endif
+ 
+ #ifdef ENABLE_3D_RENDERER
+         // A fatal GL draw error (out-of-memory / invalid-operation) means the
+@@ -1904,7 +1840,7 @@ static void ui_gcode_viewer_load_file_async(lv_obj_t* obj, const char* file_path
                  // Segments are deliberately retained even after the build so the 2D
                  // renderer can walk them when the user switches back.
                  if (!st->is_using_2d_mode()) {
@@ -1724,7 +2769,7 @@ index deda7f1..bf1a5a9 100644
                          *result->gcode_file, "Initial load", [st]() { return st->is_cancelled(); });
                      if (!result->geometry) {
                          result->force_2d = true;
-@@ -2293,7 +2222,7 @@ void ui_gcode_viewer_set_render_mode(lv_obj_t* obj, GcodeViewerRenderMode mode)
+@@ -2293,7 +2229,7 @@ void ui_gcode_viewer_set_render_mode(lv_obj_t* obj, GcodeViewerRenderMode mode)
      // the 3D viewer paints an empty background after a live 2D→3D switch.
      if (!st->is_using_2d_mode() && st->gcode_file && st->renderer_ &&
          !st->renderer_->has_geometry()) {
@@ -1733,6 +2778,93 @@ index deda7f1..bf1a5a9 100644
          if (geometry) {
              st->renderer_->set_prebuilt_geometry(std::move(geometry), st->gcode_file->filename);
              if (st->camera_) {
+diff --git a/tests/standalone/gcode_latest_frame.cpp b/tests/standalone/gcode_latest_frame.cpp
+new file mode 100644
+index 0000000..1d906ae
+--- /dev/null
++++ b/tests/standalone/gcode_latest_frame.cpp
+@@ -0,0 +1,81 @@
++// SPDX-License-Identifier: GPL-3.0-or-later
++#include "gcode_latest_frame.h"
++
++#include <cassert>
++#include <future>
++#include <memory>
++#include <thread>
++
++using helix::gcode::detail::LatestFrame;
++
++int main() {
++    using Queue = LatestFrame<std::shared_ptr<int>, int>;
++    Queue frames;
++    Queue::Request current{};
++    auto first = std::make_shared<int>(1);
++    std::weak_ptr<int> old = first;
++    frames.submit(std::move(first));
++    frames.submit(std::make_shared<int>(2));
++    assert(old.expired()); // An unstarted job does not keep an obsolete model alive.
++    assert(frames.take(current) && *current.job == 2);
++
++    frames.submit(std::make_shared<int>(3));
++    assert(frames.superseded(current));
++    frames.publish(current, 2);
++    assert(frames.consume() == 2); // New camera work may display the last complete frame.
++    assert(frames.needs_frame());
++    assert(frames.take(current) && *current.job == 3);
++    frames.publish(current, 3);
++    assert(frames.consume() == 3 && !frames.needs_frame());
++
++    frames.submit(std::make_shared<int>(4));
++    assert(frames.take(current));
++    frames.invalidate(); // A file change must reject an in-flight old model.
++    frames.publish(current, 4);
++    assert(!frames.consume() && !frames.needs_frame());
++    assert(frames.superseded(current));
++
++    std::promise<void> entered;
++    std::thread idle([&] {
++        entered.set_value();
++        assert(!frames.take(current));
++    });
++    entered.get_future().wait();
++    frames.stop();
++    idle.join(); // Destruction wakes an idle worker without a final rendering job.
++
++    // The caller may release a model while a job is running. Its worker-owned
++    // shared pointer must keep it alive until that job has finished.
++    Queue ownership;
++    auto model = std::make_shared<int>(5);
++    std::weak_ptr<int> life = model;
++    ownership.submit(model);
++    assert(ownership.take(current));
++    model.reset();
++    ownership.invalidate();
++    assert(!life.expired());
++    current.job.reset();
++    assert(life.expired());
++    ownership.stop();
++
++    LatestFrame<int, int> burst;
++    std::promise<void> started, release;
++    auto continue_rendering = release.get_future();
++    std::thread renderer([&] {
++        LatestFrame<int, int>::Request request{};
++        assert(burst.take(request) && request.job == 1);
++        started.set_value();
++        continue_rendering.wait();
++        burst.publish(request, request.job);
++        assert(burst.take(request) && request.job == 1000);
++        burst.publish(request, request.job);
++    });
++    burst.submit(1);
++    started.get_future().wait();
++    for (int n = 2; n <= 1000; ++n)
++        burst.submit(n);
++    release.set_value();
++    renderer.join();
++    assert(burst.consume() == 1000 && !burst.needs_frame());
++    burst.stop();
++}
 diff --git a/tests/unit/test_gcode_geometry_builder.cpp b/tests/unit/test_gcode_geometry_builder.cpp
 index 2c59d13..2e49c05 100644
 --- a/tests/unit/test_gcode_geometry_builder.cpp

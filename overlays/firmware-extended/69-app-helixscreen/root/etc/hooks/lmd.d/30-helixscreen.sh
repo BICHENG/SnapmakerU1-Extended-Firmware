@@ -52,8 +52,12 @@ if [ "$1" = start ]; then
 			chown -R lava:lava "$HELIX_CFG_DIR"
 		fi
 
-		# HelixScreen never writes to `/dev/fb0`, so mirror its frames there for `fb-http`.
-		export HELIX_REMOTE_SCREEN_FB0=/dev/fb0
+		# The bundled fbdev build presents and publishes complete frames itself.
+		if [ "$HELIX_BINARY" = "$HELIX_GPU_BINARY" ]; then
+			unset HELIX_REMOTE_SCREEN_FB0
+		else
+			export HELIX_REMOTE_SCREEN_FB0=/dev/fb0
+		fi
 
 		if [ -z "$HELIX_BOUND" ]; then
 			if mount -o ro --bind "$HELIX_BINARY" "$HELIX_GUI"; then

@@ -28,6 +28,10 @@ for dtb in "$boot/fdt.dtb" "$boot/resources/rk-kernel.dtb"; do
   supply=$(fdtget -t x "$dtb" "$regulator" phandle)
   fdtput -t x "$dtb" /gpu@ff320000 mali-supply "$supply"
   fdtput -t s "$dtb" /gpu@ff320000 status okay
+  # Allocate both scanout pages before fbdev starts; this also benefits CPU UIs.
+  args=$(fdtget -t s "$dtb" /chosen bootargs)
+  args=$(printf '%s' "$args" | sed -E 's/(^| )drm_kms_helper\.drm_fbdev_overalloc=[^ ]+//g')
+  fdtput -t s "$dtb" /chosen bootargs "$args drm_kms_helper.drm_fbdev_overalloc=200"
 done
 boot_fit.sh repack "$boot" "$BOOT_IMG"
 

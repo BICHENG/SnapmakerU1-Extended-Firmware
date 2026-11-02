@@ -97,7 +97,7 @@ class HelixGpuHookTest(unittest.TestCase):
                 self.assertEqual(environment, {
                     'UI_GPU_ENABLED': enabled, 'HELIX_DATA_DIR': str(self.latest),
                     'HELIX_CONFIG_DIR': str(self.config_dir), 'HELIX_SUPERVISED': '1',
-                    'HELIX_DRM_DEVICE': '/dev/dri/card0', 'HELIX_REMOTE_SCREEN_FB0': '/dev/fb0',
+                    'HELIX_DRM_DEVICE': '/dev/dri/card0', 'HELIX_REMOTE_SCREEN_FB0': '',
                     'HELIX_CACHE_DIR': '/userdata/helixscreen/cache'})
                 self.assertEqual([c for c in calls if c[0] == 'killall'], [['killall', 'wpa_supplicant']])
                 self.assertEqual([c for c in calls if c[0] == 'wpa_supplicant'],
@@ -113,8 +113,9 @@ class HelixGpuHookTest(unittest.TestCase):
         for version in ('1.0.6', '1.0.8'):
             with self.subTest(version=version):
                 self.install(version)
-                calls, _ = self.start('1')
+                calls, environment = self.start('1')
                 self.assert_bound(calls, self.latest / 'bin/helix-screen')
+                self.assertEqual(environment['HELIX_REMOTE_SCREEN_FB0'], '/dev/fb0')
 
     def test_missing_or_mismatched_patched_metadata_keeps_official_binary(self):
         for version in ('', '1.0.8', None):
