@@ -65,5 +65,28 @@ int main() {
     assert(screen_touch.message("viewer-b", R"({"touch":"down","x":0.5,"y":0.5})"));
     assert(screen_touch.message("viewer-b", R"({"touch":"up"})"));
     assert(!screen_touch.message("viewer-b", R"({"touch":"hold"})"));
+    const auto before_motion = events.size();
+    assert(!screen_touch.message("viewer-a", R"({"touch":"move","gesture":1,"sequence":1,"x":0.8,"y":0.5})", true));
+    assert(!screen_touch.message("viewer-a", R"({"touch":"down","gesture":1,"x":0.5,"y":0.5})", true));
+    assert(events.size() == before_motion);
+    assert(screen_touch.message("viewer-a", R"({"touch":"down","gesture":1,"x":0.5,"y":0.5})"));
+    assert(screen_touch.message("viewer-a", R"({"touch":"move","gesture":1,"sequence":7,"x":0.8,"y":0.5})", true));
+    const auto newest = events.size();
+    assert(!screen_touch.message("viewer-a", R"({"touch":"move","gesture":1,"sequence":6,"x":0.1,"y":0.5})", true));
+    assert(!screen_touch.message("viewer-a", R"({"touch":"move","gesture":1,"sequence":7,"x":0.1,"y":0.5})", true));
+    assert(!screen_touch.message("viewer-a", R"({"touch":"up"})"));
+    assert(!screen_touch.message("viewer-a", R"({"touch":"hold","gesture":2})"));
+    assert(!screen_touch.message("viewer-b", R"({"touch":"move","gesture":1,"sequence":8,"x":0.1,"y":0.5})", true));
+    assert(events.size() == newest);
+    assert(screen_touch.message("viewer-a", R"({"touch":"up","gesture":1,"x":1,"y":0})"));
+    assert(events[newest].code == ABS_MT_POSITION_X && events[newest].value == 479);
+    assert(events[newest+1].code == ABS_MT_POSITION_Y && events[newest+1].value == 0);
+    assert(!screen_touch.message("viewer-a", R"({"touch":"move","gesture":1,"sequence":8,"x":0.1,"y":0.5})", true));
+    assert(screen_touch.message("viewer-a", R"({"touch":"down","gesture":2,"x":0.5,"y":0.5})"));
+    assert(!screen_touch.message("viewer-a", R"({"touch":"up","gesture":1})"));
+    assert(!screen_touch.message("viewer-a", R"({"touch":"move","gesture":2,"sequence":9007199254740992,"x":0.1,"y":0.5})", true));
+    assert(screen_touch.message("viewer-a", R"({"touch":"hold","gesture":2})"));
+    assert(screen_touch.message("viewer-a", R"({"touch":"up","gesture":2})"));
     std::cout << "Stationary hold, owner isolation, no synthetic events and 2s disconnect expiry passed\n";
+    std::cout << "Unordered motion, stale gestures, duplicate sequences and final release position passed\n";
 }

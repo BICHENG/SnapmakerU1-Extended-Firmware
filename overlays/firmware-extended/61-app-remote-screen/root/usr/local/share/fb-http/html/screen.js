@@ -2,6 +2,7 @@
 const video = document.getElementById('screen');
 const statusText = document.getElementById('status');
 let peer, channel, session, generation = 0, pressed = false, retryTimer, holdTimer, retries = 0;
+let motionChannel, moveTimer, pendingMove, lastPoint, gesture = 0, sequence = 0;
 const retryDelays = [1000, 2000, 4000, 8000, 15000];
 const identityKey = 'u1-screen-client';
 const randomOwner = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), n => n.toString(16).padStart(2, '0')).join('');
@@ -39,8 +40,9 @@ async function signal(message, keepalive = false) {
 }
 function release() {
     clearInterval(holdTimer); holdTimer = null;
+    clearTimeout(moveTimer); moveTimer = null; pendingMove = null;
     if (pressed && channel?.readyState === 'open') {
-        try { channel.send(JSON.stringify({touch:'up'})); } catch (_) {}
+        try { channel.send(JSON.stringify({touch:'up',gesture,...lastPoint})); } catch (_) {}
     }
     pressed = false;
 }
@@ -51,6 +53,7 @@ function closeConnection() {
     const id = session;
     release();
     if (peer) peer.onconnectionstatechange = null;
+    motionChannel?.close(); motionChannel = null;
     channel?.close(); peer?.close();
     channel = null; peer = null; session = null; video.srcObject = null;
     return closeSession(id);
@@ -87,8 +90,12 @@ async function connect(manual = true) {
         pc.ontrack = event => { if (current === generation) video.srcObject = new MediaStream([event.track]); };
         pc.ondatachannel = event => {
             if (current !== generation) return;
-            const dc = event.channel; channel = dc;
+            const dc = event.channel;
+            if (dc.label === 'screen-motion') { motionChannel = dc; return; }
+            if (dc.label && dc.label !== 'keepalive') { dc.close(); return; }
+            channel = dc;
             dc.onmessage = event => { if (event.data === 'ping' && dc.readyState === 'open') dc.send('pong'); };
+            dc.onclose = () => { if (channel === dc) release(); };
         };
         pc.onicecandidate = event => {
             if (current === generation && event.candidate)
@@ -126,6 +133,16 @@ async function connect(manual = true) {
         }
     }
 }
+function flushMove() {
+    moveTimer = null;
+    if (!pressed || !pendingMove || channel?.readyState !== 'open') return;
+    const dc = motionChannel?.readyState === 'open' ? motionChannel : channel;
+    if (!dc.bufferedAmount) {
+        try { dc.send(JSON.stringify(pendingMove)); pendingMove = null; }
+        catch (_) { release(); return; }
+    }
+    if (pendingMove) moveTimer = setTimeout(flushMove, 22);
+}
 function pointer(event, action) {
     if (channel?.readyState !== 'open') return;
     const box = video.getBoundingClientRect();
@@ -134,20 +151,31 @@ function pointer(event, action) {
     const x = (event.clientX - box.left - (box.width-width)/2)/width;
     const y = (event.clientY - box.top - (box.height-height)/2)/height;
     if (action === 'down' && (x < 0 || x > 1 || y < 0 || y > 1)) return;
-    if (action === 'down') { pressed = true; video.setPointerCapture(event.pointerId); }
+    if (action === 'down') {
+        if (pressed) return;
+        pressed = true; ++gesture; sequence = 0;
+        video.setPointerCapture(event.pointerId);
+    }
     if (!pressed) return;
-    channel.send(JSON.stringify({touch:action,x:Math.max(0,Math.min(1,x)),y:Math.max(0,Math.min(1,y))}));
+    lastPoint = {x:Math.max(0,Math.min(1,x)),y:Math.max(0,Math.min(1,y))};
+    if (action === 'move') {
+        pendingMove = {touch:'move',gesture,sequence:++sequence,...lastPoint};
+        if (!moveTimer) moveTimer = setTimeout(flushMove, 22);
+        return;
+    }
+    try { channel.send(JSON.stringify({touch:action,gesture,...lastPoint})); }
+    catch (_) { release(); return; }
     if (action === 'down') {
         clearInterval(holdTimer);
         holdTimer = setInterval(()=>{
             if (!pressed || channel?.readyState !== 'open') { release(); return; }
-            try { channel.send(JSON.stringify({touch:'hold'})); } catch (_) { release(); }
+            try { channel.send(JSON.stringify({touch:'hold',gesture})); } catch (_) { release(); }
         }, 500);
     }
 }
 video.addEventListener('pointerdown',e=>{if(e.isPrimary && e.button===0)pointer(e,'down');});
 video.addEventListener('pointermove',e=>{if(e.isPrimary)pointer(e,'move');});
-video.addEventListener('pointerup',release);
+video.addEventListener('pointerup',e=>{if(e.isPrimary){pointer(e,'move');release();}});
 video.addEventListener('pointercancel',release);
 video.addEventListener('lostpointercapture',release);
 window.addEventListener('blur',release);
