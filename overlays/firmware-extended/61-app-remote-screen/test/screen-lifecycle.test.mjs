@@ -147,11 +147,54 @@ test('a stationary press renews only its hold lease and every release path stops
         assert.equal(hold.delay, 500);
         for (let i = 0; i < 6; ++i) hold.fn();
         assert.equal(sent[0].touch, 'down');
-        assert.deepEqual(sent.slice(1), Array.from({length:6}, () => ({touch:'hold'})));
+        assert.deepEqual(sent.slice(1), Array.from({length:6}, () => ({touch:'hold',gesture:1})));
         if (stop === 'disconnect') b.peers[0].change('disconnected');
         else if (stop === 'blur' || stop === 'pagehide') b.events.get(stop)();
-        else video.handlers.get(stop)();
+        else video.handlers.get(stop)({isPrimary:true,clientX:120,clientY:80});
         assert.equal(b.intervals.size, 0, stop);
         assert.equal(sent.at(-1).touch, 'up', stop);
     }
+});
+
+test('movement keeps one latest sample and release bypasses queued movement on the reliable channel', async () => {
+    const b = browser(); await settle();
+    const reliable = [], moving = [];
+    const channel = {label:'keepalive',readyState:'open',bufferedAmount:0,send:t=>reliable.push(JSON.parse(t)),close(){}};
+    const motion = {label:'screen-motion',readyState:'open',bufferedAmount:100,send:t=>moving.push(JSON.parse(t)),close(){}};
+    b.peers[0].ondatachannel({channel});
+    b.peers[0].ondatachannel({channel:motion});
+    const video = b.elements.get('screen');
+    const point = x => ({isPrimary:true,button:0,pointerId:1,clientX:x,clientY:80});
+    video.handlers.get('pointerdown')(point(10));
+    for(let x=11;x<=110;++x) video.handlers.get('pointermove')(point(x));
+    assert.equal(b.timers.size,1);
+    await b.retry();
+    assert.equal(moving.length,0);
+    assert.equal(b.timers.size,1);
+    motion.bufferedAmount=0;
+    await b.retry();
+    assert.equal(moving.length,1);
+    assert.deepEqual(moving[0],{touch:'move',gesture:1,sequence:100,x:110/480,y:80/320});
+    video.handlers.get('pointermove')(point(200));
+    video.handlers.get('pointerup')(point(240));
+    assert.equal(b.timers.size,0);
+    assert.equal(moving.length,1);
+    assert.deepEqual(reliable.map(x=>x.touch),['down','up']);
+    assert.deepEqual(reliable.at(-1),{touch:'up',gesture:1,x:0.5,y:0.25});
+});
+
+test('a peer without the motion channel still receives coalesced moves and a closed control channel releases locally', async () => {
+    const b=browser(); await settle();
+    const sent=[];
+    const channel={label:'keepalive',readyState:'open',bufferedAmount:0,send:t=>sent.push(JSON.parse(t)),close(){}};
+    b.peers[0].ondatachannel({channel});
+    const video=b.elements.get('screen');
+    video.handlers.get('pointerdown')({isPrimary:true,button:0,pointerId:1,clientX:10,clientY:10});
+    video.handlers.get('pointermove')({isPrimary:true,clientX:20,clientY:20});
+    await b.retry();
+    assert.deepEqual(sent.map(x=>x.touch),['down','move']);
+    video.handlers.get('pointermove')({isPrimary:true,clientX:30,clientY:30});
+    channel.readyState='closed'; channel.onclose();
+    assert.equal(b.timers.size,0);
+    assert.equal(b.intervals.size,0);
 });

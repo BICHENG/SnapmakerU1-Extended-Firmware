@@ -6,6 +6,9 @@ from pathlib import Path
 path = Path(sys.argv[1])
 source = path.read_text()
 changes = [
+    ('    std::shared_ptr<rtc::DataChannel> data_channel;',
+     '    std::shared_ptr<rtc::DataChannel> data_channel;\n'
+     '    std::shared_ptr<rtc::DataChannel> motion_channel;'),
     ('#include "h264_frames.h"\n#include "h264_stream.h"', '#include "screen_stream.h"'),
     ('    std::string id;\n', '    std::string id;\n    uint64_t first_frame_ns = 0;\n'),
     ('''static void send_frame(const uint8_t *data, size_t size) {
@@ -37,6 +40,18 @@ changes = [
      'screen_touch.disconnected(c->id);\n            log_errorf("Removed client %s\\n", c->id.c_str());'),
     ('client->data_channel->onMessage([weak_client](auto) {',
      'client->data_channel->onMessage([weak_client](rtc::message_variant message) {'),
+    ('    client->data_channel = client->pc->createDataChannel("keepalive");', '''    if (getenv("SCREEN_TOUCH_DEVICE")) {
+        rtc::DataChannelInit motion;
+        motion.reliability.unordered = true;
+        motion.reliability.maxRetransmits = 0;
+        client->motion_channel = client->pc->createDataChannel("screen-motion", motion);
+        client->motion_channel->onMessage([weak_client](rtc::message_variant message) {
+            if (auto c = weak_client.lock())
+                if (auto text = std::get_if<std::string>(&message))
+                    screen_touch.message(c->id, *text, true);
+        });
+    }
+    client->data_channel = client->pc->createDataChannel("keepalive");'''),
     ('c->last_pong = std::chrono::steady_clock::now();',
      'c->last_pong = std::chrono::steady_clock::now();\n'
      '            if (auto text = std::get_if<std::string>(&message)) {\n'
