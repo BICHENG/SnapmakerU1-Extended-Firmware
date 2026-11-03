@@ -85,14 +85,22 @@ the target CRTC with `enable=1 active=1` and a nonzero framebuffer on its plane.
 `bl_power=0` and increasing flip counts do not prove active scanout. The current
 panel mode was measured at about 45 Hz; no 60/120 Hz mode has been verified.
 
-The supported 2.1 original UI and patched Helix use 22 ms display and animation
-periods independently of the Firmware GPU switch. Helix pointer polling also
-uses 22 ms. These are scheduling periods, not measurements of unique preview
+The supported 2.1 original UI and patched Helix use 22 ms display, animation
+and input polling periods independently of the Firmware GPU switch.
+These are scheduling periods, not measurements of unique preview
 frames or touch latency. The original adapter recognizes exact hashes for
 2.0.0.205 and 2.1.0.157. The new presenter, animation timer and performance events
 are verified for the 2.1 adapter. The 2.0 adapter changes only its verified
 display timer. Unknown binaries bypass private calls. `stock-display` owns the
 sole original sleep hook and calls the optional G-code adapter's `stock_ui_tick`.
+
+Real Settings-menu dragging on 2026-11-03 exposed a missing original input
+timer adjustment: the display and animation timers were 22 ms, but pointer
+polling remained 33 ms. The same local gesture measured 29.48 fps with that
+mismatch and 43.52 fps after aligning input, with frame-interval P95 improving
+from 44.61 to 22.78 ms. Both runs had an active panel and no new flip errors.
+GPU active time did not increase. Occasional longer frames remain; forced
+homepage throughput is not a substitute for this interaction measurement.
 
 ### Remote source ABI
 
