@@ -43,6 +43,7 @@ static unsigned locks, unlocks, timer_writes, attachments, polls, ticks, tick_lo
 static unsigned actual_refresh, actual_animation, attached_gpu, slept;
 static uint64_t fake_ms=100000;
 static unsigned refresh_timer=33, animation_timer=33;
+static unsigned input_timers[3]={33,33,0};
 static _Alignas(8) unsigned char global_memory[64], display_memory[928];
 static void *global_pointer=global_memory;
 static DisplayAbi fake_abi;
@@ -53,6 +54,17 @@ static void lock_native(void) { assert(!mutex_depth); mutex_depth=1; locks++; }
 static void unlock_native(void) { assert(mutex_depth==1); mutex_depth=0; unlocks++; }
 static void set_period(void *timer,unsigned period) { assert(mutex_depth==1); *(unsigned *)timer=period; timer_writes++; }
 static void *get_animation(void) { assert(mutex_depth==1); return &animation_timer; }
+static void *next_input(void *input)
+{
+    assert(mutex_depth==1);
+    if(!input) return input_timers;
+    return input==input_timers+2?NULL:(unsigned *)input+1;
+}
+static void *get_input_timer(void *input)
+{
+    assert(mutex_depth==1);
+    return input==input_timers+2?NULL:input;
+}
 static void invalidate_native(void *display,const int32_t *area)
 {
     assert(mutex_depth==1 && display==display_memory);
@@ -119,6 +131,7 @@ static void reset_policy(unsigned version,int enabled,int extension)
     benchmark_until=benchmark_checked=0;
     locks=unlocks=timer_writes=attachments=polls=ticks=tick_lookups=logs=repaints=0;
     refresh_timer=animation_timer=33; have_extension=extension;
+    input_timers[0]=input_timers[1]=33;
     global_pointer=global_memory;
     memset(global_memory,0,sizeof(global_memory)); memset(display_memory,0,sizeof(display_memory));
     *(void **)(global_memory+0x28)=display_memory;
@@ -129,6 +142,8 @@ static void reset_policy(unsigned version,int enabled,int extension)
     fake_abi.lock=(uintptr_t)lock_native-vendor_base; fake_abi.unlock=(uintptr_t)unlock_native-vendor_base;
     fake_abi.timer_set_period=(uintptr_t)set_period-vendor_base;
     if(fake_abi.animation_get_timer) fake_abi.animation_get_timer=(uintptr_t)get_animation-vendor_base;
+    if(fake_abi.indev_get_next) fake_abi.indev_get_next=(uintptr_t)next_input-vendor_base;
+    if(fake_abi.indev_get_read_timer) fake_abi.indev_get_read_timer=(uintptr_t)get_input_timer-vendor_base;
     if(fake_abi.invalidate_area) fake_abi.invalidate_area=(uintptr_t)invalidate_native-vendor_base;
     vendor_abi=&fake_abi;
     assert(!setenv("UI_GPU_ENABLED",enabled?"1":"0",1));
@@ -161,26 +176,32 @@ int main(void)
     reset_policy(1,0,0);
     assert(!unsetenv("UI_DISPLAY_BASELINE"));
     native_tick(1000,vendor_base+fake_abi.main_sleep);
-    assert(timer_writes==2 && actual_refresh==22 && actual_animation==22 && !attached_gpu);
+    assert(timer_writes==4 && actual_refresh==22 && actual_animation==22 && !attached_gpu);
+    assert(input_timers[0]==22 && input_timers[1]==22);
 
     reset_policy(1,0,0);
     assert(native_tick(99000,vendor_base+fake_abi.main_sleep+4)==99000 && !locks && !tick_lookups);
     assert(native_tick(99000,vendor_base+fake_abi.main_sleep)==99000);
     assert(locks==1 && unlocks==1 && !timer_writes && actual_refresh==33 && actual_animation==33 && !attached_gpu);
+    assert(input_timers[0]==33 && input_timers[1]==33);
     refresh_timer=17;
     native_tick(500,vendor_base+fake_abi.main_short_sleep); assert(refresh_timer==17 && actual_refresh==17 && !timer_writes);
     assert(intercepted_usleep(123)==7 && slept==123);
 
     reset_policy(1,1,1);
     assert(native_tick(99000,vendor_base+fake_abi.main_sleep)==17000);
-    assert(timer_writes==2 && actual_refresh==22 && actual_animation==22 && attached_gpu && ticks==1);
+    assert(timer_writes==4 && actual_refresh==22 && actual_animation==22 && attached_gpu && ticks==1);
     native_tick(900,vendor_base+fake_abi.main_short_sleep);
-    assert(timer_writes==2 && tick_lookups==1 && ticks==2 && polls==2);
+    assert(timer_writes==4 && tick_lookups==1 && ticks==2 && polls==2);
+    input_timers[1]=33;
+    native_tick(900,vendor_base+fake_abi.main_short_sleep);
+    assert(timer_writes==5 && input_timers[1]==22);
     unsigned log_count=logs; native_tick(900,vendor_base+fake_abi.main_sleep); assert(logs==log_count);
 
     reset_policy(0,1,1);
     native_tick(99000,vendor_base+fake_abi.main_sleep);
     assert(timer_writes==1 && refresh_timer==22 && animation_timer==33 && actual_animation==0 && ticks==1);
+    assert(input_timers[0]==33 && input_timers[1]==33);
     assert(logs==2); native_tick(99000,vendor_base+fake_abi.main_short_sleep); assert(logs==2);
     request("15\n"); native_tick(99000,vendor_base+fake_abi.main_sleep); assert(!benchmark_until && !repaints);
 
@@ -208,10 +229,10 @@ int main(void)
     reset_policy(1,1,0);
     request("1\n"); assert(native_tick(3000000,vendor_base+fake_abi.main_sleep)==22000); assert(benchmark_until && repaints==1);
     fake_ms++; native_tick(1000,vendor_base+fake_abi.main_sleep); assert(repaints==2);
-    assert(timer_writes==2 && refresh_timer==22 && animation_timer==22);
+    assert(timer_writes==4 && refresh_timer==22 && animation_timer==22);
     fake_ms+=999; native_tick(1000,vendor_base+fake_abi.main_sleep); assert(!benchmark_until && repaints==2);
-    assert(timer_writes==2);
+    assert(timer_writes==4);
     assert(!unlink(fixture_path)); assert(!rmdir(directory));
-    puts("stock-display host tests passed: hash gate, callsite, off/on, animation, optional tick, unsupported perf, bounded repaint");
+    puts("stock-display host tests passed: hash gate, callsite, off/on, animation/input cadence, optional tick, unsupported perf, bounded repaint");
     return 0;
 }

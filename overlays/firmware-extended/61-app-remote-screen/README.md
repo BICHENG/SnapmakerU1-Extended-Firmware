@@ -1,30 +1,31 @@
-# Remote Screen 2 - Simple HTTP Framebuffer Server
+# Remote touchscreen over WebRTC
 
-A lightweight Python HTTP server that exposes the framebuffer as PNG snapshots and accepts touch input.
+`/screen/` receives H.264 video and sends touch events over the same WebRTC
+connection. HTTP handles the page, authentication and SDP/ICE signalling;
+the viewer does not fall back to HTTP touch requests.
 
-## Features
+The display producer publishes complete frames to `/run/ui-frame`. `fb-mpp`
+encodes the latest frame with Rockchip MPP and supplies `stream-screen-webrtc`.
+Older producers can use the visible framebuffer page as a compatibility source.
+Video encoding is independent of the Mali GPU setting.
 
-- Reads from `/dev/fb0` and converts to PNG
-- Simple web viewer that refreshes at ~2Hz
-- Touch input support via `/dev/input/event0`
+`screen.js` sends `down`, `move`, `hold` and `up` on the server-created
+`keepalive` data channel. Its current libdatachannel defaults are reliable,
+ordered delivery. `screen_touch.h` accepts one controlling viewer at a time,
+releases input on disconnect and expires a press after two seconds without
+renewal. A stationary press sends `hold` every 500 ms. The channel acknowledges
+accepted input with `touch-ok`.
 
-## Endpoints
+Reliable ordering can delay newer movement behind retransmission on a weak
+network. The current viewer sends every pointer move and does not yet coalesce
+queued positions. WebRTC alone does not guarantee low touch latency. A future
+bounded movement channel must preserve reliable press/release and reject stale
+or reordered positions across gestures; this has not been implemented or
+validated by the menu-cadence fix.
 
-- `GET /` - HTML viewer with auto-refresh and touch support
-- `GET /snapshot` - Current framebuffer as PNG image
-- `POST /touch?x=&y=` - Send touch event at coordinates
+`fb-http.py` still serves PNG snapshots and the loopback diagnostic `/touch`
+endpoint on port 8092. These support inspection and local test input; they are
+not the video or touch transport used by `/screen/`.
 
-## Configuration
-
-Edit `/etc/init.d/S99fb-http` to change:
-
-- `PORT` - HTTP port (default: 8092)
-- `BIND` - Bind address (default: 0.0.0.0)
-- `FB_DEVICE` - Framebuffer device (default: /dev/fb0)
-- `TOUCH_DEVICE` - Touch input device (default: /dev/input/event0)
-- `HTML_TEMPLATE` - Path to HTML template file (default: /usr/local/share/fb-http-server/index.html)
-
-## Dependencies
-
-- Python 3
-- Pillow (installed via pip)
+Enable the feature in Firmware's Web settings. See
+[Remote screen access](../../../../docs/remote_screen.md) for configuration.
