@@ -20,6 +20,7 @@ typedef struct {
     const char *version, *sha256;
     size_t executable_size;
     uintptr_t global_got, lock, unlock, timer_set_period, animation_get_timer, invalidate_area;
+    uintptr_t indev_get_next, indev_get_read_timer;
     size_t global_display_offset, display_timer_offset;
     uintptr_t main_sleep, main_short_sleep;
 } DisplayAbi;
@@ -32,6 +33,7 @@ static const DisplayAbi display_abis[] = {
     {.version="2.1.0.157",.sha256="2cf51b704a1d750f269f4132f108197ea7ec3b4b0865b070b87e150bf9d0e472",
      .executable_size=6563736,.global_got=0x640f38,.lock=0x3fcf0,.unlock=0x3fd10,.timer_set_period=0x4ce70,
      .animation_get_timer=0x44350,.invalidate_area=0x55c00,.global_display_offset=0x28,.display_timer_offset=0x380,
+     .indev_get_next=0x10470,.indev_get_read_timer=0x10930,
      .main_sleep=0xe8b8,.main_short_sleep=0xe8d0}
 };
 
@@ -197,13 +199,25 @@ static unsigned native_tick(unsigned sleep_us, uintptr_t caller)
     void *display=global?*(void **)((char *)global+abi->global_display_offset):NULL;
     void *refresh=display?*(void **)((char *)display+abi->display_timer_offset):NULL;
     attach_presenter(display);
-    unsigned before=0, refresh_period=0, animation_before=0, animation_period=0;
+    unsigned before=0, refresh_period=0, animation_before=0, animation_period=0, input_timers=0;
     int perf_result=-1, benchmark_cancelled=0;
     if(refresh) {
         void (*set_period)(void *,unsigned)=(void (*)(void *,unsigned))(vendor_base+abi->timer_set_period);
         before=*(unsigned *)refresh;
         if(!baseline && before!=22) set_period(refresh,22);
         refresh_period=*(unsigned *)refresh;
+        if(!baseline && abi->indev_get_next && abi->indev_get_read_timer) {
+            void *(*next)(void *)=(void *(*)(void *))(vendor_base+abi->indev_get_next);
+            void *(*read_timer)(void *)=(void *(*)(void *))(vendor_base+abi->indev_get_read_timer);
+            /* A 33 ms input timer otherwise limits a 22 ms display to uneven 22/44 ms steps. */
+            for(void *input=next(NULL);input;input=next(input)) {
+                void *timer=read_timer(input);
+                if(timer) {
+                    if(*(unsigned *)timer!=refresh_period) set_period(timer,refresh_period);
+                    input_timers++;
+                }
+            }
+        }
         if(abi->animation_get_timer) {
             void *animation=((void *(*)(void))(vendor_base+abi->animation_get_timer))();
             if(animation) {
@@ -231,8 +245,9 @@ static unsigned native_tick(unsigned sleep_us, uintptr_t caller)
     stock_perf_poll();
     if(benchmark_cancelled) display_log("repaint benchmark cancelled: expected the verified 480x320 display\n");
     if(refresh && !policy_reported) {
-        display_log("GUI %s: gpu_output_enabled=%d refresh_ms=%u->%u animation_ms=%u->%u; stock controls remain CPU-rendered\n",
-                    abi->version,gpu_enabled,before,refresh_period,animation_before,animation_period);
+        display_log("GUI %s: gpu_output_enabled=%d refresh_ms=%u->%u animation_ms=%u->%u input_timers=%u input_period_ms=%u; stock controls remain CPU-rendered\n",
+                    abi->version,gpu_enabled,before,refresh_period,animation_before,animation_period,
+                    input_timers,input_timers?refresh_period:0);
         policy_reported=1;
     }
     if(perf_result==0 && !unsupported_reported) {

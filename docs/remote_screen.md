@@ -69,4 +69,13 @@ vi /home/lava/printer_data/config/extended/moonraker/04_remote_screen.cfg
 
 ## Technical Details
 
-The remote screen uses a lightweight Python HTTP server (`fb-http-server.py`) that captures framebuffer snapshots and processes touch input, served through nginx. For implementation details, see [overlay README](../overlays/firmware-extended/61-app-remote-screen/README.md).
+The `/screen/` viewer receives MPP-encoded H.264 video over WebRTC and sends
+touch input through a WebRTC data channel. HTTP handles the page,
+authentication and connection signalling. Snapshot and local HTTP touch
+endpoints remain available for diagnostics; the viewer does not use them for
+continuous video or pointer input.
+
+Touch currently uses reliable, ordered delivery. Packet loss can delay newer
+movement behind retransmissions, so using WebRTC alone does not guarantee
+smooth operation on a weak network. See the [overlay README](../overlays/firmware-extended/61-app-remote-screen/README.md)
+for input ownership, disconnect recovery and the current buffering limitation.

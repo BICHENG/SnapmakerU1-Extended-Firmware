@@ -101,9 +101,12 @@ animation timer and render counters are verified for the 2.1 adapter; the 2.0
 adapter changes only its verified display timer. Unknown binaries bypass
 private calls. The optional original G-code adapter supplies `stock_ui_tick`.
 
-The supported 2.1 original UI and patched Helix use 22 ms display and animation
-periods independently of GPU availability. Helix pointer polling also uses
-22 ms. These periods fit the previously measured panel mode of about 45 Hz;
+The supported 2.1 original UI and patched Helix use 22 ms display, animation
+and input polling periods independently of GPU availability. Keeping original
+input polling at 33 ms limited a real menu drag to about 29.5 fps despite the
+22 ms display timer. Aligning it raised that same gesture to about 43.5 fps;
+this is distinct from a forced homepage repaint benchmark.
+These periods fit the previously measured panel mode of about 45 Hz;
 no 60/120 Hz mode is verified. The timer period is not a promise of one distinct
 G-code frame per tick.
 
