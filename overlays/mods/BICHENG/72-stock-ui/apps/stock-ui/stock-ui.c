@@ -34,7 +34,7 @@ static GcodePreviewStatus status;
 static int active,close_pending,guard_armed,inline_show;
 static int thumb_width,thumb_height;
 static uint64_t started;
-static char filename[4096],thumbnail[4096],message[128];
+static char thumbnail[4096],message[128];
 static char previous_status[128];
 static uint8_t display_pixels[WIDTH*HEIGHT*4],inline_pixels[WIDTH*HEIGHT*4];
 static void *entry,*source_image,*preview,*screen,*status_label,*eta_label,*mode_label,*follow_button,*inline_image;
@@ -69,7 +69,7 @@ static int load_source(const char *path,int width,int height,int compact,int liv
     if(engine&&!session)session=engine->create();
     if(!session){snprintf(message,sizeof(message),"无法启动预览");return -1;}
     arm_guard();
-    GcodePreviewSource source={path,NULL,(uint32_t)width,(uint32_t)height,compact,live_only};
+    GcodePreviewSource source={path,NULL,(uint32_t)width,(uint32_t)height,compact,live_only,1};
     status=(GcodePreviewStatus){.phase=GCODE_PREVIEW_LOADING,.offline=1};
     if(engine->load(session,&source)){engine->clear(session);snprintf(message,sizeof(message),"无法读取 G-code 文件");return -1;}
     message[0]=0;return 0;
@@ -121,7 +121,7 @@ static void touch(Event *e){
 }
 static void open_preview(Event *e){
     if(e->code!=7||preview)return;
-    char selected[sizeof(filename)];
+    char selected[4096];
     if(!source_image||!model_path(FN(lv_image_get_src,const char*,void*)(source_image),selected,sizeof(selected)))return;
     arm_guard();
     screen=FN(lv_display_get_screen_active,void*,void*)(NULL);
@@ -145,7 +145,6 @@ static void open_preview(Event *e){
     eta_label=label(preview,"",12,280);
     if(!status_label||!eta_label||!mode_label){close_pending=1;return;}
     previous_status[0]=0;
-    snprintf(filename,sizeof(filename),"%s",selected);
     active=1;inline_show=0;
     load_source(selected,WIDTH,HEIGHT,0,0);
 }
@@ -261,7 +260,7 @@ static void pump(void){
         void *old=preview;preview=NULL;status_label=NULL;eta_label=NULL;mode_label=NULL;follow_button=NULL;
         if(old)FN(lv_obj_delete,void,void*)(old);
     }
-    int new_frame=session?engine->poll(session,&status,active?display_pixels:inline_pixels,sizeof(display_pixels)):0;
+    int new_frame=session?engine->poll(session,&status,active?display_pixels:inline_pixels,sizeof(display_pixels),0):0;
     if(new_frame<0)new_frame=0;
     if(preview){
         if(new_frame)FN(lv_obj_invalidate,void,void*)(preview);
@@ -270,7 +269,8 @@ static void pump(void){
         else if(status.layers)snprintf(s,sizeof(s),"层 %u / %u · %.2f mm",status.layer+1,status.layers,status.layer_height);
         else snprintf(s,sizeof(s),"正在读取路径…");
         if(strcmp(s,previous_status)){text(status_label,s);snprintf(previous_status,sizeof(previous_status),"%s",s);}
-        static int was_flat=-1;if(status.flat!=was_flat){text(mode_label,status.flat?"2D":"3D");was_flat=status.flat;}
+        const char *mode=status.flat?"2D":"3D";
+        if(strcmp(FN(lv_label_get_text,const char*,void*)(mode_label),mode))text(mode_label,mode);
         uintptr_t color=status.live_follow?0x2165d7:0x292d33;
         if((FN(lv_obj_get_style_prop,uintptr_t,void*,uint32_t,int)(follow_button,0,28)&0xffffff)!=color)style(follow_button,28,color);
         void *follow_label=FN(lv_obj_get_child,void*,void*,int)(follow_button,0);

@@ -31,9 +31,45 @@ Both routes retain dirty regions in a GPU framebuffer. Their last LVGL flush wai
 
 ## Shared G-code and output
 
-`libgcode-preview.so` exports `gcode_preview_get_api(1)`. The factory adapter in `72-stock-ui` and the U1 Helix widget use this versioned C API. The library owns parsing, file identity, current-layer following, cameras, geometry, supersampling and rendering. Both UIs display the same native palette, opaque selected layer, translucent surrounding layers and estimated time.
+`libgcode-preview.so` exports `gcode_preview_get_api(2)`. The factory adapter in `72-stock-ui` and the U1 Helix widget use this versioned C API. The library owns parsing, file identity, current-layer following, cameras, geometry, supersampling and rendering. Both UIs display the same native palette, opaque selected layer, translucent surrounding layers and estimated time.
 
 Its EGL worker opens `renderD128` without taking display ownership. Callers request a source and view, then poll the latest complete image. Generation checks discard obsolete results. A parsed model is not a displayed first frame. Helix retains its thumbnail until a complete frame arrives, invalidates image caches after mutable pixel updates and before freeing image buffers, and uses the shared fullscreen controls. Manual layer selection cancels following. There is no independent U1 Helix parser or camera implementation to maintain.
+
+Source selection and viewport changes are distinct operations. Loading the same
+canonical path, job name and file identity (device/inode, size, mtime and ctime)
+retains the parsed model, GPU resources and manual controls. Opening or closing
+fullscreen changes framing and visibility only. Changed files and failed
+sessions reload; `clear` releases a source when its page goes away. Hidden
+previews retain resources without submitting draws. The driver may suspend
+while those resources remain allocated.
+
+Following has one owner. A source supplies initial follow intent; a manual
+layer cancels it, and an explicit follow action re-enables it. `live_only` only
+controls visibility, never a second follow policy. The Helix adapter passes
+changes in the host's printing role rather than resending follow on every
+progress update. It retains no separate manual-layer flag or viewport cache.
+
+Requested camera/layer state and a completed frame describe different moments.
+An in-flight render must publish its own metadata: using the latest requested
+layer with older pixels produced a reproducible mismatch during input. The
+worker now swaps two owned buffers at completion and records that frame's view.
+`poll` copies directly to the host's row stride, preserving padding; Helix needs
+no intermediate full-screen pixel array. This removes two full-frame copies
+from its preview path. It does not remove the LVGL composite or fbdev copy.
+
+ABI 2 removes unconsumed public generation/frame counters, render timing,
+filename duplication and palette copies. Internal generation cancellation,
+file identity and completed-frame metadata remain because they enforce real
+lifetime and image-consistency guarantees. Both host adapters and the library
+must be built together; an ABI 1 client is rejected instead of interpreting a
+different structure. Profiling remains in the existing bounded benchmarks.
+
+The U1 Helix widget is owned source in
+`apps/helix-gpu/ui_gcode_viewer_u1.cpp`; the integration patch contains only
+upstream edits. Upstream callbacks needed for loading, thumbnail fallback,
+printing state and teardown remain. The unused upstream-renderer watchdog
+mirror is removed. This boundary avoids maintaining application state or a
+second rendering engine inside the adapter.
 
 `gpu_output` owns linear DMA-BUF allocation, EGL import and CPU read synchronization. It supports RGBA G-code output and BGRA widget output. G-code retains `glReadPixels` when import is unavailable; widget renderer initialization failure retains software drawing. CPU copies into LVGL and fbdev remain. This is not direct GPU scanout or an end-to-end zero-copy pipeline.
 
