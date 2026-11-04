@@ -121,7 +121,7 @@ static void touch(Event *e){
 }
 static void open_preview(Event *e){
     if(e->code!=7||preview)return;
-    char selected[4096];
+    char selected[sizeof(thumbnail)];
     if(!source_image||!model_path(FN(lv_image_get_src,const char*,void*)(source_image),selected,sizeof(selected)))return;
     arm_guard();
     screen=FN(lv_display_get_screen_active,void*,void*)(NULL);
@@ -223,7 +223,7 @@ static void scan(void *o,unsigned depth){
     uintptr_t cls=*(uintptr_t*)o-base;
     if(cls==abi->stock_image_class&&o!=preview&&!entry) {
         const unsigned char *src=FN(lv_image_get_src,const unsigned char*,void*)(o);
-        char candidate[sizeof(filename)];
+        char candidate[sizeof(thumbnail)];
         int32_t a[4];FN(lv_obj_get_coords,void,void*,int32_t*)(o,a);
         int w=a[2]-a[0]+1,h=a[3]-a[1]+1;
         if(src&&*src=='A'&&w>=60&&h>=60&&w<=WIDTH&&h<=HEIGHT&&model_path((const char*)src,candidate,sizeof(candidate))){
