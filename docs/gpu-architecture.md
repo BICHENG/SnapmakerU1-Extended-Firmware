@@ -1,183 +1,76 @@
 # GPU and display architecture
 
-Updated 2026-11-03. `gpu` maintains the GPU runtime, one native G-code library
-used by the original UI and Helix, and their display adapters. `gui-gcode` is a
-historical branch. The original UI remains primary; the Firmware GPU switch
-preserves the selected interface.
-
-The final Helix executable links successfully, 26 startup/hook tests pass on
-Linux, and the device EGL smoke check through `renderD128` reports Mali-G52 with
-no GL error. The final firmware's two-page boot configuration and both UIs'
-physical-panel behavior still require flash acceptance. No new tearing or
-frame-rate result is claimed here.
+Updated 2026-11-04. `gpu` owns GPU startup, native widget drawing, one shared G-code renderer and complete-frame presentation. The factory UI remains primary. Its layout, application state and input handling stay in the original executable. Helix retains its upstream application and uses the same G-code library.
 
 ## Rendering and presentation
 
 ```mermaid
 flowchart TD
-    setting["Firmware GPU switch"] --> runtime["Mali-G52 runtime, checked 400 MHz cap"]
-    runtime --> shared["libgcode-preview.so: native parser, progress, camera, worker and GLES"]
-    shared --> stock["Original UI adapter in 72-stock-ui"]
-    shared --> helix["Thin U1 Helix widget adapter"]
-    stock --> lvgl["Selected UI: LVGL software widgets and completed preview image"]
-    helix --> lvgl
-    lvgl --> presenter["ui-display: complete 480×320 canvas"]
-    presenter --> panel["Back-page copy and synchronized framebuffer flip"]
-    presenter --> snapshot["Latest complete frame in /run/ui-frame"]
-    snapshot --> remote["gui-remote: MPP, WebRTC and touch"]
+    setting["Firmware GPU switch"] --> runtime["Mali-G52 / EGL / GLES3"]
+    runtime --> native["Factory LVGL draw queue → stock-gpu / NanoVG"]
+    runtime --> helix["Recompiled Helix → LVGL NanoVG draw unit"]
+    runtime --> gcode["One libgcode-preview: parsing, layers, camera, GLES"]
+    gcode --> native
+    gcode --> helix
+    native --> output["gpu_output: completed BGRA DMA-BUF"]
+    helix --> output
+    output --> presenter["ui-display: complete canvas + one pending frame"]
+    cpu["GPU off or unsupported task: original CPU drawing"] --> presenter
+    presenter --> panel["Back-page copy + VBL framebuffer flip"]
+    presenter --> snapshot["Latest complete frame /run/ui-frame"]
+    snapshot --> remote["gui-remote: MPP, WebRTC video and touch"]
 ```
 
-The GPU accelerates G-code drawing. Ordinary widgets in both interfaces still
-use LVGL's software renderer. Widget cadence and complete-frame presentation
-work independently of GPU availability. The common library opens
-`/dev/dri/renderD128` for GBM/EGL and does not acquire primary display ownership.
-The existing voltage table and panel timings are preserved; startup sets and
-checks a 400 MHz GPU maximum.
+The new widget routes execute fills, glyph compositing, images and layers on the GPU. They replace CPU display rasterization. Font decoding, layout and application logic remain on the CPU. The factory UI also prepares small canvas assets on worker threads; those are counted separately from display drawing.
 
-### One G-code library
+`stock-display` is the sole factory main-loop hook. After installing the presenter it optionally loads `libstock-gpu.so` and calls `stock_gpu_tick`. The adapter checks the exact 2.1.0.157 executable hash, draw-unit ownership, buffer geometry and format before changing the display draw queue. Unknown executables bypass private calls. The older 2.0 adapter only retains its previously verified timer change; it is not a supported native GPU target.
 
-`71-ui-gpu/apps/gcode-preview` installs `/usr/local/lib/libgcode-preview.so`.
-Both adapters request `gcode_preview_get_api(1)`. Helix also checks the returned
-ABI version and table size. The library owns the original implementation's parsing, current-job
-progress, cameras, layer selection, supersampled rendering and native palette.
-Its EGL worker produces the latest complete image. Generation checks discard
-old results when the source changes. UI callers poll without waiting for GL and
-draw only completed images. A loaded model and a first rendered frame are
-distinct events, including while a widget is paused.
+Helix is pinned to 1.0.7 / `faed4e35010e970ba5612e9b2e109c52a11965a6` and its LVGL submodule. The U1 build uses fbdev and LVGL's NanoVG GLES3 draw unit. Patches fix font bitmap stride, layer ownership/clearing, opacity and clipping, and batch glyphs in an A8 atlas. Other platforms retain upstream renderer selection. `ENABLE_OPENGLES=no` disables Helix's separate display backend; it does not disable the U1 NanoVG draw unit.
 
-The U1 Helix build keeps fbdev and sets `ENABLE_GLES_3D=no` and
-`ENABLE_OPENGLES=no`. Its widget adapter replaces the old U1 parser/camera/GLES
-path rather than extending it. Other Helix platforms retain upstream source
-selection. GPU off selects the normal thumbnail and does not load the shared
-GPU preview. Matching Helix assets are required for the patched executable;
-mismatches select the official executable.
+Both routes retain dirty regions in a GPU framebuffer. Their last LVGL flush waits for completed GPU work, copies the image and submits one complete frame. An unsupported display task rejects the incomplete frame, restores software drawing and invalidates the full screen. Recovery is sticky until UI restart. `/tmp/ui-renderer.json` includes PID, renderer, GPU and CPU display counts, rejected frames and reason. A stale report from another PID is not evidence about the running UI.
 
-The adapter supplies the exact known job filename with its local cache path.
-Both interfaces therefore use the native engine's live layer and file-progress
-rules. Fullscreen controls use the native camera increments and current-layer
-selection. Helix keeps its own page and loading lifecycle and shows the preview
-only after a completed frame. Unsupported palette overrides and preview object
-picking are disabled. Existing host preflight scans and explicit object-list
-controls remain separate from the preview.
+## Shared G-code and output
 
-`apps/ui-gpu/gpu_output.c` is compiled into this single library. It owns DMA-BUF
-allocation, EGL import and CPU read synchronization. Failed imports retain
-`glReadPixels`; failed synchronization aborts a frame. Copies into LVGL and
-fbdev remain. There is no extra graphics service or end-to-end zero-copy claim.
+`libgcode-preview.so` exports `gcode_preview_get_api(1)`. The factory adapter in `72-stock-ui` and the U1 Helix widget use this versioned C API. The library owns parsing, file identity, current-layer following, cameras, geometry, supersampling and rendering. Both UIs display the same native palette, opaque selected layer, translucent surrounding layers and estimated time.
 
-### Local display
+Its EGL worker opens `renderD128` without taking display ownership. Callers request a source and view, then poll the latest complete image. Generation checks discard obsolete results. A parsed model is not a displayed first frame. Helix retains its thumbnail until a complete frame arrives, invalidates image caches after mutable pixel updates and before freeing image buffers, and uses the shared fullscreen controls. Manual layer selection cancels following. There is no independent U1 Helix parser or camera implementation to maintain.
 
-`ui-display` accumulates partial LVGL flushes into a full CPU canvas and presents
-only at the last flush. Boot configuration requests two fbdev pages with
-`drm_kms_helper.drm_fbdev_overalloc=200`. When geometry and page availability
-pass validation, the presenter copies to the back page and calls
-`FBIOPAN_DISPLAY` with `FB_ACTIVATE_VBL`. The pinned Rockchip fbdev driver uses
-a blocking atomic commit, so page reuse follows completion. If a two-page flip
-fails, the previous complete page remains visible and the next flush submits
-the complete retained canvas. Only `EINTR` is retried on the same back page,
-with at most three total attempts. When only one page is available, visible-page
-copying remains as an unsynchronized compatibility mode.
+`gpu_output` owns linear DMA-BUF allocation, EGL import and CPU read synchronization. It supports RGBA G-code output and BGRA widget output. G-code retains `glReadPixels` when import is unavailable; widget renderer initialization failure retains software drawing. CPU copies into LVGL and fbdev remain. This is not direct GPU scanout or an end-to-end zero-copy pipeline.
 
-`/tmp/ui-display.json` records page availability, flips, errors, the last failure,
-yoffset, publish skips and maximum flip duration. Physical-panel acceptance
-requires two pages, successful flips and `/sys/kernel/debug/dri/0/state` showing
-the target CRTC with `enable=1 active=1` and a nonzero framebuffer on its plane.
-`bl_power=0` and increasing flip counts do not prove active scanout. The current
-panel mode was measured at about 45 Hz; no 60/120 Hz mode has been verified.
+## Cadence, scanout and remote control
 
-The supported 2.1 original UI and patched Helix use 22 ms display, animation
-and input polling periods independently of the Firmware GPU switch.
-These are scheduling periods, not measurements of unique preview
-frames or touch latency. The original adapter recognizes exact hashes for
-2.0.0.205 and 2.1.0.157. The new presenter, animation timer and performance events
-are verified for the 2.1 adapter. The 2.0 adapter changes only its verified
-display timer. Unknown binaries bypass private calls. `stock-display` owns the
-sole original sleep hook and calls the optional G-code adapter's `stock_ui_tick`.
+The supported UIs use 22 ms display, animation and input polling periods with GPU either on or off. The panel's measured mode is about 45 Hz. No 60/120 Hz panel mode has been verified. More render submissions cannot increase the physical panel's refresh rate.
 
-Real Settings-menu dragging on 2026-11-03 exposed a missing original input
-timer adjustment: the display and animation timers were 22 ms, but pointer
-polling remained 33 ms. The same local gesture measured 29.48 fps with that
-mismatch and 43.52 fps after aligning input, with frame-interval P95 improving
-from 44.61 to 22.78 ms. Both runs had an active panel and no new flip errors.
-GPU active time did not increase. Occasional longer frames remain; forced
-homepage throughput is not a substitute for this interaction measurement.
+`ui-display` accumulates partial flushes into a complete 480×320 canvas. A worker handles the blocking presentation call while the UI prepares its next frame. One replaceable pending frame bounds memory and latency. The worker sleeps when idle and drains the latest pending frame before closing. This benefit is independent of GPU rendering. `UI_DISPLAY_SYNC=1` retains the synchronous path for a controlled comparison.
 
-### Remote source ABI
+Boot configuration requests two fbdev pages with `drm_kms_helper.drm_fbdev_overalloc=200`. The presenter copies to the back page and uses `FBIOPAN_DISPLAY` with `FB_ACTIVATE_VBL`. The pinned Rockchip driver performs a blocking atomic commit. A failed flip retains the previous complete page; the next submission uses the latest complete canvas. Only EINTR retries the same flip, with three total attempts. Single-page fallback is unsynchronized compatibility operation, not a tearing fix.
 
-`common/ui-frame.h` defines `/run/ui-frame`: a 64-byte header with dimensions,
-stride, sequence, monotonic timestamp and producer PID, followed by one
-480×320 XRGB8888 image. The presenter publishes complete canvases under
-nonblocking POSIX record locks. A lifetime producer lock prevents competing UI
-producers. A busy reader causes a skipped publication; it does not stall local
-presentation. No historical frame queue accumulates.
+`/tmp/ui-display.json` records asynchronous mode, submissions, coalescing, flips and errors. Acceptance also checks the active DRM CRTC and plane, then compares the selected physical framebuffer page with the completed snapshot. This verifies frame consistency, not the absence of visible tearing in motion. Panel activation can produce transient EBUSY during UI changes; steady-state error deltas are recorded separately.
 
-`gui-remote` consumes this ABI and validates the producer and layout before
-encoding. Unchanged frames can be skipped while retaining keyframe and idle
-heartbeat behavior. The source timestamp identifies a completed UI canvas and
-presentation attempt, not physical scanout; the canvas is still published while
-the panel sleeps. Encoder timestamps describe capture after the snapshot copy.
-Older firmware can fall back to the framebuffer's visible yoffset, without the
-complete-frame guarantee. MPP is a separate hardware engine and works with
-Mali disabled. Encoding, WebRTC session lifetime and remote touch remain outside
-the `gpu` branch's display ownership.
+After presentation, the worker publishes to `/run/ui-frame` using `common/ui-frame.h`: dimensions, stride, sequence, monotonic timestamp, producer PID and XRGB8888 pixels. Nonblocking locks prevent capture from stalling the UI. The remote source is a completed UI canvas, including when the panel sleeps; its timestamp is not proof of physical scanout. `gui-remote` owns MPP encoding, WebRTC sessions and touch. MPP works independently of Mali. Ordered reliable touch edges and latest-only move messages use separate DataChannels.
 
-## Previous-release measurements
+## Evidence and limits
 
-These results predate the shared-library adapter and new complete-frame
-presenter. They establish earlier costs and the reason for separating refresh
-policy from GPU availability. They are not acceptance results for this build.
+These are measurements of this hardware, not throughput promises.
 
-| Previous comparison | Result | Limit |
+| Comparison | Observed result | Interpretation |
 | --- | --- | --- |
-| Native 70,370-vertex sample, readback versus DMA-BUF output, ABBA | Mean of run medians 39.31 → 28.69 ms | About 27% lower render/delivery time for that sample and geometry |
-| Retired independent Helix renderer, complex model | 65.75 ms at 480×320; 46.31 ms at 317×193 | Different viewport costs; neither is the new shared-library baseline |
-| Original homepage, GPU driver absent, 33/22 ms periods | 30.15 / 45.15 fps | CPU widget cadence alone reached about 45 completed renders/s |
-| Same homepage test, GPU driver present, 33/22 ms periods | 30.20 / 45.20 fps | GPU availability added no material widget frame-rate benefit |
+| Factory input polling 33 → 22 ms, before GPU widget drawing | Real menu gesture 29.48 → 43.52 fps; interval P95 44.61 → 22.78 ms | Scheduling improvement independent of GPU |
+| Native widget rendering, matched asynchronous lab runs | CPU median 6.68 ms; GPU 11.19 ms | GPU takeover is real; rasterization is currently more expensive |
+| Helix Settings, same binary and page | CPU median 5.34 ms; GPU 9.94 ms | No widget render-speed gain |
+| Helix actual menu gesture, production candidates | CPU 38.37 fps; GPU 39.57 fps | Single pair; insufficient evidence of a GPU FPS gain |
+| Factory actual menu gesture, production candidates | CPU 33.86 fps; GPU 30.35 fps | No improvement; endpoint/idle intervals are included |
+| Native GPU display + shared G-code | Complete physical frame matches snapshot; rotated geometry changes; 0 CPU display tasks | Real display drawing and live preview coexist |
+| Forced unsupported task, native and Helix lab runs | Incomplete frame rejected; software redraw restored; recovery pixel comparison passed | Fallback is tested, not just configured |
 
-The 2026-11-01 homepage ablation used two sessions and four complete five-second
-windows per group. The disabled group rebooted without the GPU module or device
-node. GPU active-time counters did not increase during the enabled sessions.
-Temperature and connection indicators varied across boots, so GUI CPU-use
-differences cannot be attributed to the driver alone. The test forced bounded
-full-page redraw. It did not measure natural animation, touch latency or panel
-scanout. Renderer details remain in
-[BENCHMARK.md](../overlays/mods/BICHENG/71-ui-gpu/apps/gcode-preview/BENCHMARK.md).
+Page tests include fonts, images, transparency, nested layers, dialogs, Settings and file detail. They do not prove every possible vendor page or Helix plugin is supported. Unknown tasks recover to CPU. Current GPU cost includes submission, GPU completion and output delivery; neither average FPS nor a loaded Mali driver establishes acceleration. The previous exact-pixel CPU-command compositor was slower and is not installed.
 
-The current code decouples the 22 ms policy from the GPU switch. This follows the
-earlier ablation but needs new measurements with the presenter enabled. Complex
-G-code may still exceed the panel's roughly 22.2 ms frame budget.
+Keep `UI_DISPLAY_BASELINE=1` for the old 33 ms/no-presenter path. It changes multiple factors. Use `UI_DISPLAY_SYNC=1` to isolate presentation scheduling, and GPU on/off with the same cadence and binary to isolate widget rendering. The Firmware switch also changes G-code availability; do not use it to isolate G-code DMA delivery. Use `UI_GPU_OUTPUT=readback` for that comparison.
 
-`UI_DISPLAY_BASELINE=1` selects 33 ms periods and bypasses the new presenter.
-It compares the previous display path, changing both scheduling and presentation.
-To isolate either factor, hold the other fixed. Renderer comparisons must also
-hold source, viewport, geometry, quality and observers fixed. Use
-`UI_GPU_OUTPUT=readback` versus automatic output in the same GPU-enabled library
-to isolate output delivery. The Firmware switch changes G-code availability
-and is not an output-path benchmark.
+## Build and maintenance
 
-## Maintenance boundary
+The existing feature firmware workflow builds pinned Helix, verifies its source manifest and stripped AArch64 binary, then builds firmware. Cache keys include renderer sources, vendor patches, shared headers/output, the workflow and packaging script. Missing, stale, oversized or changed artifacts fail the build. Native NanoVG sources are fetched at the pinned LVGL commit and shipped with their licences.
 
-Maintain runtime correctness, the shared library and its two thin adapters in
-`gpu`. Preserve the checked frequency cap, voltage table, runtime suspend,
-selected UI, software widgets and setting keys. Keep all G-code parsing and
-render behavior in the shared library. Do not restore an independent Helix
-renderer or infer deployment success from a branch merge or build result.
+Maintain these capabilities in `gpu`; integrate `gpu` and `gui-remote` into `gui`, then `gui` into `stock-ui`. `gui-gcode` and `gui-gpu` are historical experiments, not intermediate release branches. Factory recreation remains a conditional fallback; native drawing now works without replacing the UX.
 
-| Changed layer | Required verification |
-| --- | --- |
-| Startup, setting or Helix selection | `71-ui-gpu/test/test_*.py`; matching-asset and fallback checks |
-| Display presenter and original adapter | Host sanitizer tests, exact GUI hashes, actual two-page boot, flip counters and both physical UIs |
-| Shared G-code library | Parser/progress/runtime tests, target build, pixels, source changes, pause/resume and lifetime checks |
-| U1 Helix adapter | Source selection, API coverage, loading/first-frame/clear behavior, fullscreen and thumbnail fallback |
-| GPU output or driver | Target imports/readback, synchronization, cleanup and idle suspend; both consumers |
-| Remote source ABI | Producer/reader locking, complete-frame publication, sequence handling and framebuffer fallback |
-
-Update upstream through `gpu`, then integrate `gpu` and `gui-remote` into `gui`,
-and `gui` into `stock-ui`. Other product features remain independent.
-`gui-gcode` is no longer an intermediate build or merge target. Preserve
-published history; opening a PR remains a separate user decision.
-
-`gui-gpu` holds optional factory-widget drawing and automated reconstruction
-research. The earlier exact-pixel widget compositor was slower than CPU and is
-not installed in daily firmware. Further work needs a measured expensive page,
-complete-frame gains, bounded resources and software fallback before integration.
+The Firmware page exposes one GPU switch. Keep atlas sizes, EGL choices, frame periods and diagnostics internal. Preserve the checked 400 MHz cap, voltage table, panel timings, UI selection and software recovery. Changes to these boundaries require device measurements, not additional user tuning knobs.

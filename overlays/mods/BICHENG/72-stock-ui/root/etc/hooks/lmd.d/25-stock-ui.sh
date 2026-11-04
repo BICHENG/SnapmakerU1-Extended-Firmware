@@ -1,4 +1,8 @@
 # Personal profile: retain the original screen and load its version-checked extension.
+if [ "$1" = stop ]; then
+    # An intentional service stop is not a crash; lmd crash respawns skip this hook.
+    rm -f /tmp/stock-ui.guard
+fi
 if [ "$1" = start ]; then
     STOCK_CFG=/oem/printer_data/config/extended/extended2.cfg
     STOCK_SELECTED=$(/usr/local/bin/extended-config.py get "$STOCK_CFG" components gui snapmaker)

@@ -4,6 +4,7 @@
 #include "ui-frame.h"
 #include <errno.h>
 #include <linux/fb.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdatomic.h>
 #include <stdlib.h>
@@ -22,12 +23,74 @@ struct ui_display {
     uint8_t *scanout;
     struct ui_frame *snapshot;
     uint8_t canvas[UI_FRAME_BYTES];
+    uint8_t mailbox[2][UI_FRAME_BYTES];
+    uint8_t *pending_pixels, *present_pixels;
+    pthread_t worker;
+    pthread_mutex_t mutex;
+    pthread_cond_t changed;
+    int asynchronous, pending, stopping;
+    uint64_t pending_sequence;
+    _Atomic uint64_t submitted, coalesced;
     uint64_t frames, flips, errors, published, publish_skips, report_ns, flip_ns_max;
     uint64_t interruptions, retries, last_error_frame, last_error_ns;
     const char *last_error_op;
     int last_error_errno, last_error_recovered;
     unsigned last_error_retries;
 };
+
+static void present(ui_display *d);
+
+static const uint8_t *frame_pixels(ui_display *d)
+{
+    return d->asynchronous ? d->present_pixels : d->canvas;
+}
+
+static void *present_worker(void *argument)
+{
+    ui_display *d = argument;
+    for(;;) {
+        pthread_mutex_lock(&d->mutex);
+        while(!d->pending && !d->stopping) pthread_cond_wait(&d->changed, &d->mutex);
+        if(!d->pending && d->stopping) { pthread_mutex_unlock(&d->mutex); break; }
+        uint8_t *previous = d->present_pixels;
+        d->present_pixels = d->pending_pixels;
+        d->pending_pixels = previous;
+        d->frames = d->pending_sequence;
+        d->pending = 0;
+        pthread_mutex_unlock(&d->mutex);
+        present(d);
+    }
+    return NULL;
+}
+
+static void start_worker(ui_display *d)
+{
+    const char *sync = getenv("UI_DISPLAY_SYNC");
+    if(!d->double_buffer || (sync && !strcmp(sync, "1"))) return;
+    if(pthread_mutex_init(&d->mutex, NULL)) return;
+    if(pthread_cond_init(&d->changed, NULL)) { pthread_mutex_destroy(&d->mutex); return; }
+    d->present_pixels = d->mailbox[0];
+    d->pending_pixels = d->mailbox[1];
+    memcpy(d->present_pixels, d->canvas, UI_FRAME_BYTES);
+    d->asynchronous = 1;
+    if(pthread_create(&d->worker, NULL, present_worker, d)) {
+        d->asynchronous = 0;
+        pthread_cond_destroy(&d->changed);
+        pthread_mutex_destroy(&d->mutex);
+    }
+}
+
+static void stop_worker(ui_display *d)
+{
+    if(!d->asynchronous) return;
+    pthread_mutex_lock(&d->mutex);
+    d->stopping = 1;
+    pthread_cond_signal(&d->changed);
+    pthread_mutex_unlock(&d->mutex);
+    pthread_join(d->worker, NULL);
+    pthread_cond_destroy(&d->changed);
+    pthread_mutex_destroy(&d->mutex);
+}
 
 static uint64_t now_ns(void)
 {
@@ -40,7 +103,7 @@ static void copy_page(ui_display *d, unsigned yoffset)
 {
     for(unsigned y = 0; y < UI_FRAME_HEIGHT; y++)
         memcpy(d->scanout + (size_t)(y + yoffset) * d->fix.line_length,
-               d->canvas + y * UI_FRAME_STRIDE, UI_FRAME_STRIDE);
+               frame_pixels(d) + y * UI_FRAME_STRIDE, UI_FRAME_STRIDE);
 }
 
 static int panel_awake(ui_display *d)
@@ -76,7 +139,7 @@ static void publish(ui_display *d, uint64_t timestamp)
         d->publish_skips++;
         return;
     }
-    memcpy(d->snapshot->pixels, d->canvas, UI_FRAME_BYTES);
+    memcpy(d->snapshot->pixels, frame_pixels(d), UI_FRAME_BYTES);
     d->snapshot->width = UI_FRAME_WIDTH;
     d->snapshot->height = UI_FRAME_HEIGHT;
     d->snapshot->stride = UI_FRAME_STRIDE;
@@ -94,12 +157,14 @@ static void report(ui_display *d, uint64_t now)
     d->report_ns = now;
     FILE *file = fopen("/tmp/ui-display.json.tmp", "w");
     if(!file) return;
-    fprintf(file, "{\"pid\":%ld,\"double_buffer\":%s,\"frames\":%llu,\"flips\":%llu,"
+    fprintf(file, "{\"pid\":%ld,\"double_buffer\":%s,\"asynchronous\":%s,\"submitted\":%llu,\"coalesced\":%llu,\"frames\":%llu,\"flips\":%llu,"
             "\"errors\":%llu,\"published\":%llu,\"publish_skips\":%llu,"
             "\"flip_ns_max\":%llu,\"yoffset\":%u,\"monotonic_ns\":%llu,"
             "\"interruptions\":%llu,\"retries\":%llu,\"last_error\":{\"op\":\"%s\","
             "\"errno\":%d,\"frame\":%llu,\"monotonic_ns\":%llu,\"retries\":%u,\"recovered\":%s}}\n",
             (long)getpid(), d->double_buffer ? "true" : "false",
+            d->asynchronous ? "true" : "false", (unsigned long long)atomic_load(&d->submitted),
+            (unsigned long long)atomic_load(&d->coalesced),
             (unsigned long long)d->frames, (unsigned long long)d->flips,
             (unsigned long long)d->errors, (unsigned long long)d->published,
             (unsigned long long)d->publish_skips, (unsigned long long)d->flip_ns_max,
@@ -147,6 +212,7 @@ ui_display *ui_display_open(const char *device)
                        (d->var.yoffset == 0 || d->var.yoffset == UI_FRAME_HEIGHT);
     d->power_fd = open("/sys/class/backlight/backlight/bl_power", O_RDONLY | O_CLOEXEC);
     snapshot_open(d);
+    start_worker(d);
     fprintf(stderr, "UI display: %ux%u virtual=%ux%u mode=%s\n",
             d->var.xres, d->var.yres, d->var.xres_virtual, d->var.yres_virtual,
             d->double_buffer ? "page-flip" : "single-page-unsynchronized");
@@ -166,7 +232,22 @@ int ui_display_update(ui_display *d, int x1, int y1, int x2, int y2,
         memcpy(d->canvas + y * UI_FRAME_STRIDE + x1 * 4,
                pixels + (size_t)(y-y1) * stride, (size_t)(x2-x1+1)*4);
     if(!last) return 0;
-    d->frames++;
+    uint64_t sequence = ++d->submitted;
+    if(d->asynchronous) {
+        pthread_mutex_lock(&d->mutex);
+        if(d->pending) d->coalesced++;
+        memcpy(d->pending_pixels, d->canvas, UI_FRAME_BYTES);
+        d->pending_sequence = sequence;
+        d->pending = 1;
+        pthread_cond_signal(&d->changed);
+        pthread_mutex_unlock(&d->mutex);
+    }
+    else { d->frames = sequence; present(d); }
+    return 0;
+}
+
+static void present(ui_display *d)
+{
     if(!panel_awake(d)) goto completed;
     struct fb_var_screeninfo actual;
     if(ioctl(d->fd, FBIOGET_VSCREENINFO, &actual)) {
@@ -222,12 +303,12 @@ completed:;
     uint64_t timestamp = now_ns();
     publish(d, timestamp);
     report(d, timestamp);
-    return 0;
 }
 
 void ui_display_close(ui_display *d)
 {
     if(!d) return;
+    stop_worker(d);
     if(d->scanout) {
         if(d->var.yoffset && panel_awake(d)) {
             copy_page(d, 0);

@@ -19,9 +19,9 @@ static unsigned fd_count(void){
     while((entry=readdir(directory)))if(entry->d_name[0]!='.')count++;
     closedir(directory);return count;
 }
-static void check_output(unsigned width,unsigned height,unsigned frame){
+static void check_output(unsigned width,unsigned height,unsigned frame,UiGpuOutputFormat format){
     GLint previous;glGetIntegerv(GL_TEXTURE_BINDING_2D,&previous);
-    UiGpuOutput *output=ui_gpu_output_create(width,height);require(output!=NULL,"output import failed");
+    UiGpuOutput *output=ui_gpu_output_create(width,height,format);require(output!=NULL,"output import failed");
     GLint current;glGetIntegerv(GL_TEXTURE_BINDING_2D,&current);require(current==previous,"texture binding changed");
     GLuint fbo;glGenFramebuffers(1,&fbo);glBindFramebuffer(GL_FRAMEBUFFER,fbo);
     glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,ui_gpu_output_texture(output),0);
@@ -35,6 +35,9 @@ static void check_output(unsigned width,unsigned height,unsigned frame){
         glClearColor(.25f,.5f,.75f,.4f);glClear(GL_COLOR_BUFFER_BIT);glDisable(GL_SCISSOR_TEST);
         glReadPixels(0,0,width,height,GL_RGBA,GL_UNSIGNED_BYTE,reference);
         require(glGetError()==GL_NO_ERROR,"reference read failed");
+        if(format==UI_GPU_BGRA)for(size_t pixel=0;pixel<bytes;pixel+=4) {
+            uint8_t red=reference[pixel];reference[pixel]=reference[pixel+2];reference[pixel+2]=red;
+        }
         const uint8_t *mapped=ui_gpu_output_begin_read(output);require(mapped!=NULL,"DMA begin failed");
         require(ui_gpu_output_begin_read(output)==NULL,"nested access accepted");
         for(unsigned y=0;y<height;y++)
@@ -45,8 +48,8 @@ static void check_output(unsigned width,unsigned height,unsigned frame){
     free(reference);glDeleteFramebuffers(1,&fbo);ui_gpu_output_destroy(output);
 }
 int main(void){
-    require(ui_gpu_output_create(1,1)==NULL,"created output without EGL context");
-    int fd=open("/dev/dri/card0",O_RDWR|O_CLOEXEC);require(fd>=0,"card open failed");
+    require(ui_gpu_output_create(1,1,UI_GPU_RGBA)==NULL,"created output without EGL context");
+    int fd=open("/dev/dri/renderD128",O_RDWR|O_CLOEXEC);require(fd>=0,"render node open failed");
     struct gbm_device *gbm=gbm_create_device(fd);require(gbm!=NULL,"GBM failed");
     EGLDisplay display=eglGetDisplay(gbm);EGLint major,minor,count=0;EGLConfig config;
     const EGLint attrs[]={EGL_RENDERABLE_TYPE,EGL_OPENGL_ES2_BIT,EGL_SURFACE_TYPE,0,EGL_NONE};
@@ -56,16 +59,17 @@ int main(void){
     EGLContext context=eglCreateContext(display,config,EGL_NO_CONTEXT,context_attrs);
     require(context&&eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,context),"EGL context failed");
     require(strstr((const char*)glGetString(GL_RENDERER),"Mali")!=NULL,"expected hardware Mali renderer");
-    setenv("UI_GPU_ENABLED","0",1);require(ui_gpu_output_create(1,1)==NULL,"disabled GPU ignored");
+    setenv("UI_GPU_ENABLED","0",1);require(ui_gpu_output_create(1,1,UI_GPU_RGBA)==NULL,"disabled GPU ignored");
     setenv("UI_GPU_ENABLED","1",1);setenv("UI_GPU_OUTPUT","readback",1);
-    require(ui_gpu_output_create(1,1)==NULL,"baseline override ignored");unsetenv("UI_GPU_OUTPUT");
-    require(ui_gpu_output_create(0,1)==NULL,"zero width accepted");
-    check_output(480,320,0);unsigned before=fd_count();
+    require(ui_gpu_output_create(1,1,UI_GPU_RGBA)==NULL,"baseline override ignored");unsetenv("UI_GPU_OUTPUT");
+    require(ui_gpu_output_create(0,1,UI_GPU_RGBA)==NULL,"zero width accepted");
+    require(ui_gpu_output_create(1,1,(UiGpuOutputFormat)99)==NULL,"unknown format accepted");
+    check_output(480,320,0,UI_GPU_RGBA);unsigned before=fd_count();
     const unsigned sizes[][2]={{1,1},{137,91},{480,320},{959,639}};
-    for(unsigned i=0;i<24;i++)check_output(sizes[i%4][0],sizes[i%4][1],i);
+    for(unsigned i=0;i<48;i++)check_output(sizes[i%4][0],sizes[i%4][1],i,i<24?UI_GPU_RGBA:UI_GPU_BGRA);
     unsigned after=fd_count();require(after==before,"DMA buffer descriptor leak");
-    printf("{\"ok\":true,\"renderer\":\"%s\",\"requested_gles_version\":2,\"outputs\":25,"
-           "\"frames_per_output\":4,\"rgba_matches_readback\":true,\"alpha_preserved\":true,"
+    printf("{\"ok\":true,\"renderer\":\"%s\",\"requested_gles_version\":2,\"outputs\":49,"
+           "\"frames_per_output\":4,\"rgba_and_bgra_match_readback\":true,\"alpha_preserved\":true,"
            "\"odd_stride_verified\":true,\"off_and_baseline_verified\":true,\"fds_before\":%u,\"fds_after\":%u}\n",
            glGetString(GL_RENDERER),before,after);
     eglMakeCurrent(display,EGL_NO_SURFACE,EGL_NO_SURFACE,EGL_NO_CONTEXT);
