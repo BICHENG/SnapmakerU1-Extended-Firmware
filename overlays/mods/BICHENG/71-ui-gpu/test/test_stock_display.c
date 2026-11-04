@@ -41,12 +41,14 @@ static char fixture_path[256], request_path[256];
 static int pretend_gui, hash_kind=-1, hash_available=1, have_extension, mutex_depth;
 static unsigned locks, unlocks, timer_writes, attachments, polls, ticks, tick_lookups, logs, repaints;
 static unsigned actual_refresh, actual_animation, attached_gpu, slept;
+static unsigned release_calls;
 static uint64_t fake_ms=100000;
 static unsigned refresh_timer=33, animation_timer=33;
 static unsigned input_timers[3]={33,33,0};
 static _Alignas(8) unsigned char global_memory[64], display_memory[928];
 static void *global_pointer=global_memory;
 static DisplayAbi fake_abi;
+int stock_release_apply(uintptr_t base) { assert(base==0x100000); ++release_calls; return 406; }
 
 static int sleep_original(useconds_t value) { slept=value; return 7; }
 static unsigned tick_extension(unsigned value) { assert(!mutex_depth); ticks++; return value<17000?value:17000; }
@@ -168,10 +170,14 @@ int main(void)
         vendor_abi=NULL; vendor_base=0; display_init();
         assert(vendor_abi==&display_abis[i] && vendor_base==0x100000);
         assert(!locks && !tick_lookups && !attachments);
+        assert(release_calls==(unsigned)i);
     }
+    assert(!setenv("UI_DISPLAY_BASELINE","1",1)); display_init(); assert(release_calls==1);
+    assert(!unsetenv("UI_DISPLAY_BASELINE"));
     hash_kind=-1; vendor_abi=NULL; vendor_base=0; display_init(); assert(!vendor_abi && !vendor_base);
     hash_kind=1; hash_available=0; display_init(); assert(!vendor_abi); hash_available=1;
     assert(!ftruncate(fd,1)); display_init(); assert(!vendor_abi); close(fd);
+    assert(release_calls==1);
 
     reset_policy(1,0,0);
     assert(!unsetenv("UI_DISPLAY_BASELINE"));
