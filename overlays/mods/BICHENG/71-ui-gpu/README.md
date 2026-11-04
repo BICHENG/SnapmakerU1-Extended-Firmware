@@ -122,10 +122,12 @@ adapter changes only its verified display timer. Unknown binaries bypass
 private calls. The optional original G-code adapter supplies `stock_ui_tick`.
 
 The supported 2.1 original UI and patched Helix use 22 ms display, animation
-and input polling periods independently of GPU availability. Keeping original
-input polling at 33 ms limited a real menu drag to about 29.5 fps despite the
-22 ms display timer. Aligning it raised that same gesture to about 43.5 fps;
-this is distinct from a forced homepage repaint benchmark.
+and input polling periods independently of GPU availability. The historical
+33/22 ms input-policy pair measured 29.48/43.52 fps with zero missing sequences.
+Later candidate FPS comparisons with sequence losses are withdrawn: framebuffer
+ioctl polling caused the old observer to miss snapshots. Use snapshot-only
+measurements with explicit sequence coverage, separate from render timings
+and forced repaint benchmarks.
 These periods fit the previously measured panel mode of about 45 Hz;
 no 60/120 Hz mode is verified. The timer period is not a promise of one distinct
 G-code frame per tick.
@@ -169,9 +171,11 @@ device tests of EGL imports, framebuffer flips, source changes, widget teardown
 or suspend. The production candidates draw real pages through NanoVG in both
 UIs, with zero CPU display tasks in the accepted captures. These captures match
 the selected physical framebuffer and the completed remote snapshot. Native
-and Helix previews update when rotated and when selecting layers. The release
-still requires acceptance of the exact Actions image after flashing; candidate
-tests do not establish deployment.
+and Helix previews update when rotated and when selecting layers. Actions run
+41750021041 built `stock-ui-47b1325`; the printer downloaded, checksum-verified
+and installed that image into slot B. Exact-image acceptance exercised both UIs,
+shared G-code, driver-off baselines, suspend/resume and real WebRTC pointer events.
+See the architecture document for performance evidence and remaining limits.
 
 For an isolated device smoke check, run `test/egl_smoke.py` as root while idle
 with GPU previews closed. It draws an offscreen 16×16 triangle, checks pixels,
