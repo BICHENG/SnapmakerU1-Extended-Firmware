@@ -91,7 +91,32 @@ After presentation, the worker publishes to `/run/ui-frame` using `common/ui-fra
 
 ## Evidence and limits
 
-These are measurements of this hardware, not throughput promises.
+These are measurements of this hardware, not throughput promises. The menu
+ablation below belongs to the pre-cleanup `47b1325` release; it is retained as
+measured evidence, not relabelled as a new benchmark.
+
+Actions [41770824548](https://github.com/BICHENG/SnapmakerU1-Extended-Firmware/actions/runs/41770824548)
+built the ABI 2 cleanup as `stock-ui-778e67d`. The printer downloaded and
+verified this image, installed slot A, and passed both actual UI adapters.
+The factory executable, kernel and MCU payloads remain unchanged. Six real-GPU
+preview views matched their reference pixels exactly; destroying one session
+left another session rendering correctly. Host sanitizer tests cover stale
+frame metadata, no-new-image polls, stride validation, source replacement and
+manual-follow behavior.
+
+The factory same-file regression is reproduced on both releases: selecting
+layer 79 in 2D and reopening reset the old release to layer 157 in 3D and
+initialized another renderer. The new release retains identical pixels and
+the original renderer. The retained hidden view permits GPU suspend. Helix
+also preserves layer 79 and 2D across its fullscreen transition; the two UIs'
+model regions match exactly.
+
+One bounded G-code gesture per UI measured 20.23 fps for factory and 19.40 fps
+for Helix, with P95 completed-frame gaps of 68.77/66.72 ms. Both have complete
+sequence coverage, changing geometry and zero new flip errors. These are
+functional regression checks, not evidence of a speedup. Helix startup still
+recorded 19 EBUSY flips before normal presentation resumed; it remains a
+separate lifecycle follow-up.
 
 Actions [41750021041](https://github.com/BICHENG/SnapmakerU1-Extended-Firmware/actions/runs/41750021041)
 built `stock-ui-47b1325`. The printer downloaded and verified the artifact,
