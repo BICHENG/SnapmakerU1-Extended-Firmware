@@ -22,7 +22,9 @@ struct GcodePreview {
     uint64_t viewport_revision;
     char path[4096],job_filename[4096];
     struct stat file;
-    GcodePreviewStatus status,frame_status;
+    GcodePreviewStatus status;
+    RenderView frame_view;
+    float frame_height;
     uint8_t frames[2][GCODE_PREVIEW_MAX_BYTES],*pixels;
 };
 
@@ -179,11 +181,7 @@ static void *worker(void *context){
                     p->status.visible=1;p->status.message[0]=0;
                     if(tracking&&p->status.following)p->status.layer=view.layer;
                     p->status.layer_height=model.layer_z[p->status.layer<model.layers?p->status.layer:model.layers-1];
-                    p->frame_status=p->status;
-                    p->frame_status.layer=view.layer;p->frame_status.layer_height=model.layer_z[view.layer];
-                    p->frame_status.flat=view.flat;p->frame_status.yaw=view.yaw;
-                    p->frame_status.tilt=view.tilt;p->frame_status.zoom=view.zoom;
-                    p->frame_status.following=follow;p->frame_status.live_follow=tracking;
+                    p->frame_view=view;p->frame_height=model.layer_z[view.layer];
                 }
             }
             pthread_mutex_unlock(&p->mutex);
@@ -296,7 +294,10 @@ static int preview_poll(GcodePreview *p,GcodePreviewStatus *status,uint8_t *pixe
     *status=p->status;
     int result=0;
     if(pixels&&p->status.visible){
-        *status=p->frame_status;
+        const RenderView *view=&p->frame_view;
+        status->layer=view->layer;status->layer_height=p->frame_height;
+        status->flat=view->flat;status->yaw=view->yaw;status->tilt=view->tilt;status->zoom=view->zoom;
+        status->live_follow=view->completed!=SIZE_MAX;
         if(p->frame_ready){
             for(size_t y=0;y<height;y++)memcpy(pixels+y*stride,p->pixels+y*row,row);
             p->frame_ready=0;result=1;
