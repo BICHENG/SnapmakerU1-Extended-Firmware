@@ -31,7 +31,55 @@ Both routes retain dirty regions in a GPU framebuffer. Their last LVGL flush wai
 
 ## Shared G-code and output
 
+Factory menu profiling found that recursive object-validity assertions and
+heap-integrity scans dominated CPU time before GPU submission. The original
+2.1.0.157 ELF contains 398 object-existence assertions and eight heap checks.
+`stock-display` now applies a release policy once, before vendor `main`, after
+the existing full executable hash check. `stock-release` changes only those
+call instructions. Public `lv_obj_is_valid` and `lv_mem_test`, null/type checks,
+allocator failure checks and application logic remain intact. Text pages are
+writable only during this startup operation, then return to read/execute.
+`UI_DISPLAY_BASELINE=1` retains the original checks. GPU-off uses the same
+release policy; this saving is independent of GPU drawing. Helix already
+builds with these expensive assertions disabled and receives no saving from
+this factory-only change.
+
+`test/verify_stock_release.py VENDOR_GUI --report REPORT.json` independently
+decodes every candidate call and follows its failure branch to the exact
+LVGL assertion message and terminating loop. It requires pyelftools and
+Capstone, but neither is a firmware dependency. The host test also accepts
+the original ELF and verifies that only the 406 proven call words change.
+Unknown hashes or unexpected call counts retain original behavior.
+
+Three actual Settings scroll runs per condition, on the same printer and
+22 ms policy, measured the following. CPU percentages refer to one core;
+publication FPS does not measure input-to-photon latency.
+
+| Factory configuration | Publication FPS, mean | GUI CPU, mean |
+| --- | ---: | ---: |
+| Previous policy, GPU on | 43.78 | 40.58% |
+| Release policy, GPU on | 44.85 | 17.12% |
+| Previous policy, GPU off | 44.07 | 36.42% |
+| Release policy, GPU off | 44.74 | 12.54% |
+
+With GPU on, refresh processing median fell from 11.74 to 5.71 ms and
+per-run P95 from 17.83–19.31 to 6.87–7.12 ms. The Settings capture was pixel
+identical. GPU-off still costs less CPU for this simple menu. These results
+support a small release-policy fix, not additional asynchronous output queues
+or a full UI remake.
+
 `libgcode-preview.so` exports `gcode_preview_get_api(2)`. The factory adapter in `72-stock-ui` and the U1 Helix widget use this versioned C API. The library owns parsing, file identity, current-layer following, cameras, geometry, supersampling and rendering. Both UIs display the same native palette, opaque selected layer, translucent surrounding layers and estimated time.
+
+Line segments are instanced triangle strips over the existing endpoint VBO.
+The shader expands them in screen space; there is no CPU tessellation or
+second geometry copy. The existing 960×640 supersampling, layer opacity,
+palette and output contract remain. Three GPU-only runs on the same 157-layer,
+70,370-vertex file reduced render medians from 27.69–28.72 to 13.35–13.55 ms;
+P95 changed from 34.11–34.61 to 14.42–15.50 ms. Plain and instrumented renders
+produce identical pixels. Real geometry and synthetic short/zero-length paths
+were rendered in 2D/3D at 0.25×, 1× and 4× zoom. Triangle and GL line edge
+coverage differ slightly; opaque current layers and translucent context pass
+the existing pixel checks. These are renderer timings, not either host's FPS.
 
 Its EGL worker opens `renderD128` without taking display ownership. Callers request a source and view, then poll the latest complete image. Generation checks discard obsolete results. A parsed model is not a displayed first frame. Helix retains its thumbnail until a complete frame arrives, invalidates image caches after mutable pixel updates and before freeing image buffers, and uses the shared fullscreen controls. Manual layer selection cancels following. There is no independent U1 Helix parser or camera implementation to maintain.
 
