@@ -55,7 +55,7 @@ void progress_destroy(ProgressClient *client){free(client);}
 static double seconds(void){struct timespec t;clock_gettime(CLOCK_MONOTONIC,&t);return t.tv_sec+t.tv_nsec/1e9;}
 static GcodePreviewStatus status(GcodePreview *p){
     GcodePreviewStatus s;double until=seconds()+3;
-    while(api->poll(p,&s,NULL,0)==-1){assert(seconds()<until);usleep(1000);}
+    while(api->poll(p,&s,NULL,0,0)==-1){assert(seconds()<until);usleep(1000);}
     return s;
 }
 static GcodePreviewStatus phase(GcodePreview *p,int value){
@@ -66,10 +66,11 @@ static GcodePreviewStatus phase(GcodePreview *p,int value){
 static GcodePreviewStatus frame(GcodePreview *p,uint8_t *pixels,int marker,int layer,int zoom){
     double until=seconds()+3;GcodePreviewStatus s;
     do{
-        int result=api->poll(p,&s,pixels,GCODE_PREVIEW_MAX_BYTES);
+        int result=api->poll(p,&s,pixels,GCODE_PREVIEW_MAX_BYTES,0);
         assert(result!=-2);
         if(result==1){
             assert(pixels[0]==marker);
+            assert(pixels[1]==s.layer&&pixels[2]==(uint8_t)lroundf(s.zoom*10));
             if((layer<0||pixels[1]==layer)&&(zoom<0||pixels[2]==zoom))return s;
         }
         usleep(1000);
@@ -107,54 +108,105 @@ static void source_identity(const char *cached,uint8_t *pixels){
     int gcodes=mkdir("/userdata/gcodes",0700)==0;assert(gcodes||errno==EEXIST);
     char a[]="/userdata/gcodes/preview-runtime-a-XXXXXX",b[]="/userdata/gcodes/preview-runtime-b-XXXXXX";
     fixture(a,20);fixture_tools(b,80,1,1);printing(a);
-    GcodePreviewSource source={cached,strrchr(a,'/')+1,480,320,0,0};
+    GcodePreviewSource source={cached,strrchr(a,'/')+1,480,320,0,0,1};
     GcodePreview *p=api->create();assert(p);assert(!api->load(p,&source));
     GcodePreviewStatus s=frame(p,pixels,20,1,10);
-    assert(s.live_available&&s.live_follow&&s.tools_used==9);uint64_t generation=s.generation;
+    assert(s.live_available&&s.live_follow&&s.tools_used==9);
     printing(b);double until=seconds()+3;
     do{
-        s=status(p);assert(s.generation==generation&&!strcmp(s.filename,cached)&&s.tools_used==9);
+        s=status(p);assert(s.tools_used==9);
         assert(seconds()<until);usleep(1000);
     }while(s.live_available||s.live_follow);
     s=frame(p,pixels,20,1,10);assert(s.phase==GCODE_PREVIEW_LOADED&&!s.live_follow);
     api->action(p,GCODE_PREVIEW_LAYER,0,0);s=frame(p,pixels,20,0,10);
-    assert(!s.following&&!s.live_available&&s.tools_used==9&&!strcmp(s.filename,cached));
-    api->action(p,GCODE_PREVIEW_FOLLOW,0,0);assert(!status(p).following);api->destroy(p);
+    assert(!s.following&&!s.live_available&&s.tools_used==9);
+    api->action(p,GCODE_PREVIEW_FOLLOW,0,0);assert(status(p).following&&!status(p).live_follow);api->destroy(p);
 
     printing(a);source.path=a;source.job_filename=NULL;
     p=api->create();assert(p);assert(!api->load(p,&source));
-    s=frame(p,pixels,20,1,10);assert(s.live_follow);generation=s.generation;
+    s=frame(p,pixels,20,1,10);assert(s.live_follow);
     printing(b);until=seconds()+3;
     do{s=status(p);assert(seconds()<until);usleep(1000);}
-    while(s.generation==generation||s.phase!=GCODE_PREVIEW_LOADED);
+    while(s.tools_used!=2||s.phase!=GCODE_PREVIEW_LOADED);
     s=frame(p,pixels,80,1,10);
-    assert(s.generation!=generation&&!strcmp(s.filename,b)&&s.tools_used==2&&s.live_available&&s.live_follow);
+    assert(s.tools_used==2&&s.live_available&&s.live_follow);
     api->destroy(p);unlink(a);unlink(b);
     if(gcodes)rmdir("/userdata/gcodes");
     if(userdata)rmdir("/userdata");
     puts("Explicit source stays pinned; native path-only source follows the next print");
 }
 
+static void source_reuse(const char *path,uint8_t *pixels){
+    GcodePreviewSource source={path,"reuse.gcode",64,48,1,0,0};
+    GcodePreview *p=api->create();assert(p);assert(!api->load(p,&source));
+    GcodePreviewStatus s=frame(p,pixels,80,1,10);assert(!s.following);
+    api->action(p,GCODE_PREVIEW_LAYER,0,0);api->action(p,GCODE_PREVIEW_ZOOM,2,0);
+    frame(p,pixels,80,0,20);
+    pthread_mutex_lock(&gate);unsigned resources=created;pthread_mutex_unlock(&gate);
+    source.width=480;source.height=320;source.compact=0;source.follow=1;
+    assert(!api->load(p,&source));s=frame(p,pixels,80,0,20);
+    assert(!s.following&&s.width==480&&s.height==320);
+    /* A hidden native thumbnail must stop drawing, retaining resources until page exit. */
+    source.width=64;source.height=48;source.compact=1;source.live_only=1;
+    assert(!api->load(p,&source));usleep(30000);s=status(p);assert(!s.visible);
+    source.live_only=0;assert(!api->load(p,&source));s=frame(p,pixels,80,0,20);
+    pthread_mutex_lock(&gate);assert(created==resources);pthread_mutex_unlock(&gate);
+    /* UI notifications must not re-enable following after a manual layer. */
+    pthread_mutex_lock(&gate);printer.state=JOB_COMPLETE;strcpy(printer.filename,"reuse.gcode");pthread_mutex_unlock(&gate);
+    double until=seconds()+3;
+    do{s=status(p);assert(seconds()<until);usleep(1000);}while(!s.live_available);
+    s=frame(p,pixels,80,0,20);assert(!s.live_follow&&!s.following);
+    source.live_only=1;assert(!api->load(p,&source));s=frame(p,pixels,80,0,20);
+    assert(s.visible&&!s.live_follow&&!s.following);
+    source.live_only=0;assert(!api->load(p,&source));frame(p,pixels,80,0,20);
+    api->action(p,GCODE_PREVIEW_FOLLOW,0,0);s=frame(p,pixels,80,1,20);assert(s.live_follow);
+    /* Same pathname with changed contents must invalidate the cached model. */
+    FILE *f=fopen(path,"w");assert(f);
+    assert(fputs("M83\n;LAYER_CHANGE\nG1 X40 Y10 Z.2\nT1\nG1 X50 E1\n",f)>=0);assert(!fclose(f));
+    assert(!api->load(p,&source));s=frame(p,pixels,40,0,10);assert(s.layers==1&&s.tools_used==2);
+    api->destroy(p);
+    puts("Same-source viewport reuse, manual follow and changed-file invalidation passed");
+}
+
+static void padded_frame(GcodePreview *p){
+    const size_t width=64,height=48,stride=width*4+13,capacity=stride*(height-1)+width*4;
+    uint8_t pixels[stride*height+16];memset(pixels,0xa5,sizeof(pixels));
+    GcodePreviewStatus s;
+    assert(api->poll(p,&s,pixels,sizeof(pixels),width*4-1)==-2);
+    assert(api->poll(p,&s,pixels,sizeof(pixels),SIZE_MAX)==-2);
+    assert(api->poll(p,&s,pixels,capacity-1,stride)==-2);
+    api->action(p,GCODE_PREVIEW_REFRESH,0,0);
+    double until=seconds()+3;
+    while(api->poll(p,&s,pixels,capacity,stride)!=1){assert(seconds()<until);usleep(1000);}
+    assert(s.width==width&&s.height==height&&pixels[0]==20);
+    for(size_t y=0;y<height;y++)
+        for(size_t x=width*4;x<stride;x++)assert(pixels[y*stride+x]==0xa5);
+    for(size_t i=capacity;i<sizeof(pixels);i++)assert(pixels[i]==0xa5);
+    puts("Direct padded output preserves row padding and rejects undersized buffers");
+}
+
 int main(void){
     caller=pthread_self();api=gcode_preview_get_api(GCODE_PREVIEW_ABI);
     assert(api&&api->size==sizeof(*api)&&!gcode_preview_get_api(GCODE_PREVIEW_ABI+1));
+    assert(!gcode_preview_get_api(1));
     setenv("UI_GPU_ENABLED","0",1);assert(!api->create());unsetenv("UI_GPU_ENABLED");
     char first[]="/tmp/gcode-runtime-first-XXXXXX",second[]="/tmp/gcode-runtime-second-XXXXXX";
     fixture(first,20);fixture(second,80);
-    GcodePreviewSource source={first,"job.gcode",64,48,1,0};
+    GcodePreviewSource source={first,"job.gcode",64,48,1,0,1};
     GcodePreview *p=api->create();assert(p);api->pause(p,1);assert(!api->load(p,&source));
     GcodePreviewStatus s=phase(p,GCODE_PREVIEW_LOADED);
-    assert(s.paused&&!s.visible&&s.layers==2&&s.tools_used==9&&s.tool_colors[3]==0xff563f);
+    assert(s.paused&&!s.visible&&s.layers==2&&s.tools_used==9);
     pthread_mutex_lock(&gate);assert(!created&&!rendered);pthread_mutex_unlock(&gate);
     uint8_t *pixels=malloc(GCODE_PREVIEW_MAX_BYTES);assert(pixels);
-    assert(api->poll(p,&s,pixels,GCODE_PREVIEW_MAX_BYTES)==0);
+    assert(api->poll(p,&s,pixels,GCODE_PREVIEW_MAX_BYTES,0)==0);
     api->pause(p,0);
     double until=seconds()+3;
     do{s=status(p);assert(seconds()<until);usleep(1000);}while(!s.visible);
-    assert(api->poll(p,&s,pixels,1)==-2);
-    assert(api->poll(p,&s,NULL,0)==0);
-    s=frame(p,pixels,20,1,10);uint64_t first_generation=s.generation;
-    assert(api->poll(p,&s,pixels,GCODE_PREVIEW_MAX_BYTES)==0);
+    assert(api->poll(p,&s,pixels,1,0)==-2);
+    assert(api->poll(p,&s,NULL,0,0)==0);
+    s=frame(p,pixels,20,1,10);
+    assert(api->poll(p,&s,pixels,GCODE_PREVIEW_MAX_BYTES,0)==0);
+    padded_frame(p);
 
     unsigned prior=hold();api->action(p,GCODE_PREVIEW_REFRESH,0,0);waiting(prior);
     double start=seconds();
@@ -180,9 +232,9 @@ int main(void){
 
     prior=hold();api->action(p,GCODE_PREVIEW_REFRESH,0,0);waiting(prior);
     source.path=second;assert(!api->load(p,&source));s=status(p);
-    assert(s.generation!=first_generation&&!s.visible&&s.phase==GCODE_PREVIEW_LOADING);
-    assert(api->poll(p,&s,pixels,GCODE_PREVIEW_MAX_BYTES)==0);
-    release();s=frame(p,pixels,80,1,10);assert(s.generation!=first_generation);
+    assert(!s.visible&&s.phase==GCODE_PREVIEW_LOADING);
+    assert(api->poll(p,&s,pixels,GCODE_PREVIEW_MAX_BYTES,0)==0);
+    release();s=frame(p,pixels,80,1,10);
 
     prior=hold();api->action(p,GCODE_PREVIEW_REFRESH,0,0);waiting(prior);
     assert(!api->viewport(p,48,32,1,0));release();
@@ -191,7 +243,7 @@ int main(void){
     api->clear(p);release();
     until=seconds()+.05;
     do{s=status(p);assert(s.phase==GCODE_PREVIEW_EMPTY&&!s.visible);
-        assert(api->poll(p,&s,pixels,GCODE_PREVIEW_MAX_BYTES)<=0);usleep(1000);}while(seconds()<until);
+        assert(api->poll(p,&s,pixels,GCODE_PREVIEW_MAX_BYTES,0)<=0);usleep(1000);}while(seconds()<until);
 
     source.live_only=1;source.job_filename="other.gcode";assert(!api->load(p,&source));
     s=phase(p,GCODE_PREVIEW_LOADED);assert(!s.visible);
@@ -204,6 +256,7 @@ int main(void){
     pthread_t destroyer;assert(!pthread_create(&destroyer,NULL,destroy_session,p));
     usleep(10000);release();assert(!pthread_join(destroyer,NULL));
     source_identity(first,pixels);
+    source_reuse(second,pixels);
     pthread_mutex_lock(&gate);assert(created==destroyed);pthread_mutex_unlock(&gate);
     unlink(first);unlink(second);free(pixels);
     puts("Shared preview lifetime, latest frame, controls and follow checks passed");
