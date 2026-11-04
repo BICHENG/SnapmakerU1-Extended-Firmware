@@ -1,0 +1,168 @@
+--- a/src/draw/nanovg/lv_draw_nanovg_mask_rect.c
++++ b/src/draw/nanovg/lv_draw_nanovg_mask_rect.c
+@@ -41,35 +41,16 @@
+ void lv_draw_nanovg_mask_rect(lv_draw_task_t * t, const lv_draw_mask_rect_dsc_t * dsc)
+ {
+     LV_PROFILER_DRAW_BEGIN;
+-    lv_area_t draw_area;
+-
+-    if(!lv_area_intersect(&draw_area, &dsc->area, &t->clip_area)) {
+-        LV_PROFILER_DRAW_END;
+-        return;
+-    }
+-
+     lv_draw_nanovg_unit_t * u = (lv_draw_nanovg_unit_t *)t->draw_unit;
+-
+     nvgBeginPath(u->vg);
+-
+-    /* Nesting cropping regions using rounded rectangles and normal rectangles */
+-    lv_nanovg_path_append_rect(
+-        u->vg,
+-        dsc->area.x1, dsc->area.y1,
+-        lv_area_get_width(&dsc->area), lv_area_get_height(&dsc->area),
+-        dsc->radius);
+-    lv_nanovg_path_append_rect(
+-        u->vg,
+-        t->clip_area.x1, t->clip_area.y1,
+-        lv_area_get_width(&t->clip_area), lv_area_get_height(&t->clip_area),
+-        0);
+-
+-    /* Use NVG_DESTINATION_IN (Sa * D) blending mode to make the corners transparent */
+-    lv_nanovg_fill(
+-        u->vg,
+-        NVG_CCW,
+-        NVG_DESTINATION_IN,
+-        nvgRGBA(0, 0, 0, 0));
++    nvgRect(u->vg, t->clip_area.x1 - 1, t->clip_area.y1 - 1,
++            lv_area_get_width(&t->clip_area) + 2, lv_area_get_height(&t->clip_area) + 2);
++    nvgRoundedRect(u->vg, dsc->area.x1, dsc->area.y1,
++                   lv_area_get_width(&dsc->area), lv_area_get_height(&dsc->area), dsc->radius);
++    nvgPathWinding(u->vg, NVG_HOLE);
++    nvgGlobalCompositeOperation(u->vg, NVG_DESTINATION_OUT);
++    nvgFillColor(u->vg, nvgRGBA(255, 255, 255, 255));
++    nvgFill(u->vg);
+ 
+     LV_PROFILER_DRAW_END;
+ }
+--- a/src/draw/nanovg/lv_draw_nanovg.c
++++ b/src/draw/nanovg/lv_draw_nanovg.c
+@@ -108,7 +108,7 @@
+     unit->base_unit.event_cb = draw_event_cb;
+     unit->base_unit.name = "NANOVG";
+ 
+-    unit->vg = NVG_CTX_CREATE(0);
++    unit->vg = NVG_CTX_CREATE(NVG_ANTIALIAS);
+     LV_ASSERT_MSG(unit->vg != NULL, "NanoVG init failed");
+ 
+     lv_nanovg_utils_init(unit);
+@@ -230,12 +230,6 @@
+     LV_PROFILER_BEGIN_TAG("nvgBindFramebuffer");
+     nvgluBindFramebuffer(lv_nanovg_fbo_cache_entry_to_fb(new_layer->user_data));
+     LV_PROFILER_END_TAG("nvgBindFramebuffer");
+-
+-    /* Clear the off-screen framebuffer */
+-    LV_PROFILER_DRAW_BEGIN_TAG("glClear");
+-    glClearColor(0, 0, 0, 0);
+-    glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+-    LV_PROFILER_DRAW_END_TAG("glClear");
+ 
+     LV_PROFILER_DRAW_END;
+ }
+@@ -342,6 +336,7 @@
+     }
+ 
+     if(u->current_layer != layer) {
++        lv_nanovg_end_frame(u);
+         on_layer_changed(layer);
+         u->current_layer = layer;
+     }
+@@ -433,9 +428,21 @@
+             break;
+         case LV_EVENT_CHILD_CREATED: {
+                 /* The internal rendering uses RGBA format, which is switched to LVGL BGRA format during readback. */
+-                lv_cache_entry_t * entry = lv_nanovg_fbo_cache_get(u, lv_area_get_width(&layer->buf_area),
++                lv_cache_entry_t * entry = lv_nanovg_fbo_cache_get(u, layer, lv_area_get_width(&layer->buf_area),
+                                                                    lv_area_get_height(&layer->buf_area), 0, NVG_TEXTURE_RGBA);
+                 layer->user_data = entry;
++                if(entry) {
++                    lv_nanovg_end_frame(u);
++                    GLint previous;
++                    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &previous);
++                    nvgluBindFramebuffer(lv_nanovg_fbo_cache_entry_to_fb(entry));
++                    glDisable(GL_SCISSOR_TEST);
++                    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
++                    glStencilMask(~0u);
++                    glClearColor(0, 0, 0, 0);
++                    glClear(GL_COLOR_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
++                    glBindFramebuffer(GL_FRAMEBUFFER, (GLuint)previous);
++                }
+             }
+             break;
+         case LV_EVENT_CHILD_DELETED: {
+--- a/src/draw/nanovg/lv_nanovg_fbo_cache.c
++++ b/src/draw/nanovg/lv_nanovg_fbo_cache.c
+@@ -30,6 +30,7 @@
+     lv_draw_nanovg_unit_t * u;
+ 
+     /* key */
++    uintptr_t owner;
+     int width;
+     int height;
+     int flags;
+@@ -83,7 +84,7 @@
+     u->fbo_cache = NULL;
+ }
+ 
+-struct _lv_cache_entry_t * lv_nanovg_fbo_cache_get(lv_draw_nanovg_unit_t * u, int width, int height, int flags,
++struct _lv_cache_entry_t * lv_nanovg_fbo_cache_get(lv_draw_nanovg_unit_t * u, const void * owner, int width, int height, int flags,
+                                                    int format)
+ {
+     LV_PROFILER_DRAW_BEGIN;
+@@ -91,6 +92,7 @@
+ 
+     fbo_item_t search_key = { 0 };
+     search_key.u = u;
++    search_key.owner = (uintptr_t)owner;
+     search_key.width = width;
+     search_key.height = height;
+     search_key.flags = flags;
+@@ -154,6 +156,8 @@
+ 
+ static lv_cache_compare_res_t fbo_compare_cb(const fbo_item_t * lhs, const fbo_item_t * rhs)
+ {
++    if(lhs->owner != rhs->owner) return lhs->owner > rhs->owner ? 1 : -1;
++
+     if(lhs->width != rhs->width) {
+         return lhs->width > rhs->width ? 1 : -1;
+     }
+--- a/src/draw/nanovg/lv_nanovg_fbo_cache.h
++++ b/src/draw/nanovg/lv_nanovg_fbo_cache.h
+@@ -55,7 +55,7 @@
+  * @param format the texture format
+  * @return the FBO cache entry, or NULL if not found
+  */
+-struct _lv_cache_entry_t * lv_nanovg_fbo_cache_get(struct _lv_draw_nanovg_unit_t * u, int width, int height, int flags,
++struct _lv_cache_entry_t * lv_nanovg_fbo_cache_get(struct _lv_draw_nanovg_unit_t * u, const void * owner, int width, int height, int flags,
+                                                    int format);
+ 
+ /**
+--- a/src/draw/nanovg/lv_draw_nanovg_fill.c
++++ b/src/draw/nanovg/lv_draw_nanovg_fill.c
+@@ -58,6 +58,7 @@
+ 
+     if(dsc->grad.dir != LV_GRAD_DIR_NONE) {
+ #if LV_USE_VECTOR_GRAPHIC
++        nvgGlobalAlpha(u->vg, dsc->opa / 255.0f);
+         lv_nanovg_draw_grad_helper(u->vg, coords, &dsc->grad, NVG_CCW, NVG_SOURCE_OVER);
+ #else
+         LV_LOG_WARN("Gradient fill is not supported without VECTOR_GRAPHIC");
+--- a/src/draw/nanovg/lv_draw_nanovg_triangle.c
++++ b/src/draw/nanovg/lv_draw_nanovg_triangle.c
+@@ -62,6 +62,7 @@
+ 
+     if(dsc->grad.dir != LV_GRAD_DIR_NONE) {
+ #if LV_USE_VECTOR_GRAPHIC
++        nvgGlobalAlpha(u->vg, dsc->opa / 255.0f);
+         lv_nanovg_draw_grad_helper(u->vg, &tri_area, &dsc->grad, NVG_CCW, NVG_SOURCE_OVER);
+ #else
+         LV_LOG_WARN("Gradient fill is not supported without VECTOR_GRAPHIC");

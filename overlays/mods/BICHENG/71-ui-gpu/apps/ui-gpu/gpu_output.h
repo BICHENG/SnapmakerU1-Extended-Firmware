@@ -7,11 +7,12 @@ extern "C" {
 #endif
 
 typedef struct UiGpuOutput UiGpuOutput;
+typedef enum { UI_GPU_RGBA, UI_GPU_BGRA } UiGpuOutputFormat;
 
 /* All operations run with the creating EGL context current. Attach the returned
  * texture to the caller's FBO and verify completeness before using it.
- * Rows retain GL orientation and RGBA byte order, including alpha. */
-UiGpuOutput *ui_gpu_output_create(unsigned width,unsigned height);
+ * Rows retain GL orientation and the requested byte order, including alpha. */
+UiGpuOutput *ui_gpu_output_create(unsigned width,unsigned height,UiGpuOutputFormat format);
 unsigned ui_gpu_output_texture(const UiGpuOutput *output);
 size_t ui_gpu_output_stride(const UiGpuOutput *output);
 const uint8_t *ui_gpu_output_begin_read(UiGpuOutput *output);

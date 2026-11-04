@@ -8,6 +8,7 @@ from pathlib import Path
 import shutil
 import struct
 import subprocess
+import urllib.request
 
 ROOT = Path(__file__).resolve().parents[2]
 VERSION = "1.0.7"
@@ -16,16 +17,36 @@ OVERLAY = Path("overlays/mods/BICHENG/71-ui-gpu")
 PATCH = OVERLAY / "apps/helix-gpu-shared.patch"
 PREVIEW = OVERLAY / "apps/gcode-preview"
 DISPLAY = OVERLAY / "apps/ui-display"
+GPU = OVERLAY / "apps/ui-gpu"
+RENDERER = OVERLAY / "apps/helix-gpu"
+MALI_REVISION = "ec78b74adc038f97cf173f4061fe3856efc0dc74"
+MALI_SHA256 = "bc6be2fd5d8b46bb9d4cb22118a3ff77af1ca46cee1ac12bc78e27f89ba3ea3d"
+MALI_URL = (f"https://raw.githubusercontent.com/tsukumijima/libmali-rockchip/{MALI_REVISION}"
+            "/lib/aarch64-linux-gnu/libmali-bifrost-g52-g24p0-gbm.so")
+COPIES = (
+    (PREVIEW / "gcode-preview.h", "include/gcode-preview.h"),
+    (DISPLAY / "ui-display.c", "src/ui-display.c"),
+    (DISPLAY / "ui-display.h", "include/ui-display.h"),
+    (Path("common/ui-frame.h"), "include/ui-frame.h"),
+    (GPU / "gpu_output.c", "src/gpu_output.c"),
+    (GPU / "gpu_output.h", "include/gpu_output.h"),
+    (RENDERER / "ui_gpu_renderer.c", "src/ui_gpu_renderer.c"),
+    (RENDERER / "ui_gpu_renderer.h", "include/ui_gpu_renderer.h"),
+    *((RENDERER / name, "patches/" + name) for name in (
+        "lvgl-font-bitmap-stride.patch", "lvgl-nanovg-correctness.patch",
+        "lvgl-nanovg-label-atlas.patch")),
+)
 PACKAGE = Path("overlays/firmware-extended/69-app-helixscreen/root/usr/local/share/extended-pkg/helixscreen")
 INPUTS = (
     Path(".github/workflows/helix-gpu.yaml"),
     Path(".github/scripts/prepare-helix-gpu.py"),
-    PATCH, PREVIEW / "gcode-preview.h", PACKAGE,
-    DISPLAY / "ui-display.c", DISPLAY / "ui-display.h", Path("common/ui-frame.h"),
+    PATCH, PACKAGE, *(original for original, _ in COPIES),
 )
 BUILD = {
     "PLATFORM_TARGET": "snapmaker-u1", "DISPLAY_BACKEND": "fbdev",
     "ENABLE_GLES_3D": "no", "ENABLE_OPENGLES": "no", "SKIP_OPTIONAL_DEPS": "1",
+    "ENABLE_REMOTE_CONTROL": "no", "ENABLE_MOCKS": "no", "HELIX_PACKAGING": "1",
+    "MALI_LIB": "/src/build-support/libmali.so.1",
 }
 
 
@@ -41,6 +62,7 @@ def identity():
         "upstream": {"repository": "https://github.com/prestonbrown/helixscreen",
                      "version": VERSION, "revision": REVISION},
         "build": BUILD,
+        "mali": {"revision": MALI_REVISION, "sha256": MALI_SHA256},
         "inputs": {path.as_posix(): sha256(ROOT / path) for path in INPUTS},
     }
 
@@ -62,13 +84,27 @@ def prepare(source):
     if git(source, "apply", "--reverse", "--check", patch, check=False).returncode:
         git(source, "apply", "--check", patch)
         git(source, "apply", patch)
-    shutil.copyfile(ROOT / PREVIEW / "gcode-preview.h", source / "include/gcode-preview.h")
-    shutil.copyfile(ROOT / DISPLAY / "ui-display.c", source / "src/ui-display.c")
-    shutil.copyfile(ROOT / DISPLAY / "ui-display.h", source / "include/ui-display.h")
-    shutil.copyfile(ROOT / "common/ui-frame.h", source / "include/ui-frame.h")
+    for original, copied in COPIES:
+        shutil.copyfile(ROOT / original, source / copied)
+    library = source / "build-support/libmali.so.1"
+    library.parent.mkdir(exist_ok=True)
+    if not library.exists():
+        temporary = library.with_suffix(".part")
+        try:
+            with urllib.request.urlopen(MALI_URL, timeout=90) as response, temporary.open("wb") as output:
+                shutil.copyfileobj(response, output)
+            if sha256(temporary) != MALI_SHA256:
+                raise ValueError("Mali link library checksum mismatch")
+            temporary.replace(library)
+        finally:
+            temporary.unlink(missing_ok=True)
+    if sha256(library) != MALI_SHA256:
+        raise ValueError("Mali link library checksum mismatch")
 
 
 def binary_info(path):
+    if path.stat().st_size > 64 * 1024 * 1024:
+        raise ValueError("Helix release exceeds 64 MiB; strip debug symbols before packaging")
     with path.open("rb") as binary:
         header = binary.read(64)
     if (len(header) != 64 or header[:6] != b"\x7fELF\x02\x01" or
@@ -86,12 +122,11 @@ def checksums(artifact):
 def package(source, artifact):
     check_revision(source)
     git(source, "apply", "--reverse", "--check", str(ROOT / PATCH))
-    for original, copied in ((PREVIEW / "gcode-preview.h", "include/gcode-preview.h"),
-                             (DISPLAY / "ui-display.c", "src/ui-display.c"),
-                             (DISPLAY / "ui-display.h", "include/ui-display.h"),
-                             (Path("common/ui-frame.h"), "include/ui-frame.h")):
+    for original, copied in COPIES:
         if sha256(source / copied) != sha256(ROOT / original):
             raise ValueError(f"Helix was built with a different {original}")
+    if sha256(source / "build-support/libmali.so.1") != MALI_SHA256:
+        raise ValueError("Helix was built with a different Mali link library")
     name = "helix-screen"
     binary = source / "build/snapmaker-u1/bin" / name
     manifest = identity()

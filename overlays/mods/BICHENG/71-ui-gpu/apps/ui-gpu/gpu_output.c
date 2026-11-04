@@ -45,12 +45,13 @@ void ui_gpu_output_destroy(UiGpuOutput *output)
     free(output);
 }
 
-UiGpuOutput *ui_gpu_output_create(unsigned width,unsigned height)
+UiGpuOutput *ui_gpu_output_create(unsigned width,unsigned height,UiGpuOutputFormat format)
 {
     const char *enabled=getenv("UI_GPU_ENABLED"),*mode=getenv("UI_GPU_OUTPUT");
     if((enabled&&!strcmp(enabled,"0"))||(mode&&!strcmp(mode,"readback")))return NULL;
     EGLDisplay display=eglGetCurrentDisplay();EGLContext context=eglGetCurrentContext();
-    if(display==EGL_NO_DISPLAY||context==EGL_NO_CONTEXT||!width||!height)return NULL;
+    if(display==EGL_NO_DISPLAY||context==EGL_NO_CONTEXT||!width||!height||
+       (format!=UI_GPU_RGBA&&format!=UI_GPU_BGRA))return NULL;
     GLint maximum=0,old_texture=0;glGetIntegerv(GL_MAX_TEXTURE_SIZE,&maximum);
     if(maximum<=0||width>(unsigned)maximum||height>(unsigned)maximum)return NULL;
     const char *extensions=eglQueryString(display,EGL_EXTENSIONS);
@@ -74,7 +75,7 @@ UiGpuOutput *ui_gpu_output_create(unsigned width,unsigned height)
     output->pixels=mapping;
     /* DRM ABGR8888 is R,G,B,A in memory, matching GL_RGBA/GL_UNSIGNED_BYTE. */
     const EGLint attrs[]={EGL_WIDTH,(EGLint)width,EGL_HEIGHT,(EGLint)height,
-        EGL_LINUX_DRM_FOURCC_EXT,0x34324241,EGL_DMA_BUF_PLANE0_FD_EXT,output->fd,
+        EGL_LINUX_DRM_FOURCC_EXT,format==UI_GPU_BGRA?0x34325241:0x34324241,EGL_DMA_BUF_PLANE0_FD_EXT,output->fd,
         EGL_DMA_BUF_PLANE0_OFFSET_EXT,0,EGL_DMA_BUF_PLANE0_PITCH_EXT,(EGLint)output->stride,EGL_NONE};
     output->image=create_image(display,EGL_NO_CONTEXT,EGL_LINUX_DMA_BUF_EXT,NULL,attrs);
     if(!output->image)goto fail;

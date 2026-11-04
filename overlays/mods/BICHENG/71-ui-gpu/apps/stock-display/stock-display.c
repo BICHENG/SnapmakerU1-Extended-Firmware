@@ -41,6 +41,8 @@ static uintptr_t vendor_base;
 static const DisplayAbi *vendor_abi;
 static int (*original_usleep)(useconds_t);
 static unsigned (*extension_tick)(unsigned);
+static unsigned (*renderer_tick)(uintptr_t,void *,unsigned);
+static int renderer_checked;
 static int main_initialized, gpu_enabled, policy_reported, unsupported_reported;
 static int baseline;
 static ui_display *presenter;
@@ -245,7 +247,7 @@ static unsigned native_tick(unsigned sleep_us, uintptr_t caller)
     stock_perf_poll();
     if(benchmark_cancelled) display_log("repaint benchmark cancelled: expected the verified 480x320 display\n");
     if(refresh && !policy_reported) {
-        display_log("GUI %s: gpu_output_enabled=%d refresh_ms=%u->%u animation_ms=%u->%u input_timers=%u input_period_ms=%u; stock controls remain CPU-rendered\n",
+        display_log("GUI %s: gpu_requested=%d refresh_ms=%u->%u animation_ms=%u->%u input_timers=%u input_period_ms=%u; renderer status is /tmp/ui-renderer.json\n",
                     abi->version,gpu_enabled,before,refresh_period,animation_before,animation_period,
                     input_timers,input_timers?refresh_period:0);
         policy_reported=1;
@@ -253,6 +255,18 @@ static unsigned native_tick(unsigned sleep_us, uintptr_t caller)
     if(perf_result==0 && !unsupported_reported) {
         display_log("GUI %s: display performance events are unsupported; animation timer unchanged when its ABI is unknown\n",abi->version);
         unsupported_reported=1;
+    }
+    if(gpu_enabled&&!baseline&&presented_display==display&&display) {
+        if(!renderer_checked) {
+            renderer_checked=1;
+            void *module=dlopen("/usr/local/lib/libstock-gpu.so",RTLD_NOW|RTLD_LOCAL);
+            if(module) {
+                renderer_tick=dlsym(module,"stock_gpu_tick");
+                if(!renderer_tick)dlclose(module);
+            }
+            if(!renderer_tick)display_log("Native GPU renderer unavailable; retaining software drawing\n");
+        }
+        if(renderer_tick)sleep_us=renderer_tick(vendor_base,display,sleep_us);
     }
     return refresh && extension_tick?extension_tick(sleep_us):sleep_us;
 }

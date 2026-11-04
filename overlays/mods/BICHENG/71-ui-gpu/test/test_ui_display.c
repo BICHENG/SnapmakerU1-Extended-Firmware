@@ -19,6 +19,7 @@ static ui_display *subject;
 static unsigned front, calls;
 static unsigned pan_failures, report_writes;
 static int pan_error, get_error, invalid_geometry;
+static int block_pan_once, pan_entered[2], pan_release[2];
 static char report_path[] = "/tmp/ui-display-test.XXXXXX";
 static char report_tmp[sizeof(report_path)+4];
 static FILE *test_fopen(const char *path, const char *mode)
@@ -60,8 +61,13 @@ static int test_ioctl(int fd, unsigned long request, ...)
     assert(request == FBIOPAN_DISPLAY && var->yoffset != front);
     assert(var->yoffset == 0 || var->yoffset == UI_FRAME_HEIGHT);
     assert(var->activate == FB_ACTIVATE_VBL);
-    assert(!memcmp(subject->scanout + var->yoffset * UI_FRAME_STRIDE, subject->canvas, UI_FRAME_BYTES));
+    assert(!memcmp(subject->scanout + var->yoffset * UI_FRAME_STRIDE, frame_pixels(subject), UI_FRAME_BYTES));
     calls++;
+    if(block_pan_once) {
+        block_pan_once = 0;
+        assert(write(pan_entered[1], "x", 1) == 1);
+        char byte; assert(read(pan_release[0], &byte, 1) == 1);
+    }
     if(pan_failures) { pan_failures--; errno = pan_error; return -1; }
     front = var->yoffset;
     return 0;
@@ -168,8 +174,29 @@ int main(void)
     d.double_buffer = 0; d.var.yres_virtual = UI_FRAME_HEIGHT; front = 0; before = calls;
     assert(!ui_display_update(&d, 1, 15, 4, 15, row, sizeof(row), 1));
     assert(calls == before && d.scanout[15 * UI_FRAME_STRIDE + 4] == 42 && d.flips == 8);
+    d.double_buffer = 1; d.var.yres_virtual = UI_FRAME_HEIGHT * 2;
+    assert(!pipe(pan_entered) && !pipe(pan_release));
+    block_pan_once = 1;
+    unsigned long long first_sequence = d.submitted;
+    uint8_t *whole = malloc(UI_FRAME_BYTES); assert(whole);
+    start_worker(&d); assert(d.asynchronous);
+    memset(whole, 65, UI_FRAME_BYTES);
+    assert(!ui_display_update(&d, 0, 0, 479, 319, whole, UI_FRAME_STRIDE, 1));
+    assert(read(pan_entered[0], &byte, 1) == 1);
+    for(unsigned i = 0; i < 16; ++i) {
+        memset(whole, 66 + i, UI_FRAME_BYTES);
+        assert(!ui_display_update(&d, 0, 0, 479, 319, whole, UI_FRAME_STRIDE, 1));
+    }
+    assert(d.submitted == first_sequence + 17 && d.coalesced == 15);
+    assert(write(pan_release[1], "x", 1) == 1);
+    stop_worker(&d);
+    assert(d.flips == 10 && d.snapshot->sequence == first_sequence + 17);
+    assert(!memcmp(whole, d.scanout + front * UI_FRAME_STRIDE, UI_FRAME_BYTES));
+    assert(!memcmp(whole, d.snapshot->pixels, UI_FRAME_BYTES));
+    for(unsigned i = 0; i < 2; ++i) { close(pan_entered[i]); close(pan_release[i]); }
+    free(whole);
     close(d.power_fd); unlink(power_path);
     munmap(d.snapshot, sizeof(struct ui_frame)); close(d.snapshot_fd); unlink(path); free(d.scanout);
     unlink(report_path); unlink(report_tmp); free(visible);
-    puts("display tests passed: bounded EINTR retry, failed-frame isolation/recovery, error reports, sleep, single-page compatibility");
+    puts("display tests passed: errors, sleep, complete frames, nonblocking latest-frame delivery and shutdown drain");
 }

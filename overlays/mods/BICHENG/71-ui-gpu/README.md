@@ -1,4 +1,4 @@
-# U1 GPU runtime and shared G-code preview
+# U1 native GPU drawing and shared G-code preview
 
 The `gpu` branch maintains the Mali runtime, one G-code implementation for both
 interfaces, and their display adapters. The original UI remains primary.
@@ -8,12 +8,14 @@ previous measurements and acceptance status.
 This overlay enables the existing RK3562 Mali-G52 node, builds the pinned
 Rockchip kernel's bifrost driver and installs the checksummed Mali g24p0 EGL,
 GLES and GBM library with its licence. It preserves the GPU voltage table and
-panel timing. Ordinary widgets in the original UI and Helix still use LVGL's
-software renderer.
+panel timing. GPU-enabled builds can draw ordinary widgets through NanoVG GLES3:
+`stock-gpu` adapts the verified factory 2.1 draw queue, and `helix-gpu` attaches
+LVGL's NanoVG draw unit to the pinned Helix build. Layout, application state and
+input handling remain in each original UI. This does not imply a menu FPS gain.
 
 ## Setting and startup
 
-Use **Firmware → Snapmaker components → Touchscreen GPU acceleration**.
+Use **Firmware → Snapmaker components → Touchscreen GPU rendering**.
 The setting preserves the selected interface and reboots only when the printer
 is idle and every heater target is zero. The equivalent configuration is:
 
@@ -31,6 +33,21 @@ the existence of `/dev/mali0` alone does not establish successful startup.
 GPU availability is separate from widget refresh policy. GPU off keeps normal
 thumbnails usable and does not load the shared G-code GPU renderer. The supported
 display adapters retain their 22 ms refresh policy with GPU off.
+
+The factory adapter owns only the display tree. Factory worker threads still
+prepare their small canvas assets, just as font and image decoders prepare
+textures. `/tmp/ui-renderer.json` distinguishes GPU display tasks, CPU display
+tasks and factory CPU asset tasks. Check its PID against the running GUI before
+using the report. An unsupported display task rejects the incomplete frame,
+restores software drawing and invalidates the full screen. This fallback is
+sticky for the process lifetime. An unknown factory executable never attaches.
+
+Both adapters preserve dirty regions in a retained GPU framebuffer and submit
+one complete image after the final LVGL flush. They share `gpu_output` for DMA-BUF
+read synchronization. The UI still copies completed pixels into the framebuffer
+presenter; this is not GPU scanout without copies. Measured Settings rendering
+is currently slower with NanoVG than CPU: about 11.2 versus 6.7 ms in the factory
+UI, and 9.9 versus 5.3 ms in Helix. These are render medians, not physical FPS.
 
 ## One G-code implementation
 
@@ -69,7 +86,10 @@ otherwise the official executable is selected.
 ## Complete-frame display and remote capture
 
 The shared `ui-display` presenter gathers LVGL's partial flushes in a complete
-480×320 CPU canvas. It presents only after the last flush. The boot configuration
+480×320 CPU canvas. It submits only after the last flush. A worker presents the
+current complete frame while the UI prepares the next one. One replaceable
+pending frame bounds memory and latency; stale pending frames are coalesced.
+The worker sleeps when idle and drains the last frame on close. The boot configuration
 requests two framebuffer pages with `drm_kms_helper.drm_fbdev_overalloc=200`.
 When the driver provides both pages, the presenter copies to the back page and
 uses `FBIOPAN_DISPLAY` with `FB_ACTIVATE_VBL`. The pinned Rockchip driver uses a
@@ -83,11 +103,11 @@ Check `/tmp/ui-display.json` for `double_buffer`, `flips`, `errors`, `last_error
 `yoffset` and presentation timing. Physical-panel acceptance also requires
 `/sys/kernel/debug/dri/0/state` to show the target CRTC with `enable=1 active=1`
 and a nonzero framebuffer on its plane. `bl_power=0` and increasing flip counts
-do not prove active scanout. The final two-page firmware still requires flash
-and physical-panel acceptance; successful compilation does not establish that
-tearing has been removed.
+do not prove active scanout. Live acceptance checks the selected physical page
+against the completed remote snapshot. Those checks cannot replace an on-site
+observation of tearing during motion.
 
-The presenter publishes its latest complete canvas to `/run/ui-frame` using
+The presenter publishes the completed frame after presentation to `/run/ui-frame` using
 the layout in `common/ui-frame.h`. Sequence, monotonic timestamp and producer
 PID accompany the XRGB8888 pixels. Nonblocking record locks protect a snapshot;
 a busy reader causes a publish skip rather than delaying the local UI. The
@@ -146,9 +166,12 @@ make -C overlays/mods/BICHENG/71-ui-gpu/apps/gcode-preview test
 
 The display and G-code host tests include sanitizer checks. They do not replace
 device tests of EGL imports, framebuffer flips, source changes, widget teardown
-or suspend. The final Helix link and 26 startup/hook tests have passed. A device
-EGL smoke check through `renderD128` reported Mali-G52 and no GL error. Full
-two-page flash acceptance and both interfaces' visual acceptance are pending.
+or suspend. The production candidates draw real pages through NanoVG in both
+UIs, with zero CPU display tasks in the accepted captures. These captures match
+the selected physical framebuffer and the completed remote snapshot. Native
+and Helix previews update when rotated and when selecting layers. The release
+still requires acceptance of the exact Actions image after flashing; candidate
+tests do not establish deployment.
 
 For an isolated device smoke check, run `test/egl_smoke.py` as root while idle
 with GPU previews closed. It draws an offscreen 16×16 triangle, checks pixels,
