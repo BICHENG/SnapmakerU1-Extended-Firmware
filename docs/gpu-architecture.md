@@ -56,6 +56,10 @@ worker now swaps two owned buffers at completion and records that frame's view.
 `poll` copies directly to the host's row stride, preserving padding; Helix needs
 no intermediate full-screen pixel array. This removes two full-frame copies
 from its preview path. It does not remove the LVGL composite or fbdev copy.
+With a pixel destination, `poll` retains the displayed frame's metadata even
+when it returns no new image. A status-only call without a destination reads
+the latest requested state, for relative-to-absolute camera controls. Hosts
+therefore need no second cache to keep labels aligned with the visible frame.
 
 ABI 2 removes unconsumed public generation/frame counters, render timing,
 filename duplication and palette copies. Internal generation cancellation,

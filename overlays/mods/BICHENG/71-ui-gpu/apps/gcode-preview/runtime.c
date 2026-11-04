@@ -295,9 +295,12 @@ static int preview_poll(GcodePreview *p,GcodePreviewStatus *status,uint8_t *pixe
     }
     *status=p->status;
     int result=0;
-    if(pixels&&p->frame_ready&&p->status.visible){
-        for(size_t y=0;y<height;y++)memcpy(pixels+y*stride,p->pixels+y*row,row);
-        *status=p->frame_status;p->frame_ready=0;result=1;
+    if(pixels&&p->status.visible){
+        *status=p->frame_status;
+        if(p->frame_ready){
+            for(size_t y=0;y<height;y++)memcpy(pixels+y*stride,p->pixels+y*row,row);
+            p->frame_ready=0;result=1;
+        }
     }
     pthread_mutex_unlock(&p->mutex);return result;
 }

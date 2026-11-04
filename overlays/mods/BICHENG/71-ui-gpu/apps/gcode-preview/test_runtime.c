@@ -213,6 +213,8 @@ int main(void){
     for(int i=0;i<1000;i++)api->action(p,GCODE_PREVIEW_ROTATE,.01f,.02f);
     api->action(p,GCODE_PREVIEW_ZOOM,100,0);api->action(p,GCODE_PREVIEW_LAYER,0,0);
     s=status(p);assert(s.zoom==6&&s.tilt==1.4f&&!s.following&&s.layer==0);
+    assert(api->poll(p,&s,pixels,GCODE_PREVIEW_MAX_BYTES,0)==0);
+    assert(s.layer==1&&s.zoom==1); /* No new image: retain its displayed metadata. */
     printf("1002 actions and status poll with GPU blocked: %.3f ms\n",(seconds()-start)*1000);
     release();s=frame(p,pixels,20,0,60);
     pthread_mutex_lock(&gate);assert(entered<=prior+2);pthread_mutex_unlock(&gate);
