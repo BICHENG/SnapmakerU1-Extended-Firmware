@@ -27,7 +27,7 @@ struct Gpu {
     EGLDisplay display;
     EGLContext context;
     GLuint program,color,fbo,depth,vbo,grid,resolve_fbo,resolve_color,background;
-    GLint center,scale,rotation,brightness,opacity;
+    GLint center,scale,rotation,brightness,opacity,viewport,line_width;
     UiGpuOutput *output;
     uint8_t *readback;
 #ifdef STOCK_GPU_PROFILE
@@ -86,20 +86,28 @@ Gpu *gpu_create(const Model *m,char *error,size_t size) {
     if(!g->context||!eglMakeCurrent(g->display,EGL_NO_SURFACE,EGL_NO_SURFACE,g->context))goto fail;
     g->current=1;
     GLuint vs=shader(GL_VERTEX_SHADER,
-        "attribute vec3 position;attribute vec4 color;varying vec4 c;"
+        "#version 300 es\nprecision highp float;"
+        "layout(location=0)in vec3 a;layout(location=1)in vec4 ca;"
+        "layout(location=2)in vec3 b;layout(location=3)in vec4 cb;out vec4 c;"
         "uniform vec3 center;uniform vec3 scale;uniform vec4 rotation;"
-        "void main(){vec3 p=position-center;"
+        "uniform vec2 viewport;uniform float line_width;"
+        "vec3 project(vec3 position){vec3 p=position-center;"
         "float x=p.x*rotation.x-p.y*rotation.y;"
         "float y=p.x*rotation.y+p.y*rotation.x;"
         "float v=y*rotation.z+p.z*rotation.w;"
         "float d=-y*rotation.w+p.z*rotation.z;"
-        "gl_Position=vec4(x*scale.x,v*scale.y,-d*scale.z,1.0);c=color;}");
+        "return vec3(x*scale.x,v*scale.y,-d*scale.z);}"
+        "void main(){vec3 p0=project(a),p1=project(b);vec2 delta=(p1.xy-p0.xy)*viewport;"
+        "vec2 normal=vec2(-delta.y,delta.x)/max(length(delta),0.0001);"
+        "float end=float(gl_VertexID&1);vec3 p=mix(p0,p1,end);"
+        "p.xy+=normal*line_width/viewport*(gl_VertexID<2?1.0:-1.0);"
+        "gl_Position=vec4(p,1);c=mix(ca,cb,end);}");
     GLuint fs=shader(GL_FRAGMENT_SHADER,
-        "precision mediump float;varying vec4 c;uniform float brightness;uniform float opacity;"
-        "void main(){gl_FragColor=vec4(c.bgr*brightness,c.a*opacity);}");
+        "#version 300 es\nprecision mediump float;in vec4 c;out vec4 result;"
+        "uniform float brightness;uniform float opacity;"
+        "void main(){result=vec4(c.bgr*brightness,c.a*opacity);}");
     if(!vs||!fs){glDeleteShader(vs);glDeleteShader(fs);goto fail;}
     g->program=glCreateProgram();glAttachShader(g->program,vs);glAttachShader(g->program,fs);
-    glBindAttribLocation(g->program,0,"position");glBindAttribLocation(g->program,1,"color");
     glLinkProgram(g->program);glDeleteShader(vs);glDeleteShader(fs);
     GLint ok;glGetProgramiv(g->program,GL_LINK_STATUS,&ok);if(!ok)goto fail;
     g->center=glGetUniformLocation(g->program,"center");
@@ -107,6 +115,8 @@ Gpu *gpu_create(const Model *m,char *error,size_t size) {
     g->rotation=glGetUniformLocation(g->program,"rotation");
     g->brightness=glGetUniformLocation(g->program,"brightness");
     g->opacity=glGetUniformLocation(g->program,"opacity");
+    g->viewport=glGetUniformLocation(g->program,"viewport");
+    g->line_width=glGetUniformLocation(g->program,"line_width");
     vs=shader(GL_VERTEX_SHADER,
         "#version 300 es\n"
         "void main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);"
@@ -155,15 +165,17 @@ fail:
     snprintf(error,size,"GPU 预览初始化失败");
     gpu_destroy(g);return NULL;
 }
-static void attributes(GLuint buffer) {
+static void paths(GLuint buffer,size_t first,size_t count) {
+    if(count<2)return;
     glBindBuffer(GL_ARRAY_BUFFER,buffer);
-    glVertexAttribPointer(0,3,GL_FLOAT,GL_FALSE,sizeof(Vertex),(void*)offsetof(Vertex,x));
-    glVertexAttribPointer(1,4,GL_UNSIGNED_BYTE,GL_TRUE,sizeof(Vertex),(void*)offsetof(Vertex,color));
-    glEnableVertexAttribArray(0);glEnableVertexAttribArray(1);
-}
-static void context_paths(size_t first,size_t end,size_t count) {
-    glDrawArrays(GL_LINES,0,first);
-    glDrawArrays(GL_LINES,end,count-end);
+    /* Instance the existing endpoint pairs; wide GL_LINES are expensive on Mali-G52. */
+    for(unsigned i=0;i<4;++i){
+        size_t offset=(first+i/2)*sizeof(Vertex)+(i%2?offsetof(Vertex,color):offsetof(Vertex,x));
+        glVertexAttribPointer(i,i%2?4:3,i%2?GL_UNSIGNED_BYTE:GL_FLOAT,i%2?GL_TRUE:GL_FALSE,
+                              2*sizeof(Vertex),(void*)offset);
+        glEnableVertexAttribArray(i);glVertexAttribDivisor(i,1);
+    }
+    glDrawArraysInstanced(GL_TRIANGLE_STRIP,0,4,count/2);
 }
 int gpu_render(Gpu *g,const Model *m,const RenderView *v,uint8_t *pixels) {
     unsigned layer=v->layer;int flat=v->flat,w=v->width,h=v->height;
@@ -189,24 +201,24 @@ int gpu_render(Gpu *g,const Model *m,const RenderView *v,uint8_t *pixels) {
     glUniform3f(g->scale,2*pixels_per_mm/w,2*pixels_per_mm/h,0.8f/span);
     glUniform4f(g->rotation,cosf(yaw),sinf(yaw),cosf(tilt),sinf(tilt));
     glUniform1f(g->brightness,1);
-    attributes(g->vbo);glLineWidth(SAMPLES);
+    glUniform2f(g->viewport,w*SAMPLES,h*SAMPLES);glUniform1f(g->line_width,SAMPLES);
     size_t first=layer?m->layer_end[layer-1]:0;
     size_t end=m->layer_end[layer];
     /* Store one nearest context layer, then fill its background without accumulating alpha. */
     glUniform1f(g->opacity,.24f);
-    context_paths(first,end,m->count);
+    paths(g->vbo,0,first);paths(g->vbo,end,m->count-end);
     glDisable(GL_DEPTH_TEST);glEnable(GL_BLEND);
     glBlendFuncSeparate(GL_ONE_MINUS_DST_ALPHA,GL_DST_ALPHA,GL_ONE_MINUS_DST_ALPHA,GL_ONE);
     glUniform1f(g->opacity,1);
-    attributes(g->grid);glDrawArrays(GL_LINES,0,84);
+    paths(g->grid,0,84);
     glUseProgram(g->background);
     glDrawArrays(GL_TRIANGLES,0,3);
-    glDisable(GL_BLEND);glUseProgram(g->program);attributes(g->vbo);
-    glLineWidth(SAMPLES*(flat?1.75f:1.5f));
+    glDisable(GL_BLEND);glUseProgram(g->program);
+    glUniform1f(g->line_width,SAMPLES*(flat?1.75f:1.5f));
     size_t completed=v->completed<end?v->completed:end;
     if(completed<first)completed=first;
-    glUniform1f(g->brightness,.38f);glDrawArrays(GL_LINES,completed,end-completed);
-    glUniform1f(g->brightness,1);glDrawArrays(GL_LINES,first,completed-first);
+    glUniform1f(g->brightness,.38f);paths(g->vbo,completed,end-completed);
+    glUniform1f(g->brightness,1);paths(g->vbo,first,completed-first);
     const GLenum discard=GL_DEPTH_ATTACHMENT;
     glInvalidateFramebuffer(GL_FRAMEBUFFER,1,&discard);
 #ifdef STOCK_GPU_PROFILE
