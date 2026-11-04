@@ -21,9 +21,9 @@ struct GcodePreview {
     int stop,wanted,frame_ready,live_only;
     uint64_t viewport_revision;
     char path[4096],job_filename[4096];
-    GcodePreviewStatus status;
-    uint8_t pixels[GCODE_PREVIEW_MAX_BYTES];
-    uint8_t *scratch;
+    struct stat file;
+    GcodePreviewStatus status,frame_status;
+    uint8_t frames[2][GCODE_PREVIEW_MAX_BYTES],*pixels;
 };
 
 static uint64_t nanoseconds(void){
@@ -38,12 +38,11 @@ void stock_log(const char *format,...){
 }
 static void request(GcodePreview *p){p->wanted=1;pthread_cond_signal(&p->changed);}
 static void discard(GcodePreview *p){
-    p->status.generation=atomic_fetch_add(&p->generation,1)+1;
+    atomic_fetch_add(&p->generation,1);
     p->status.layers=0;p->status.layer=0;p->status.layer_height=0;p->status.tools_used=0;
     p->status.visible=0;p->status.live_available=0;p->status.live_follow=0;
     p->status.message[0]=0;p->frame_ready=0;
     p->status.phase=p->path[0]?GCODE_PREVIEW_LOADING:GCODE_PREVIEW_EMPTY;
-    snprintf(p->status.filename,sizeof(p->status.filename),"%s",p->path);
     request(p);
 }
 static int valid_view(uint32_t width,uint32_t height,int compact){
@@ -63,7 +62,7 @@ static void *worker(void *context){
     Model model={0};Gpu *gpu=NULL;unsigned loaded=0;
     ProgressClient *client=NULL;PrintProgress progress={.state=JOB_OFFLINE};
     uint64_t queried=0;int offline=1,polling=0,previous_follow=0,gpu_failed=0;
-    size_t completed=0;uint8_t *pixels=p->scratch;
+    size_t completed=0;uint8_t *pixels=p->frames[1];
     for(;;){
         pthread_mutex_lock(&p->mutex);
         while(!p->stop&&!p->wanted){
@@ -130,21 +129,22 @@ static void *worker(void *context){
         if(!job_filename[0]&&!live_only&&follow&&previous_follow&&known&&progress.state==JOB_PRINTING&&!matches){
             pthread_mutex_lock(&p->mutex);
             if(generation==atomic_load(&p->generation)){
-                snprintf(p->path,sizeof(p->path),"%s",printing_path);p->job_filename[0]=0;discard(p);
+                snprintf(p->path,sizeof(p->path),"%s",printing_path);p->job_filename[0]=0;
+                memset(&p->file,0,sizeof(p->file));discard(p);
             }
             pthread_mutex_unlock(&p->mutex);continue;
         }
-        int tracking=matches&&(live_only||follow),run=!live_only||matches;
+        int tracking=matches&&follow,run=!live_only||matches;
         pthread_mutex_lock(&p->mutex);
         if(generation==atomic_load(&p->generation)){
             p->status.live_available=matches;
-            p->status.live_follow=matches&&(p->live_only||p->status.following);p->status.offline=offline;
+            p->status.live_follow=matches&&p->status.following;p->status.offline=offline;
             if(!run){p->status.visible=0;p->frame_ready=0;}
             paused=p->status.paused;
         }
         pthread_mutex_unlock(&p->mutex);
         if(atomic_load(&p->generation)!=generation||paused)continue;
-        if(!run){gpu_destroy(gpu);gpu=NULL;previous_follow=0;continue;}
+        if(!run){previous_follow=0;continue;}
         if(!gpu&&!gpu_failed&&model.layers&&!model.error[0]){
             gpu=gpu_create(&model,model.error,sizeof(model.error));redraw=1;
             if(!gpu){
@@ -167,8 +167,7 @@ static void *worker(void *context){
         if(tracking!=previous_follow)redraw=1;
         previous_follow=tracking;
         if(gpu&&redraw&&atomic_load(&p->generation)==generation){
-            uint64_t start=nanoseconds();int result=gpu_render(gpu,&model,&view,pixels);
-            uint64_t elapsed=nanoseconds()-start;
+            int result=gpu_render(gpu,&model,&view,pixels);
             if(result){gpu_destroy(gpu);gpu=NULL;gpu_failed=1;}
             pthread_mutex_lock(&p->mutex);
             if(generation==atomic_load(&p->generation)){
@@ -176,11 +175,15 @@ static void *worker(void *context){
                     p->status.phase=GCODE_PREVIEW_ERROR;p->status.visible=0;p->frame_ready=0;
                     snprintf(p->status.message,sizeof(p->status.message),"GPU 绘制失败");
                 }else if(viewport_revision==p->viewport_revision&&!p->status.paused){
-                    memcpy(p->pixels,pixels,(size_t)view.width*view.height*4);p->frame_ready=1;
-                    p->status.visible=1;p->status.message[0]=0;p->status.render_ns=elapsed;
-                    p->status.frame_sequence++;
-                    if(tracking&&(p->status.following||p->live_only))p->status.layer=view.layer;
+                    uint8_t *previous=p->pixels;p->pixels=pixels;pixels=previous;p->frame_ready=1;
+                    p->status.visible=1;p->status.message[0]=0;
+                    if(tracking&&p->status.following)p->status.layer=view.layer;
                     p->status.layer_height=model.layer_z[p->status.layer<model.layers?p->status.layer:model.layers-1];
+                    p->frame_status=p->status;
+                    p->frame_status.layer=view.layer;p->frame_status.layer_height=model.layer_z[view.layer];
+                    p->frame_status.flat=view.flat;p->frame_status.yaw=view.yaw;
+                    p->frame_status.tilt=view.tilt;p->frame_status.zoom=view.zoom;
+                    p->frame_status.following=follow;p->frame_status.live_follow=tracking;
                 }
             }
             pthread_mutex_unlock(&p->mutex);
@@ -193,23 +196,32 @@ static GcodePreview *preview_create(void){
     const char *enabled=getenv("UI_GPU_ENABLED");
     if(enabled&&!strcmp(enabled,"0")){errno=ENODEV;return NULL;}
     GcodePreview *p=calloc(1,sizeof(*p));if(!p)return NULL;atomic_init(&p->generation,0);
-    p->scratch=malloc(GCODE_PREVIEW_MAX_BYTES);if(!p->scratch){free(p);return NULL;}
+    p->pixels=p->frames[0];
     pthread_condattr_t condattr;pthread_condattr_init(&condattr);
     pthread_condattr_setclock(&condattr,CLOCK_MONOTONIC);
     pthread_mutex_init(&p->mutex,NULL);pthread_cond_init(&p->changed,&condattr);pthread_condattr_destroy(&condattr);
     p->status.width=WIDTH;p->status.height=HEIGHT;p->status.following=1;p->status.offline=1;
     p->status.yaw=-.45f;p->status.tilt=.75f;p->status.zoom=1;
-    const uint32_t colors[]={0xb4becd,0xf6c441,0x41b1f0,0xff563f};
-    memcpy(p->status.tool_colors,colors,sizeof(colors));
     pthread_attr_t attr;pthread_attr_init(&attr);pthread_attr_setstacksize(&attr,512*1024);
     int error=pthread_create(&p->thread,&attr,worker,p);pthread_attr_destroy(&attr);
-    if(error){pthread_cond_destroy(&p->changed);pthread_mutex_destroy(&p->mutex);free(p->scratch);free(p);errno=error;return NULL;}
+    if(error){pthread_cond_destroy(&p->changed);pthread_mutex_destroy(&p->mutex);free(p);errno=error;return NULL;}
     return p;
 }
 static void preview_destroy(GcodePreview *p){
     if(!p)return;
     pthread_mutex_lock(&p->mutex);p->stop=1;atomic_fetch_add(&p->generation,1);request(p);pthread_mutex_unlock(&p->mutex);
-    pthread_join(p->thread,NULL);pthread_cond_destroy(&p->changed);pthread_mutex_destroy(&p->mutex);free(p->scratch);free(p);
+    pthread_join(p->thread,NULL);pthread_cond_destroy(&p->changed);pthread_mutex_destroy(&p->mutex);free(p);
+}
+static void viewport(GcodePreview *p,uint32_t width,uint32_t height,int compact,int live_only){
+    if(p->status.width!=width||p->status.height!=height||p->status.compact!=!!compact||p->live_only!=!!live_only){
+        p->status.width=width;p->status.height=height;p->status.compact=!!compact;p->live_only=!!live_only;
+        p->viewport_revision++;p->frame_ready=0;p->status.visible=0;request(p);
+    }
+}
+static int same_file(const struct stat *a,const struct stat *b){
+    return a->st_dev==b->st_dev&&a->st_ino==b->st_ino&&a->st_size==b->st_size&&
+           a->st_mtim.tv_sec==b->st_mtim.tv_sec&&a->st_mtim.tv_nsec==b->st_mtim.tv_nsec&&
+           a->st_ctim.tv_sec==b->st_ctim.tv_sec&&a->st_ctim.tv_nsec==b->st_ctim.tv_nsec;
 }
 static int preview_load(GcodePreview *p,const GcodePreviewSource *source){
     if(!p||!source||!source->path||!valid_view(source->width,source->height,source->compact))return -1;
@@ -217,10 +229,16 @@ static int preview_load(GcodePreview *p,const GcodePreviewSource *source){
     if(!realpath(source->path,path)||stat(path,&info)||!S_ISREG(info.st_mode)||access(path,R_OK))return -1;
     if(source->job_filename&&strlen(source->job_filename)>=sizeof(p->job_filename))return -1;
     pthread_mutex_lock(&p->mutex);
+    const char *job=source->job_filename?source->job_filename:"";
+    if(!strcmp(p->path,path)&&!strcmp(p->job_filename,job)&&same_file(&p->file,&info)&&
+       p->status.phase!=GCODE_PREVIEW_ERROR){
+        viewport(p,source->width,source->height,source->compact,source->live_only);
+        pthread_mutex_unlock(&p->mutex);return 0;
+    }
     snprintf(p->path,sizeof(p->path),"%s",path);
-    snprintf(p->job_filename,sizeof(p->job_filename),"%s",source->job_filename?source->job_filename:"");
+    snprintf(p->job_filename,sizeof(p->job_filename),"%s",job);p->file=info;
     p->status.width=source->width;p->status.height=source->height;p->status.compact=!!source->compact;
-    p->live_only=!!source->live_only;p->status.following=1;p->status.flat=0;
+    p->live_only=!!source->live_only;p->status.following=!!source->follow;p->status.flat=0;
     p->status.yaw=-.45f;p->status.tilt=.75f;p->status.zoom=1;discard(p);
     pthread_mutex_unlock(&p->mutex);return 0;
 }
@@ -237,10 +255,7 @@ static void preview_pause(GcodePreview *p,int paused){
 static int preview_viewport(GcodePreview *p,uint32_t width,uint32_t height,int compact,int live_only){
     if(!p||!valid_view(width,height,compact))return -1;
     pthread_mutex_lock(&p->mutex);
-    if(p->status.width!=width||p->status.height!=height||p->status.compact!=!!compact||p->live_only!=!!live_only){
-        p->status.width=width;p->status.height=height;p->status.compact=!!compact;p->live_only=!!live_only;
-        p->viewport_revision++;p->frame_ready=0;p->status.visible=0;request(p);
-    }
+    viewport(p,width,height,compact,live_only);
     pthread_mutex_unlock(&p->mutex);return 0;
 }
 static void preview_action(GcodePreview *p,int action,float x,float y){
@@ -261,22 +276,29 @@ static void preview_action(GcodePreview *p,int action,float x,float y){
     case GCODE_PREVIEW_FLAT:
         p->status.flat=x!=0;p->status.yaw=p->status.flat?0:-.45f;p->status.tilt=p->status.flat?0:.75f;break;
     case GCODE_PREVIEW_LAYER:
-        if(p->status.layers){p->status.layer=(unsigned)fmaxf(0,fminf((float)(p->status.layers-1),x));p->status.following=0;p->status.live_follow=0;}
+        p->status.following=0;p->status.live_follow=0;
+        if(p->status.layers)p->status.layer=(unsigned)fmaxf(0,fminf((float)(p->status.layers-1),x));
         break;
-    case GCODE_PREVIEW_FOLLOW:if(p->status.live_available)p->status.following=1;break;
+    case GCODE_PREVIEW_FOLLOW:p->status.following=1;break;
     case GCODE_PREVIEW_REFRESH:break;
     default:pthread_mutex_unlock(&p->mutex);return;
     }
     request(p);pthread_mutex_unlock(&p->mutex);
 }
-static int preview_poll(GcodePreview *p,GcodePreviewStatus *status,uint8_t *pixels,size_t capacity){
+static int preview_poll(GcodePreview *p,GcodePreviewStatus *status,uint8_t *pixels,size_t capacity,size_t stride){
     if(!p||!status)return -2;
     if(pthread_mutex_trylock(&p->mutex))return -1;
-    size_t bytes=(size_t)p->status.width*p->status.height*4;
-    if(pixels&&capacity<bytes){pthread_mutex_unlock(&p->mutex);return -2;}
+    size_t row=(size_t)p->status.width*4,height=p->status.height;
+    if(!stride)stride=row;
+    if(pixels&&(stride<row||capacity<row||(height>1&&stride>(capacity-row)/(height-1)))){
+        pthread_mutex_unlock(&p->mutex);return -2;
+    }
     *status=p->status;
     int result=0;
-    if(pixels&&p->frame_ready&&p->status.visible){memcpy(pixels,p->pixels,bytes);p->frame_ready=0;result=1;}
+    if(pixels&&p->frame_ready&&p->status.visible){
+        for(size_t y=0;y<height;y++)memcpy(pixels+y*stride,p->pixels+y*row,row);
+        *status=p->frame_status;p->frame_ready=0;result=1;
+    }
     pthread_mutex_unlock(&p->mutex);return result;
 }
 __attribute__((visibility("default"))) const GcodePreviewApi *gcode_preview_get_api(uint32_t abi){

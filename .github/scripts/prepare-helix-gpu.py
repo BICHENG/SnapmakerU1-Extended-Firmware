@@ -32,6 +32,7 @@ COPIES = (
     (GPU / "gpu_output.h", "include/gpu_output.h"),
     (RENDERER / "ui_gpu_renderer.c", "src/ui_gpu_renderer.c"),
     (RENDERER / "ui_gpu_renderer.h", "include/ui_gpu_renderer.h"),
+    (RENDERER / "ui_gcode_viewer_u1.cpp", "src/ui/ui_gcode_viewer_u1.cpp"),
     *((RENDERER / name, "patches/" + name) for name in (
         "lvgl-font-bitmap-stride.patch", "lvgl-nanovg-correctness.patch",
         "lvgl-nanovg-label-atlas.patch")),
