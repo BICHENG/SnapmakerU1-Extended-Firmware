@@ -229,7 +229,7 @@ static int write_snapshot(uint64_t now)
     FILE *file=fdopen(fd,"w");
     if(!file) { close(fd); unlink(temporary); return -1; }
     fprintf(file,"{\"version\":\"2.1.0.157\",\"mode\":\"gpu_%s\",\"gpu_output_enabled\":%s,"
-        "\"stock_control_renderer\":\"cpu\","
+        "\"renderer_status\":\"/tmp/ui-renderer.json\","
         "\"attached\":%s,\"refresh_period_ms\":%u,\"window_ms\":%.3f,\"monotonic_ms\":%.3f,"
         "\"rendered_frames\":%u,\"actual_fps\":%.4f,\"idle_refreshes\":%u,\"refreshes\":%u,"
         "\"submitted_pixels\":%" PRIu64 ",\"flush_calls\":%u,\"flush_callback_total_ms\":%.4f,"

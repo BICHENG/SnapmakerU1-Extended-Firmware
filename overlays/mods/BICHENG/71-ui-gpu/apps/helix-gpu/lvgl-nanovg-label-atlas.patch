@@ -1,0 +1,324 @@
+--- a/src/draw/nanovg/lv_draw_nanovg_private.h
++++ b/src/draw/nanovg/lv_draw_nanovg_private.h
+@@ -75,6 +75,7 @@
+     lv_ll_t image_drop_ll;
+     const void * image_drop_src;
+ 
++    void * letter_atlas;
+     lv_cache_t * letter_cache;
+     struct _lv_pending_t * letter_pending;
+ 
+--- a/src/libs/nanovg/nanovg.h
++++ b/src/libs/nanovg/nanovg.h
+@@ -647,6 +647,9 @@
+     float x, y, u, v;
+ };
+ typedef struct NVGvertex NVGvertex;
++
++/* Positions are transformed in place; texture coordinates are normalized. */
++void nvgImageTriangles(NVGcontext * ctx, int image, NVGcolor color, NVGvertex * vertices, int count);
+ 
+ struct NVGpath {
+     int first;
+--- a/src/libs/nanovg/nanovg.c
++++ b/src/libs/nanovg/nanovg.c
+@@ -2574,4 +2574,18 @@
+ }
+ // vim: ft=c nu noet ts=4
+ 
++void nvgImageTriangles(NVGcontext * ctx, int image, NVGcolor color, NVGvertex * vertices, int count)
++{
++    NVGstate * state = nvg__getState(ctx);
++    NVGpaint paint = nvgImagePattern(ctx, 0, 0, 1, 1, 0, image, 1);
++    color.ch.a *= state->alpha;
++    paint.innerColor = paint.outerColor = color;
++    for(int i = 0; i < count; ++i) {
++        nvgTransformPoint(&vertices[i].x, &vertices[i].y, state->xform, vertices[i].x, vertices[i].y);
++    }
++    ctx->params.renderTriangles(ctx->params.userPtr, &paint, state->compositeOperation,
++        &state->scissor, vertices, count, ctx->fringeWidth);
++    ++ctx->drawCallCount;
++}
++
+ #endif /* LV_USE_NANOVG */
+--- a/src/draw/nanovg/lv_draw_nanovg_label.c
++++ b/src/draw/nanovg/lv_draw_nanovg_label.c
+@@ -8,6 +8,7 @@
+  *********************/
+ 
+ #include "lv_draw_nanovg_private.h"
++#include <math.h>
+ 
+ #if LV_USE_DRAW_NANOVG
+ 
+@@ -36,7 +37,57 @@
+ 
+     /* value */
+     int image_handle;
++    int atlas_x, atlas_y;
++    bool in_atlas;
+ } letter_item_t;
++
++enum { LETTER_ATLAS_SIZE = 1024, LETTER_BATCH_VERTICES = 1536 };
++typedef struct {
++    int image, x, y, row_height;
++    uint8_t * pixels;
++    NVGvertex vertices[LETTER_BATCH_VERTICES];
++    int count, batch_image;
++    NVGcolor color;
++} letter_atlas_t;
++
++static void letter_batch_flush(lv_draw_nanovg_unit_t * u)
++{
++    letter_atlas_t * a = u->letter_atlas;
++    if(!a->count) return;
++    nvgImageTriangles(u->vg, a->batch_image, a->color, a->vertices, a->count);
++    a->count = 0;
++}
++
++static void letter_submit_pending(lv_draw_nanovg_unit_t * u)
++{
++    letter_batch_flush(u);
++    nvgEndFrame(u->vg);
++    lv_pending_remove_all(u->image_pending);
++    lv_pending_remove_all(u->letter_pending);
++    /* Preserve the current transform and scissor while continuing this label. */
++}
++
++static bool letter_atlas_fits(uint32_t w, uint32_t h)
++{
++    return w > 0 && h > 0 && w + 2 <= LETTER_ATLAS_SIZE && h + 2 <= LETTER_ATLAS_SIZE;
++}
++
++static void letter_atlas_reserve(lv_draw_nanovg_unit_t * u, uint32_t w, uint32_t h)
++{
++    letter_atlas_t * a = u->letter_atlas;
++    if(!letter_atlas_fits(w, h)) return;
++    if(a->x + w + 1 > LETTER_ATLAS_SIZE) {
++        a->x = 1; a->y += a->row_height + 1; a->row_height = 0;
++    }
++    if(a->y + h + 1 <= LETTER_ATLAS_SIZE) return;
++    /* No cache lock is held here. Flush and release pending references before eviction. */
++    letter_submit_pending(u);
++    lv_cache_drop_all(u->letter_cache, NULL);
++    lv_memzero(a->pixels, LETTER_ATLAS_SIZE * LETTER_ATLAS_SIZE);
++    nvgUpdateImage(u->vg, a->image, a->pixels);
++    a->x = a->y = 1; a->row_height = 0;
++}
++
+ 
+ /**********************
+ *  STATIC PROTOTYPES
+@@ -74,6 +125,8 @@
+         .free_cb = (lv_cache_free_cb_t)letter_free_cb,
+     };
+ 
++    u->letter_atlas = lv_malloc_zeroed(sizeof(letter_atlas_t));
++    LV_ASSERT_MALLOC(u->letter_atlas);
+     u->letter_cache = lv_cache_create(&lv_cache_class_lru_rb_count, sizeof(letter_item_t), LV_NANOVG_LETTER_CACHE_CNT, ops);
+     lv_cache_set_name(u->letter_cache, "NVG_LETTER");
+     u->letter_pending = lv_pending_create(sizeof(lv_cache_entry_t *), 4);
+@@ -91,6 +144,9 @@
+ 
+     lv_cache_destroy(u->letter_cache, NULL);
+     u->letter_cache = NULL;
++    letter_atlas_t * a = u->letter_atlas;
++    if(a->image) nvgDeleteImage(u->vg, a->image);
++    lv_free(a->pixels); lv_free(a); u->letter_atlas = NULL;
+ }
+ 
+ void lv_draw_nanovg_letter(lv_draw_task_t * t, const lv_draw_letter_dsc_t * dsc, const lv_area_t * coords)
+@@ -117,6 +173,7 @@
+     },
+     dsc->font, dsc->unicode, draw_letter_cb);
+ 
++    letter_batch_flush((lv_draw_nanovg_unit_t *)t->draw_unit);
+     if(glyph_dsc._draw_buf) {
+         lv_draw_buf_destroy(glyph_dsc._draw_buf);
+         glyph_dsc._draw_buf = NULL;
+@@ -129,6 +186,7 @@
+ {
+     LV_PROFILER_DRAW_BEGIN;
+     lv_draw_label_iterate_characters(t, dsc, coords, draw_letter_cb);
++    letter_batch_flush((lv_draw_nanovg_unit_t *)t->draw_unit);
+     LV_PROFILER_DRAW_END;
+ }
+ 
+@@ -165,41 +223,39 @@
+     return true;
+ }
+ 
+-static void draw_letter_bitmap(lv_draw_task_t * t, const lv_draw_glyph_dsc_t * dsc, int image_handle)
+-{
+-    LV_PROFILER_DRAW_BEGIN;
+-
+-    lv_area_t image_area;
+-    lv_area_t clip_area;
+-    if(!draw_letter_clip_areas(t, dsc, &image_area, &clip_area)) {
+-        LV_PROFILER_DRAW_END;
+-        return;
+-    }
+-
++static void draw_letter_bitmap(lv_draw_task_t * t, const lv_draw_glyph_dsc_t * dsc, const letter_item_t * item)
++{
++    lv_area_t image_area, clip_area;
++    if(!draw_letter_clip_areas(t, dsc, &image_area, &clip_area)) return;
+     lv_draw_nanovg_unit_t * u = (lv_draw_nanovg_unit_t *)t->draw_unit;
+-
+-    if(!dsc->rotation) {
+-        float x = dsc->letter_coords->x1;
+-        float y = dsc->letter_coords->y1;
+-        float w = lv_area_get_width(dsc->letter_coords);
+-        float h = lv_area_get_height(dsc->letter_coords);
+-
+-        NVGpaint paint = nvgImagePattern(u->vg, x, y, w, h, 0, image_handle, 1.0f);
+-        paint.innerColor = paint.outerColor = nvgRGBA(dsc->color.red, dsc->color.green, dsc->color.blue, dsc->opa);
+-
+-        nvgBeginPath(u->vg);
+-        nvgRect(u->vg, x, y, w, h);
+-        nvgFillPaint(u->vg, paint);
+-        nvgFill(u->vg);
+-    }
+-    else {
+-        /* TODO: draw rotated bitmap */
+-    }
+-
+-    LV_PROFILER_DRAW_END;
+-}
+-
+-static inline int letter_get_image_handle(lv_draw_nanovg_unit_t * u, lv_font_glyph_dsc_t * g_dsc)
++    letter_atlas_t * a = u->letter_atlas;
++    NVGcolor color = nvgRGBA(dsc->color.red, dsc->color.green, dsc->color.blue, dsc->opa);
++    if(a->count && (a->batch_image != item->image_handle ||
++        lv_memcmp(&a->color, &color, sizeof(color)) || a->count + 6 > LETTER_BATCH_VERTICES)) letter_batch_flush(u);
++    a->batch_image = item->image_handle; a->color = color;
++    float x = dsc->letter_coords->x1, y = dsc->letter_coords->y1;
++    float w = lv_area_get_width(dsc->letter_coords), h = lv_area_get_height(dsc->letter_coords);
++    float u0 = item->in_atlas ? (float)item->atlas_x / LETTER_ATLAS_SIZE : 0;
++    float v0 = item->in_atlas ? (float)item->atlas_y / LETTER_ATLAS_SIZE : 0;
++    float u1 = item->in_atlas ? (item->atlas_x + w) / LETTER_ATLAS_SIZE : 1;
++    float v1 = item->in_atlas ? (item->atlas_y + h) / LETTER_ATLAS_SIZE : 1;
++    /* The NanoVG vertex shader flips Y and renderFlush enables back-face culling. */
++    NVGvertex quad[6] = {{x,y,u0,v0}, {x+w,y+h,u1,v1}, {x+w,y,u1,v0},
++        {x,y,u0,v0}, {x,y+h,u0,v1}, {x+w,y+h,u1,v1}};
++    if(dsc->rotation) {
++        const float radians = dsc->rotation * (3.14159265358979323846f / 1800.0f);
++        const float cs = cosf(radians), sn = sinf(radians);
++        const float px = x + dsc->pivot.x, py = y + dsc->g->box_h + dsc->g->ofs_y;
++        for(unsigned i = 0; i < 6; ++i) {
++            const float dx = quad[i].x - px, dy = quad[i].y - py;
++            quad[i].x = px + dx * cs - dy * sn;
++            quad[i].y = py + dx * sn + dy * cs;
++        }
++    }
++    lv_memcpy(a->vertices + a->count, quad, sizeof(quad)); a->count += 6;
++}
++
++static inline letter_item_t * letter_get_item(lv_draw_nanovg_unit_t * u, lv_font_glyph_dsc_t * g_dsc)
+ {
+     LV_PROFILER_DRAW_BEGIN;
+ 
+@@ -210,18 +266,19 @@
+ 
+     lv_cache_entry_t * cache_node_entry = lv_cache_acquire(u->letter_cache, &search_key, NULL);
+     if(cache_node_entry == NULL) {
++        letter_atlas_reserve(u, g_dsc->box_w, g_dsc->box_h);
+         /* check if the cache is full */
+         size_t free_size = lv_cache_get_free_size(u->letter_cache, NULL);
+         if(free_size == 0) {
+             LV_LOG_INFO("letter cache is full, release all pending cache entries");
+-            lv_nanovg_end_frame(u);
++            letter_submit_pending(u);
+         }
+ 
+         cache_node_entry = lv_cache_acquire_or_create(u->letter_cache, &search_key, NULL);
+         if(cache_node_entry == NULL) {
+             LV_LOG_ERROR("letter cache creating failed");
+             LV_PROFILER_DRAW_END;
+-            return -1;
++            return NULL;
+         }
+     }
+ 
+@@ -231,7 +288,7 @@
+     letter_item_t * letter_item = lv_cache_entry_get_data(cache_node_entry);
+ 
+     LV_PROFILER_DRAW_END;
+-    return letter_item->image_handle;
++    return letter_item;
+ }
+ 
+ static void letter_cache_release_cb(void * entry, void * user_data)
+@@ -262,7 +319,29 @@
+     }
+ 
+     LV_PROFILER_DRAW_BEGIN_TAG("nvgCreateImage");
+-    item->image_handle = nvgCreateImage(item->u->vg, w, h, 0, NVG_TEXTURE_ALPHA, lv_draw_buf_goto_xy(image_buf, 0, 0));
++    letter_atlas_t * a = item->u->letter_atlas;
++    item->in_atlas = letter_atlas_fits(w, h);
++    if(!item->in_atlas) {
++        item->image_handle = nvgCreateImage(item->u->vg, w, h, 0, NVG_TEXTURE_ALPHA, lv_draw_buf_goto_xy(image_buf, 0, 0));
++    }
++    else {
++        if(!a->image) {
++            a->pixels = lv_malloc_zeroed(LETTER_ATLAS_SIZE * LETTER_ATLAS_SIZE);
++            if(!a->pixels) return false;
++            a->image = nvgCreateImage(item->u->vg, LETTER_ATLAS_SIZE, LETTER_ATLAS_SIZE, 0, NVG_TEXTURE_ALPHA, a->pixels);
++            if(!a->image) { lv_free(a->pixels); a->pixels = NULL; return false; }
++            a->x = a->y = 1;
++        }
++        item->atlas_x = a->x; item->atlas_y = a->y; item->image_handle = a->image;
++        for(uint32_t y = 0; y < h; ++y) {
++            lv_memcpy(a->pixels + (a->y + y) * LETTER_ATLAS_SIZE + a->x,
++                lv_draw_buf_goto_xy(image_buf, 0, y), w);
++        }
++        NVGparams * params = nvgInternalParams(item->u->vg);
++        params->renderUpdateTexture(params->userPtr, a->image, a->x, a->y, w, h, a->pixels);
++        a->x += w + 1;
++        if(h > (uint32_t)a->row_height) a->row_height = h;
++    }
+     LV_PROFILER_DRAW_END_TAG("nvgCreateImage");
+ 
+     LV_LOG_TRACE("image_handle: %d", item->image_handle);
+@@ -275,7 +354,7 @@
+     LV_UNUSED(user_data);
+     LV_PROFILER_DRAW_BEGIN;
+     LV_LOG_TRACE("image_handle: %d", item->image_handle);
+-    nvgDeleteImage(item->u->vg, item->image_handle);
++    if(!item->in_atlas) nvgDeleteImage(item->u->vg, item->image_handle);
+     item->image_handle = -1;
+     LV_PROFILER_DRAW_END;
+ }
+@@ -297,18 +376,21 @@
+     lv_draw_nanovg_unit_t * u = (lv_draw_nanovg_unit_t *)t->draw_unit;
+ 
+     if(glyph_draw_dsc) {
++        if(glyph_draw_dsc->format != LV_FONT_GLYPH_FORMAT_A1 && glyph_draw_dsc->format != LV_FONT_GLYPH_FORMAT_A2 &&
++           glyph_draw_dsc->format != LV_FONT_GLYPH_FORMAT_A3 && glyph_draw_dsc->format != LV_FONT_GLYPH_FORMAT_A4 &&
++           glyph_draw_dsc->format != LV_FONT_GLYPH_FORMAT_A8) letter_batch_flush(u);
+         switch(glyph_draw_dsc->format) {
+             case LV_FONT_GLYPH_FORMAT_A1:
+             case LV_FONT_GLYPH_FORMAT_A2:
+             case LV_FONT_GLYPH_FORMAT_A3:
+             case LV_FONT_GLYPH_FORMAT_A4:
+             case LV_FONT_GLYPH_FORMAT_A8: {
+-                    int image_handle = letter_get_image_handle(u, glyph_draw_dsc->g);
+-                    if(image_handle < 0) {
++                    letter_item_t * item = letter_get_item(u, glyph_draw_dsc->g);
++                    if(!item) {
+                         return;
+                     }
+ 
+-                    draw_letter_bitmap(t, glyph_draw_dsc, image_handle);
++                    draw_letter_bitmap(t, glyph_draw_dsc, item);
+                 }
+                 break;
+ 
+@@ -360,6 +442,7 @@
+     }
+ 
+     if(fill_draw_dsc && fill_area) {
++        letter_batch_flush(u);
+         lv_draw_nanovg_fill(t, fill_draw_dsc, fill_area);
+     }
+ }

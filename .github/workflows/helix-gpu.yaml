@@ -15,7 +15,7 @@ jobs:
         with:
           path: |
             ui-artifact
-          key: helix-u1-gpu-binary-${{ hashFiles('.github/workflows/helix-gpu.yaml', '.github/scripts/prepare-helix-gpu.py', 'overlays/mods/BICHENG/71-ui-gpu/apps/helix-gpu-shared.patch', 'overlays/mods/BICHENG/71-ui-gpu/apps/gcode-preview/gcode-preview.h', 'overlays/mods/BICHENG/71-ui-gpu/apps/ui-display/*', 'common/ui-frame.h', 'overlays/firmware-extended/69-app-helixscreen/root/usr/local/share/extended-pkg/helixscreen') }}
+          key: helix-u1-gpu-binary-${{ hashFiles('.github/workflows/helix-gpu.yaml', '.github/scripts/prepare-helix-gpu.py', 'overlays/mods/BICHENG/71-ui-gpu/apps/helix-gpu-shared.patch', 'overlays/mods/BICHENG/71-ui-gpu/apps/helix-gpu/*', 'overlays/mods/BICHENG/71-ui-gpu/apps/ui-gpu/*', 'overlays/mods/BICHENG/71-ui-gpu/apps/gcode-preview/gcode-preview.h', 'overlays/mods/BICHENG/71-ui-gpu/apps/ui-display/*', 'common/ui-frame.h', 'overlays/firmware-extended/69-app-helixscreen/root/usr/local/share/extended-pkg/helixscreen') }}
       - name: Fetch and prepare pinned Helix source
         if: steps.binary.outputs.cache-hit != 'true'
         run: |
@@ -40,11 +40,14 @@ jobs:
           path: helix/.ccache
           key: helix-u1-gpu-ccache-${{ runner.arch }}-${{ github.sha }}
           restore-keys: helix-u1-gpu-ccache-${{ runner.arch }}-
-      - name: Compile U1 UI with the shared G-code adapter
+      - name: Compile U1 UI with native GPU drawing and shared G-code
         if: steps.binary.outputs.cache-hit != 'true'
         run: |
           docker run --rm -e CCACHE_DIR=/src/.ccache -v "$PWD/helix:/src" -w /src helix-u1-gpu:local \
-            make PLATFORM_TARGET=snapmaker-u1 DISPLAY_BACKEND=fbdev ENABLE_GLES_3D=no ENABLE_OPENGLES=no SKIP_OPTIONAL_DEPS=1 -j4
+            make PLATFORM_TARGET=snapmaker-u1 DISPLAY_BACKEND=fbdev ENABLE_GLES_3D=no ENABLE_OPENGLES=no SKIP_OPTIONAL_DEPS=1 \
+              ENABLE_REMOTE_CONTROL=no ENABLE_MOCKS=no HELIX_PACKAGING=1 MALI_LIB=/src/build-support/libmali.so.1 -j4
+          docker run --rm -v "$PWD/helix:/src" helix-u1-gpu:local \
+            aarch64-linux-gnu-strip /src/build/snapmaker-u1/bin/helix-screen
           python3 .github/scripts/prepare-helix-gpu.py package helix ui-artifact
       - name: Bound the compiler cache
         if: steps.binary.outputs.cache-hit != 'true'

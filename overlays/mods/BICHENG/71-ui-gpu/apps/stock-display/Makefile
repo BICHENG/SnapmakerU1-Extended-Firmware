@@ -1,13 +1,13 @@
 CC = aarch64-linux-gnu-gcc
 HOSTCC ?= cc
-CFLAGS ?= -O2 -Wall -Wextra -Werror -fPIC
+CFLAGS ?= -O2 -Wall -Wextra -Werror -fPIC -pthread
 CPPFLAGS += -I../../../../../../common
 TARGET = libstock-display.so
 
 all: $(TARGET)
 
 $(TARGET): stock-display.o stock-perf.o ui-display.o
-	$(CC) -shared $^ -o $@ -ldl
+	$(CC) -shared $^ -o $@ -ldl -pthread
 
 stock-display.o: stock-display.c stock-perf.h
 stock-perf.o: stock-perf.c stock-perf.h
@@ -17,9 +17,9 @@ ui-display.o: ../ui-display/ui-display.c ../ui-display/ui-display.h ../../../../
 test:
 	$(HOSTCC) -O1 -g -fsanitize=address,undefined -Wall -Wextra -Werror ../../test/test_stock_perf.c -o test-stock-perf
 	./test-stock-perf
-	$(HOSTCC) $(CPPFLAGS) -O1 -g -fsanitize=address,undefined -Wall -Wextra -Werror ../../test/test_stock_display.c ../ui-display/ui-display.c -ldl -o test-stock-display
+	$(HOSTCC) $(CPPFLAGS) -O1 -g -fsanitize=address,undefined -Wall -Wextra -Werror ../../test/test_stock_display.c ../ui-display/ui-display.c -ldl -pthread -o test-stock-display
 	./test-stock-display
-	$(HOSTCC) $(CPPFLAGS) -O1 -g -fsanitize=address,undefined -Wall -Wextra -Werror ../../test/test_ui_display.c -o test-ui-display
+	$(HOSTCC) $(CPPFLAGS) -O1 -g -fsanitize=address,undefined -Wall -Wextra -Werror ../../test/test_ui_display.c -pthread -o test-ui-display
 	./test-ui-display
 	rm -f test-stock-perf test-stock-display test-ui-display
 

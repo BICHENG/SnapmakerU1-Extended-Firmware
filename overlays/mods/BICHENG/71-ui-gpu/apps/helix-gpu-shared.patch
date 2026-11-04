@@ -1,18 +1,16 @@
-diff --git a/Makefile b/Makefile
-index 8c370cc..f696f75 100644
 --- a/Makefile
 +++ b/Makefile
-@@ -416,6 +416,9 @@ ENABLE_SCREENSAVER ?= yes
+@@ -416,6 +416,9 @@
  
  # Application C sources
  APP_C_SRCS := $(wildcard $(SRC_DIR)/*.c)
 +ifneq ($(PLATFORM_TARGET),snapmaker-u1)
-+    APP_C_SRCS := $(filter-out $(SRC_DIR)/ui-display.c,$(APP_C_SRCS))
++    APP_C_SRCS := $(filter-out $(SRC_DIR)/ui-display.c $(SRC_DIR)/ui_gpu_renderer.c $(SRC_DIR)/gpu_output.c,$(APP_C_SRCS))
 +endif
  APP_C_OBJS := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(APP_C_SRCS))
  
  # Application C++ sources (exclude test binaries, splash binary, and lvgl-demo)
-@@ -425,6 +428,11 @@ APP_SRCS := $(filter-out $(SRC_DIR)/test_dynamic_cards.cpp $(SRC_DIR)/test_respo
+@@ -425,6 +428,11 @@
  APP_SRCS := $(filter-out $(wildcard $(SRC_DIR)/tools/*.cpp),$(APP_SRCS))
  # Exclude src/bluetooth/ — built as separate shared library (mk/bluetooth.mk)
  APP_SRCS := $(filter-out $(wildcard $(SRC_DIR)/bluetooth/*.cpp),$(APP_SRCS))
@@ -24,8 +22,96 @@ index 8c370cc..f696f75 100644
  # Exclude GLES renderer when not enabled
  ifneq ($(ENABLE_GLES_3D),yes)
      APP_SRCS := $(filter-out $(SRC_DIR)/rendering/gcode_gles_renderer.cpp,$(APP_SRCS))
-diff --git a/include/display_manager.h b/include/display_manager.h
-index 407c5f1..40c35fe 100644
+@@ -1428,3 +1436,8 @@
+ 		echo "  → certs/"; \
+ 	fi
+ 	@echo "$(GREEN)Install complete: $(DESTDIR)/opt/helixscreen/$(RESET)"
++
++ifeq ($(PLATFORM_TARGET),snapmaker-u1)
++MALI_LIB ?= build-support/libmali.so.1
++LDFLAGS += $(MALI_LIB)
++endif
+--- a/lv_conf.h
++++ b/lv_conf.h
+@@ -165,6 +165,11 @@
+ #define LV_DRAW_THREAD_STACK_SIZE    (32 * 1024)  /*[bytes]*/
+ 
+ #define LV_USE_DRAW_SW 1
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++#define LV_USE_DRAW_NANOVG 1
++#define LV_USE_NANOVG 1
++#define LV_NANOVG_BACKEND LV_NANOVG_BACKEND_GLES3
++#endif
+ #if LV_USE_DRAW_SW == 1
+ 
+ 	/*
+@@ -926,7 +931,11 @@
+ /*Enable Vector Graphic APIs
+  *Requires `LV_USE_MATRIX = 1`
+  *DISABLED: Not using vector graphics - saves significant binary size */
+-#define LV_USE_VECTOR_GRAPHIC  0
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++#define LV_USE_VECTOR_GRAPHIC 1
++#else
++#define LV_USE_VECTOR_GRAPHIC 0
++#endif
+ 
+ /* Enable ThorVG (vector graphics library) from the src/libs folder
+  * DISABLED: Not using SVG files - saves ~15MB compile time */
+--- a/mk/patches.mk
++++ b/mk/patches.mk
+@@ -8,6 +8,17 @@
+ # XML patches are no longer needed — that engine is lib/helix-xml, our own
+ # submodule, edited and pushed directly rather than patched.
+ LVGL_PATCHED_FILES := \
++	src/draw/nanovg/lv_nanovg_fbo_cache.c \
++	src/draw/nanovg/lv_nanovg_fbo_cache.h \
++	src/draw/nanovg/lv_draw_nanovg.c \
++	src/draw/nanovg/lv_draw_nanovg_mask_rect.c \
++	src/draw/nanovg/lv_draw_nanovg_fill.c \
++	src/draw/nanovg/lv_draw_nanovg_triangle.c \
++	src/draw/nanovg/lv_draw_nanovg_private.h \
++	src/draw/nanovg/lv_draw_nanovg_label.c \
++	src/libs/nanovg/nanovg.h \
++	src/libs/nanovg/nanovg.c \
++	src/font/fmt_txt/lv_font_fmt_txt.c \
+ 	src/drivers/sdl/lv_sdl_window.c \
+ 	src/themes/default/lv_theme_default.c \
+ 	src/drivers/display/fb/lv_linux_fbdev.c \
+@@ -433,6 +444,21 @@
+ 	else \
+ 		echo "$(GREEN)✓ LVGL render-thread acquire/release barrier patch already applied$(RESET)"; \
+ 	fi
++	$(Q)if git -C $(LVGL_DIR) apply --check $(PATCH_DIR)/lvgl-nanovg-correctness.patch 2>/dev/null; then \
++		git -C $(LVGL_DIR) apply $(PATCH_DIR)/lvgl-nanovg-correctness.patch; \
++	elif ! git -C $(LVGL_DIR) apply -R --check $(PATCH_DIR)/lvgl-nanovg-correctness.patch 2>/dev/null; then \
++		echo "LVGL NanoVG correctness patch conflicts" >&2; exit 1; \
++	fi
++	$(Q)if git -C $(LVGL_DIR) apply --check $(PATCH_DIR)/lvgl-font-bitmap-stride.patch 2>/dev/null; then \
++		git -C $(LVGL_DIR) apply $(PATCH_DIR)/lvgl-font-bitmap-stride.patch; \
++	elif ! git -C $(LVGL_DIR) apply -R --check $(PATCH_DIR)/lvgl-font-bitmap-stride.patch 2>/dev/null; then \
++		echo "LVGL font bitmap stride patch conflicts" >&2; exit 1; \
++	fi
++	$(Q)if git -C $(LVGL_DIR) apply --check $(PATCH_DIR)/lvgl-nanovg-label-atlas.patch 2>/dev/null; then \
++		git -C $(LVGL_DIR) apply $(PATCH_DIR)/lvgl-nanovg-label-atlas.patch; \
++	elif ! git -C $(LVGL_DIR) apply -R --check $(PATCH_DIR)/lvgl-nanovg-label-atlas.patch 2>/dev/null; then \
++		echo "LVGL NanoVG atlas patch conflicts" >&2; exit 1; \
++	fi
+ 	$(Q)if git -C $(LVGL_DIR) diff --quiet src/draw/sw/lv_draw_sw_letter.c 2>/dev/null; then \
+ 		echo "$(YELLOW)→ Applying LVGL label draw NULL font guard patch...$(RESET)"; \
+ 		if git -C $(LVGL_DIR) apply --check $(PATCH_DIR)/lvgl_draw_sw_label_null_guard.patch 2>/dev/null; then \
+--- a/docker/Dockerfile.snapmaker-u1
++++ b/docker/Dockerfile.snapmaker-u1
+@@ -56,6 +56,9 @@
+     zlib1g-dev:arm64 \
+     libzstd-dev:arm64 \
+     libdrm-dev:arm64 \
++    libegl-dev:arm64 \
++    libgles-dev:arm64 \
++    libgbm-dev:arm64 \
+     libinput-dev:arm64 \
+     libudev-dev:arm64 \
+     libevdev-dev:arm64 \
 --- a/include/display_manager.h
 +++ b/include/display_manager.h
 @@ -17,6 +17,9 @@
@@ -38,7 +124,7 @@ index 407c5f1..40c35fe 100644
  
  /**
   * @brief Manages LVGL display initialization and lifecycle
-@@ -680,6 +683,10 @@ class DisplayManager : public helix::ICalibrationSink {
+@@ -680,6 +683,10 @@
  
      std::unique_ptr<DisplayBackend> m_backend;
      lv_display_t* m_display = nullptr;
@@ -49,7 +135,7 @@ index 407c5f1..40c35fe 100644
      lv_indev_t* m_pointer = nullptr;
      lv_indev_t* m_keyboard = nullptr;
      lv_group_t* m_input_group = nullptr;
-@@ -690,6 +697,9 @@ class DisplayManager : public helix::ICalibrationSink {
+@@ -690,6 +697,9 @@
      // Per-channel framebuffer color correction (gamma + warmth)
      helix::ColorTransform m_color_transform;
      lv_display_flush_cb_t m_original_flush_cb_for_color = nullptr;
@@ -59,27 +145,52 @@ index 407c5f1..40c35fe 100644
      void install_color_transform_hook();
  
      // Remote-screen frame mirror (fb0 sink on the Snapmaker U1). Fed from the
-diff --git a/include/ui_gcode_viewer.h b/include/ui_gcode_viewer.h
-index 34d17cb..60d9f2f 100644
 --- a/include/ui_gcode_viewer.h
 +++ b/include/ui_gcode_viewer.h
-@@ -104,6 +104,11 @@ lv_obj_t* ui_gcode_viewer_create(lv_obj_t* parent);
+@@ -103,6 +103,12 @@
+  * Note: Async parsing not implemented in Phase 1 - parses synchronously.
   */
  void ui_gcode_viewer_load_file(lv_obj_t* obj, const char* file_path);
- 
++
 +#ifdef HELIX_PLATFORM_SNAPMAKER_U1
 +// Exact Moonraker filename for the next load when file_path is a downloaded cache.
-+void ui_gcode_viewer_set_job_filename(lv_obj_t* obj, const char* filename);
++void ui_gcode_viewer_set_job_filename(lv_obj_t* obj, const char* filename,
++                                    const char* estimated_time = nullptr);
 +#endif
-+
+ 
  /**
   * @brief Set callback to be invoked when async file loading completes
-  * @param obj Viewer widget
-diff --git a/src/application/display_manager.cpp b/src/application/display_manager.cpp
-index 361f8c7..0fc229c 100644
+--- a/include/lv_draw_buf_guard.h
++++ b/include/lv_draw_buf_guard.h
+@@ -37,6 +37,7 @@
+ #include "system/crash_handler.h"
+ 
+ #include <lvgl/lvgl.h>
++#include <lvgl/src/misc/cache/instance/lv_image_cache.h>
+ 
+ namespace helix {
+ 
+@@ -60,6 +61,7 @@
+     if (lv_is_initialized()) {
+         crash_handler::breadcrumb::note(tag, "destroy_pre");
+         lv_draw_wait_for_finish();
++        lv_image_cache_drop(buf);
+         lv_draw_buf_destroy(buf);
+         crash_handler::breadcrumb::note(tag, "destroy_post");
+     }
 --- a/src/application/display_manager.cpp
 +++ b/src/application/display_manager.cpp
-@@ -49,6 +49,7 @@
+@@ -31,6 +31,9 @@
+ #include "lvgl_log_handler.h"
+ #include "printer_state.h"
+ #include "remote_screen_fb0_sink.h"
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++#include "ui_gpu_renderer.h"
++#endif
+ #include "runtime_config.h"
+ #include "tap_latch.h"
+ #ifdef HELIX_ENABLE_SCREENSAVER
+@@ -49,6 +52,7 @@
  
  #include <algorithm>
  #include <cstdlib>
@@ -87,7 +198,14 @@ index 361f8c7..0fc229c 100644
  #include <functional>
  #include <string>
  
-@@ -606,7 +607,8 @@ bool DisplayManager::init(const Config& config) {
+@@ -602,11 +606,15 @@
+     // Install framebuffer color transform hook AFTER the backend's flush_cb
+     // is set, so the splash-suspend path captures our wrapper (#803).
+     install_color_transform_hook();
++#ifdef HELIX_PLATFORM_SNAPMAKER_U1
++    ui_gpu_renderer_attach(m_display);
++#endif
+ 
      // Gate the remote-screen fb0 mirror on the platform-hook env export. When set
      // (Snapmaker U1 fbdev path), attach the fb0 sink so rendered frames also land
      // in /dev/fb0 for the firmware's fb-http snapshot daemon.
@@ -97,7 +215,7 @@ index 361f8c7..0fc229c 100644
          auto sink = std::make_unique<helix::Fb0MailboxSink>(dev);
          m_remote_screen.add_sink(std::move(sink));
          m_remote_screen.start();
-@@ -628,6 +630,36 @@ bool DisplayManager::init(const Config& config) {
+@@ -628,6 +636,36 @@
          }
      }
  
@@ -134,7 +252,7 @@ index 361f8c7..0fc229c 100644
      return true;
  }
  
-@@ -651,6 +683,10 @@ void DisplayManager::shutdown() {
+@@ -651,6 +689,10 @@
      // Stop the remote-screen mirror FIRST so no sink write races a freed
      // framebuffer during the LVGL/display teardown below.
      m_remote_screen.stop();
@@ -145,7 +263,7 @@ index 361f8c7..0fc229c 100644
  
      // NOTE: We do NOT call lv_group_delete(m_input_group) here because:
      // 1. Objects in the group may already be freed (panels deleted before display)
-@@ -2147,6 +2183,12 @@ void DisplayManager::install_color_transform_hook() {
+@@ -2147,6 +2189,12 @@
      if (!m_original_flush_cb_for_color) {
          return;
      }
@@ -158,7 +276,7 @@ index 361f8c7..0fc229c 100644
      lv_display_set_flush_cb(m_display, [](lv_display_t* d, const lv_area_t* area, uint8_t* px_map) {
          DisplayManager* self = DisplayManager::instance();
          if (self && area && px_map) {
-@@ -2216,6 +2258,25 @@ void DisplayManager::install_color_transform_hook() {
+@@ -2216,6 +2264,25 @@
                  self->m_remote_screen.on_frame(f);
              }
          }
@@ -184,8 +302,6 @@ index 361f8c7..0fc229c 100644
          // Forward to the original backend flush
          if (self && self->m_original_flush_cb_for_color) {
              self->m_original_flush_cb_for_color(d, area, px_map);
-diff --git a/src/ui/gcode_preview_setup.cpp b/src/ui/gcode_preview_setup.cpp
-index c4a029b..3307c88 100644
 --- a/src/ui/gcode_preview_setup.cpp
 +++ b/src/ui/gcode_preview_setup.cpp
 @@ -13,6 +13,7 @@
@@ -196,7 +312,7 @@ index c4a029b..3307c88 100644
  
  namespace helix::ui {
  
-@@ -24,6 +25,11 @@ namespace {
+@@ -24,6 +25,11 @@
  
  /// Read the three live ladder sources once and resolve them.
  PreviewModeDecision live_preview_mode() {
@@ -208,15 +324,13 @@ index c4a029b..3307c88 100644
      const auto* config = get_runtime_config();
      return decide_preview_mode(config ? config->gcode_render_mode : -1,
                                 std::getenv("HELIX_GCODE_MODE") != nullptr,
-diff --git a/src/ui/ui_gcode_viewer_u1.cpp b/src/ui/ui_gcode_viewer_u1.cpp
-new file mode 100644
-index 0000000..2f87691
 --- /dev/null
 +++ b/src/ui/ui_gcode_viewer_u1.cpp
-@@ -0,0 +1,780 @@
+@@ -0,0 +1,795 @@
 +// SPDX-License-Identifier: GPL-3.0-or-later
 +#include "ui_gcode_viewer.h"
 +#include "gcode-preview.h"
++#include "lvgl/src/misc/cache/instance/lv_image_cache.h"
 +
 +#include "app_globals.h"
 +#include "lv_draw_buf_guard.h"
@@ -285,6 +399,7 @@ index 0000000..2f87691
 +    GcodePreviewStatus status{};
 +    std::unique_ptr<uint8_t[]> pixels;
 +    std::string filename, job_filename, next_job_filename, layer_text;
++    std::string estimated_time, next_estimated_time;
 +    GcodeViewerState phase = GcodeViewerState::Empty;
 +    GcodeViewerRenderMode mode = GcodeViewerRenderMode::Auto;
 +    gcode_viewer_load_callback_t load_callback = nullptr, first_callback = nullptr;
@@ -388,6 +503,7 @@ index 0000000..2f87691
 +    for (uint32_t y = 0; y < status.height; ++y)
 +        std::memcpy(frame->data + y * frame->header.stride,
 +                    viewer.pixels.get() + y * row_bytes, row_bytes);
++    lv_image_cache_drop(frame);
 +    lv_obj_t* target = status.compact ? viewer.object : viewer.fullscreen;
 +    if (target)
 +        lv_obj_invalidate(target);
@@ -402,15 +518,20 @@ index 0000000..2f87691
 +    std::snprintf(label, sizeof(label), "%s %u/%u  %.2f mm", lv_tr("Layer"),
 +                  status.layers ? status.layer + 1 : 0, status.layers, status.layer_height);
 +    std::string text(label);
++    std::string time_text;
 +    if (status.live_available && !viewer.job_filename.empty() &&
 +        viewer.job_filename == get_printer_state().get_effective_print_filename()) {
 +        const int remaining = lv_subject_get_int(get_printer_state().get_print_time_left_subject());
 +        if (remaining > 0) {
-+            std::snprintf(label, sizeof(label), "  %s %dh%02dm", lv_tr("Remaining"),
++            std::snprintf(label, sizeof(label), "%s %dh%02dm", lv_tr("remaining"),
 +                          remaining / 3600, (remaining / 60) % 60);
-+            text += label;
++            time_text = label;
 +        }
 +    }
++    if (time_text.empty() && !viewer.estimated_time.empty())
++        time_text = std::string(lv_tr("Est. Duration")) + " " + viewer.estimated_time;
++    if (!time_text.empty())
++        text += "\n" + time_text;
 +    if (text != viewer.layer_text) {
 +        viewer.layer_text = std::move(text);
 +        lv_label_set_text(viewer.layer_label, viewer.layer_text.c_str());
@@ -712,9 +833,12 @@ index 0000000..2f87691
 +    return object;
 +}
 +
-+void ui_gcode_viewer_set_job_filename(lv_obj_t* object, const char* filename) {
-+    if (auto* viewer = state(object))
++void ui_gcode_viewer_set_job_filename(lv_obj_t* object, const char* filename,
++                                    const char* estimated_time) {
++    if (auto* viewer = state(object)) {
 +        viewer->next_job_filename = filename ? filename : "";
++        viewer->next_estimated_time = estimated_time ? estimated_time : "";
++    }
 +}
 +
 +void ui_gcode_viewer_load_file(lv_obj_t* object, const char* path) {
@@ -731,6 +855,8 @@ index 0000000..2f87691
 +    viewer->filename = path && *path ? std::filesystem::canonical(path, path_error).string() : "";
 +    viewer->job_filename = std::move(viewer->next_job_filename);
 +    viewer->next_job_filename.clear();
++    viewer->estimated_time = std::move(viewer->next_estimated_time);
++    viewer->next_estimated_time.clear();
 +    viewer->load_notified = viewer->fallback_notified = viewer->manual_layer = false;
 +    viewer->applied_initial_mode = false;
 +    viewer->requested_compact = -1;
@@ -788,6 +914,8 @@ index 0000000..2f87691
 +    viewer->filename.clear();
 +    viewer->job_filename.clear();
 +    viewer->next_job_filename.clear();
++    viewer->estimated_time.clear();
++    viewer->next_estimated_time.clear();
 +    viewer->status = {};
 +    viewer->phase = GcodeViewerState::Empty;
 +    viewer->wants_follow = false;
@@ -994,14 +1122,14 @@ index 0000000..2f87691
 +    return viewer && !viewer->paused && lv_obj_is_visible(object);
 +}
 +} // namespace helix::test_access
-diff --git a/src/ui/ui_panel_print_status.cpp b/src/ui/ui_panel_print_status.cpp
-index 99e3dc9..832760c 100644
 --- a/src/ui/ui_panel_print_status.cpp
 +++ b/src/ui/ui_panel_print_status.cpp
-@@ -103,6 +103,15 @@ static void uninstall_root_delete_hook(lv_obj_t*& root, lv_event_cb_t cb, void*
+@@ -101,6 +101,15 @@
+         lv_obj_remove_event_cb_with_user_data(root, cb, owner);
+     }
      root = nullptr;
- }
- 
++}
++
 +static void detach_gcode_viewer_callbacks(lv_obj_t* viewer) {
 +    if (!viewer || !lv_is_initialized() || !lv_obj_is_valid(viewer))
 +        return;
@@ -1009,12 +1137,10 @@ index 99e3dc9..832760c 100644
 +    ui_gcode_viewer_set_first_frame_callback(viewer, nullptr, nullptr);
 +    ui_gcode_viewer_set_clear_callback(viewer, nullptr, nullptr);
 +    ui_gcode_viewer_set_paused(viewer, true);
-+}
-+
- // Global instance for legacy API and resize callback
- static std::unique_ptr<PrintStatusPanel> g_print_status_panel;
+ }
  
-@@ -879,6 +888,8 @@ void PrintStatusPanel::init_subjects() {
+ // Global instance for legacy API and resize callback
+@@ -879,6 +888,8 @@
  }
  
  void PrintStatusPanel::deinit_subjects() {
@@ -1023,7 +1149,7 @@ index 99e3dc9..832760c 100644
      if (!subjects_initialized_)
          return;
  
-@@ -1336,6 +1347,7 @@ void PrintStatusPanel::cleanup() {
+@@ -1336,6 +1347,7 @@
  
  void PrintStatusPanel::on_ui_destroyed() {
      spdlog::debug("[{}] on_ui_destroyed() - nulling widget pointers", get_name());
@@ -1031,7 +1157,7 @@ index 99e3dc9..832760c 100644
  
      // The tree is only detached here (the actual deletion is deferred), so the
      // delete hook is still installed on it. Remove it now: the panel can be
-@@ -1816,6 +1828,15 @@ void PrintStatusPanel::load_gcode_file(const char* file_path) {
+@@ -1816,6 +1828,15 @@
  
      spdlog::debug("[{}] Loading G-code file: {}", get_name(), file_path);
  
@@ -1047,7 +1173,7 @@ index 99e3dc9..832760c 100644
      // Register callback to be notified when loading completes
      ui_gcode_viewer_set_load_callback(
          gcode_viewer_,
-@@ -1854,7 +1875,12 @@ void PrintStatusPanel::load_gcode_file(const char* file_path) {
+@@ -1854,7 +1875,12 @@
              // Show viewer if print is active or in terminal state (user can see
              // where print stopped). Only skip in Idle.
              if (self->lifecycle_.want_viewer()) {
@@ -1060,7 +1186,7 @@ index 99e3dc9..832760c 100644
              }
  
              // Force layout recalculation now that viewer is visible
-@@ -3700,6 +3726,9 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
+@@ -3700,6 +3726,9 @@
              spdlog::info("[{}] Using cached G-code file ({} bytes): {}", get_name(), cached_size,
                           temp_path);
              temp_gcode_path_ = temp_path;
@@ -1070,7 +1196,7 @@ index 99e3dc9..832760c 100644
              load_gcode_file(temp_path.c_str());
              return;
          } else {
-@@ -3724,11 +3753,14 @@ void PrintStatusPanel::load_gcode_for_viewing(const std::string& filename) {
+@@ -3724,11 +3753,14 @@
          auto inner_token = lifetime_.token();
          api_->transfers().download_file_to_path(
              root, download_filename, temp_path,
@@ -1087,11 +1213,9 @@ index 99e3dc9..832760c 100644
                      load_gcode_file(path.c_str());
                  });
              },
-diff --git a/src/ui/ui_panel_settings.cpp b/src/ui/ui_panel_settings.cpp
-index b0b175b..e547785 100644
 --- a/src/ui/ui_panel_settings.cpp
 +++ b/src/ui/ui_panel_settings.cpp
-@@ -176,7 +176,7 @@ static void on_gcode_mode_changed(lv_event_t* e) {
+@@ -176,7 +176,7 @@
      // Map dropdown index to render mode value
      // With GLES: indices match mode values directly (0=Auto, 1=3D, 2=2D, 3=Thumbnail)
      // Without GLES: reduced set (0=Auto, 1=2D Layers, 2=Thumbnail Only)
@@ -1100,7 +1224,7 @@ index b0b175b..e547785 100644
      static const int INDEX_TO_MODE[] = {0, 2, 3}; // Auto, 2D Layers, Thumbnail Only
      int mode = (index >= 0 && index <= 2) ? INDEX_TO_MODE[index] : 0;
  #else
-@@ -687,7 +687,7 @@ void SettingsPanel::setup_toggle_handlers() {
+@@ -687,7 +687,7 @@
      if (gcode_mode_row) {
          lv_obj_t* gcode_dropdown = lv_obj_find_by_name(gcode_mode_row, "dropdown");
          if (gcode_dropdown) {
@@ -1109,11 +1233,9 @@ index b0b175b..e547785 100644
              // Without GLES, remove "3D View" option — use reduced set
              // Indices: 0=Auto, 1=2D Layers, 2=Thumbnail Only
              lv_dropdown_set_options(gcode_dropdown,
-diff --git a/src/ui/ui_print_select_detail_view.cpp b/src/ui/ui_print_select_detail_view.cpp
-index 24533d3..5724421 100644
 --- a/src/ui/ui_print_select_detail_view.cpp
 +++ b/src/ui/ui_print_select_detail_view.cpp
-@@ -64,11 +64,21 @@ static PrintSelectDetailView* s_detail_view_instance = nullptr;
+@@ -64,11 +64,21 @@
  // toggle. Defined later in this TU.
  static void update_prep_time_label();
  
@@ -1135,7 +1257,7 @@ index 24533d3..5724421 100644
      // Clear static instance pointer
      if (s_detail_view_instance == this) {
          s_detail_view_instance = nullptr;
-@@ -263,6 +273,10 @@ lv_obj_t* PrintSelectDetailView::create(lv_obj_t* parent_screen) {
+@@ -263,6 +273,10 @@
      print_button_ = lv_obj_find_by_name(overlay_root_, "print_button");
  
      // Find and configure G-code viewer widget
@@ -1146,7 +1268,7 @@ index 24533d3..5724421 100644
      gcode_viewer_ = lv_obj_find_by_name(overlay_root_, "detail_gcode_viewer");
      if (gcode_viewer_) {
          spdlog::debug("[DetailView] G-code viewer widget found");
-@@ -840,15 +854,8 @@ void PrintSelectDetailView::on_deactivate() {
+@@ -840,15 +854,8 @@
  void PrintSelectDetailView::cleanup() {
      spdlog::debug("[DetailView] cleanup()");
  
@@ -1164,7 +1286,7 @@ index 24533d3..5724421 100644
  
      // Expire all outstanding async tokens
      lifetime_.invalidate();
-@@ -874,6 +881,7 @@ void PrintSelectDetailView::cleanup() {
+@@ -874,6 +881,7 @@
  
  void PrintSelectDetailView::on_ui_destroyed() {
      spdlog::debug("[DetailView] on_ui_destroyed() - nulling widget pointers");
@@ -1172,23 +1294,23 @@ index 24533d3..5724421 100644
  
      // Invalidate outstanding tokens so in-flight async callbacks (gcode download,
      // metadata fetch, load callbacks) bail out — they captured pointers to
-@@ -2310,6 +2318,11 @@ void PrintSelectDetailView::begin_viewer_load(const std::string& path) {
+@@ -2310,6 +2318,13 @@
              spdlog::debug("[DetailView] G-code preview loaded successfully");
          },
          this);
 +#ifdef HELIX_PLATFORM_SNAPMAKER_U1
 +    const std::string job_filename = current_path_.empty() ? current_filename_ :
 +                                    current_path_ + "/" + current_filename_;
-+    ui_gcode_viewer_set_job_filename(gcode_viewer_, job_filename.c_str());
++    auto* estimated_time = lv_xml_get_subject(nullptr, "selected_print_time");
++    ui_gcode_viewer_set_job_filename(gcode_viewer_, job_filename.c_str(),
++                                    estimated_time ? lv_subject_get_string(estimated_time) : nullptr);
 +#endif
      ui_gcode_viewer_load_file(gcode_viewer_, path.c_str());
  }
  
-diff --git a/src/ui/ui_settings_printing.cpp b/src/ui/ui_settings_printing.cpp
-index 0674c35..d3b9271 100644
 --- a/src/ui/ui_settings_printing.cpp
 +++ b/src/ui/ui_settings_printing.cpp
-@@ -183,7 +183,7 @@ void PrintingSettingsOverlay::init_gcode_mode_dropdown() {
+@@ -183,7 +183,7 @@
      lv_obj_t* dropdown = lv_obj_find_by_name(row, "dropdown");
      if (dropdown) {
          auto& display_settings = DisplaySettingsManager::instance();
@@ -1197,7 +1319,7 @@ index 0674c35..d3b9271 100644
          // Without GLES, remove "3D View" option
          lv_dropdown_set_options(dropdown, (std::string(lv_tr("Auto")) + "\n" + lv_tr("2D Layers") +
                                             "\n" + lv_tr("Thumbnail Only"))
-@@ -232,7 +232,7 @@ void PrintingSettingsOverlay::handle_toolhead_style_changed(int index) {
+@@ -232,7 +232,7 @@
  }
  
  void PrintingSettingsOverlay::handle_gcode_mode_changed(int index) {

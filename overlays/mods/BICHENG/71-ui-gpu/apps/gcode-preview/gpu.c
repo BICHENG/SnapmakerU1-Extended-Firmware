@@ -43,7 +43,7 @@ static GLuint shader(GLenum kind,const char *source) {
     if(!ok){glDeleteShader(s);return 0;}return s;
 }
 static int create_output(Gpu *g) {
-    g->output=ui_gpu_output_create(WIDTH,HEIGHT);
+    g->output=ui_gpu_output_create(WIDTH,HEIGHT,UI_GPU_RGBA);
     if(!g->output)return 0;
     glFramebufferTexture2D(GL_FRAMEBUFFER,GL_COLOR_ATTACHMENT0,GL_TEXTURE_2D,
                           ui_gpu_output_texture(g->output),0);
