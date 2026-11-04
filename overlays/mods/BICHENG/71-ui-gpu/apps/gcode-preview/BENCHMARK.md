@@ -31,10 +31,11 @@ The JSON reports median and p95 wall-clock milliseconds:
 - `segmented.resolve_readback_ms`: GPU downsampling and output synchronization,
   or synchronous readback in the fallback mode.
 - `segmented.cpu_prepare_ms`: vertical flip/copy and CPU slider drawing.
-- `delivery_copy_ms`: two full-size CPU copies matching the shared-frame and
-  LVGL-image buffer sizes. This is an isolated copy benchmark, not a measurement
-  inside the original GUI.
-- `total_ms`: render plus those two copies in that pass.
+- `delivery_copy_ms`: one full-size CPU copy into a host image buffer, matching
+  ABI 2 delivery. The worker swaps its own buffers; Helix polls directly into
+  its LVGL image. This is an isolated copy benchmark, not a measurement inside
+  either UI.
+- `total_ms`: render plus that delivery copy in that pass.
 
 Extra synchronization can change GPU scheduling and tile flush costs. Use the
 baseline to compare end-to-end performance; use the segmented pass to identify
@@ -43,6 +44,11 @@ its medians to predict baseline latency. LVGL composition, framebuffer capture,
 MPP encoding, display scanout and WebRTC transport are outside this benchmark.
 
 ## Shared-output measurement, 2026-10-31
+
+The table below used the older benchmark with two isolated delivery copies.
+Keep it as the recorded shared-output comparison, not a measurement of the
+current host path. New benchmark runs model one delivery copy. Full UI costs
+still include LVGL compositing and framebuffer presentation.
 
 Vendor 2.1.0.157, Mali capped at 400 MHz, 70,370 vertices / 157 layers,
 layer 153, 480x320 output with 960x640 supersampling, five warmups and 40

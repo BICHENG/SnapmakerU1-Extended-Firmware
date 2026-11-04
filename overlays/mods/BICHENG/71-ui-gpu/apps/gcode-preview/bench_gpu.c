@@ -8,7 +8,7 @@
 
 #define MAX_FRAMES 240
 #define PIXEL_BYTES (WIDTH*HEIGHT*4)
-static uint8_t pixels[PIXEL_BYTES],shared[PIXEL_BYTES],display[PIXEL_BYTES],baseline[PIXEL_BYTES];
+static uint8_t pixels[PIXEL_BYTES],display[PIXEL_BYTES],baseline[PIXEL_BYTES];
 static unsigned edge_pixels;
 static uint8_t colors[3][3];
 
@@ -61,9 +61,7 @@ static void measure(Gpu *g,const Model *m,RenderView *v,unsigned frames,int segm
         v->yaw=-.45f+i*.01f;
         double start=clock_ms();require(!gpu_render(g,m,v,pixels),"Measured render failed");
         double copy_start=clock_ms();
-        memcpy(shared,pixels,sizeof(shared));
-        __asm__ volatile("" : : "r"(shared) : "memory");
-        memcpy(display,shared,sizeof(display));
+        memcpy(display,pixels,sizeof(display));
         __asm__ volatile("" : : "r"(display) : "memory");
         double end=clock_ms();
         if(i>=5){
