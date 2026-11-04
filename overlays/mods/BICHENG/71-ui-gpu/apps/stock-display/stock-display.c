@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include "stock-perf.h"
+#include "stock-release.h"
 #include "../ui-display/ui-display.h"
 #include <dlfcn.h>
 #include <ctype.h>
@@ -178,7 +179,13 @@ __attribute__((constructor)) static void display_init(void)
     if(!abi) return;
     uintptr_t base=0;
     dl_iterate_phdr(locate_vendor,&base);
-    if(base) { vendor_base=base; vendor_abi=abi; }
+    if(base) {
+        vendor_base=base; vendor_abi=abi;
+        const char *original=getenv("UI_DISPLAY_BASELINE");
+        if(strcmp(abi->version,"2.1.0.157")==0 && !(original && !strcmp(original,"1")))
+            display_log("GUI %s: release debug assertions removed=%d; public validation APIs retained\n",
+                        abi->version,stock_release_apply(base));
+    }
 }
 
 static unsigned native_tick(unsigned sleep_us, uintptr_t caller)
