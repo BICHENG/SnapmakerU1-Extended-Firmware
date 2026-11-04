@@ -207,6 +207,9 @@ int main(void){
     s=frame(p,pixels,20,1,10);
     assert(api->poll(p,&s,pixels,GCODE_PREVIEW_MAX_BYTES,0)==0);
     padded_frame(p);
+    api->pause(p,1);
+    assert(api->poll(p,&s,pixels,GCODE_PREVIEW_MAX_BYTES,0)==0&&s.paused);
+    api->pause(p,0);frame(p,pixels,20,1,10);
 
     unsigned prior=hold();api->action(p,GCODE_PREVIEW_REFRESH,0,0);waiting(prior);
     double start=seconds();
